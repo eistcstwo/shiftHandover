@@ -185,8 +185,8 @@ const SummaryModal = ({ historyData, onClose, loading }) => {
             <h4>Status Distribution</h4>
             <div className="status-bars">
               {Object.entries(summary.statusDistribution).map(([status, count]) => {
-                const percentage = summary.totalTasks > 0 
-                  ? (count / summary.totalTasks * 100).toFixed(1) 
+                const percentage = summary.totalTasks > 0
+                  ? (count / summary.totalTasks * 100).toFixed(1)
                   : 0;
                 return (
                   <div key={status} className="status-bar-item">
@@ -195,7 +195,7 @@ const SummaryModal = ({ historyData, onClose, loading }) => {
                       <span className="status-count">{count} ({percentage}%)</span>
                     </div>
                     <div className="status-bar">
-                      <div 
+                      <div
                         className={`status-bar-fill ${status.toLowerCase().replace(' ', '\\ ')}`}
                         style={{ width: `${percentage}%` }}
                       ></div>
@@ -343,7 +343,7 @@ const HandoverDetail = () => {
     setSummaryLoading(true);
     setShowSummaryModal(true);
     setError('');
-    
+
     try {
       const data = await getHistoryHandovers();
       if (data && data.TeamHandoverDetails && data.Tasksdata) {
@@ -615,13 +615,7 @@ const HandoverDetail = () => {
           ) : (
             <div className="no-tasks">
               <p>No tasks found for this handover. Create your first task to get started!</p>
-              <button 
-                className="create-task-btn" 
-                onClick={handleCreateTask}
-                style={{ marginTop: '1rem' }}
-              >
-                + Create First Task
-              </button>
+
             </div>
           )}
         </div>
@@ -754,7 +748,7 @@ const HandoverDetail = () => {
                   value="Open"
                   className="form-input"
                   disabled
-                  style={{ 
+                  style={{
                     background: 'rgba(241, 196, 15, 0.12)',
                     border: '1px solid rgba(241, 196, 15, 0.2)',
                     color: '#ffeaa7',
