@@ -80,22 +80,18 @@ const SummaryModal = ({ historyData, onClose, loading }) => {
     ).length;
     const pendingTasks = totalTasks - acknowledgedTasks;
 
-    // Calculate total acknowledgments across all tasks
     const totalAcknowledgment = tasks.reduce((sum, task) => {
       return sum + (task.acknowledgeDetails?.length || 0);
     }, 0);
 
-    // Get unique teams/roles
     const teams = [...new Set(teamHandovers.map(item => item.role).filter(Boolean))];
 
-    // Calculate status distribution
     const statusDistribution = {};
     tasks.forEach(task => {
       const status = task.status || 'unknown';
       statusDistribution[status] = (statusDistribution[status] || 0) + 1;
     });
 
-    // Tasks breakdown with acknowledgment details
     const tasksBreakdown = tasks.map(task => ({
       taskId: task.historyTaskId || task.Taskid,
       taskDesc: task.task || task.taskDesc,
@@ -256,7 +252,6 @@ const SummaryModal = ({ historyData, onClose, loading }) => {
                       {' '}on {format(new Date(task.latestAck.acknowledgeTime), 'MMM d, h:mm a')}
                     </div>
                   )}
-                  {/* Timeline of acknowledgments for each task */}
                   {task.acknowledgeDetails && task.acknowledgeDetails.length > 0 && (
                     <AcknowledgeTimeline acknowledgeDetails={task.acknowledgeDetails} />
                   )}
@@ -266,7 +261,6 @@ const SummaryModal = ({ historyData, onClose, loading }) => {
           </div>
         )}
 
-        {/* Data Source Info */}
         <div className="data-source">
           <p>Historical data from all handovers ({summary.totalTasks} total tasks)</p>
         </div>
@@ -279,11 +273,14 @@ const HandoverDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
 
+  // Get user level from localStorage
+  const [userLevel, setUserLevel] = useState('');
+  
   const [backendData, setBackendData] = useState(null);
   const [selectedTask, setSelectedTask] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [ackDescription, setAckDescription] = useState('');
-  const [ackStatus, setAckStatus] = useState('in progress'); // Default to "in progress"
+  const [ackStatus, setAckStatus] = useState('in progress');
   const [error, setError] = useState('');
   const [showCreateTaskModal, setShowCreateTaskModal] = useState(false);
   const [showSummaryModal, setShowSummaryModal] = useState(false);
@@ -293,13 +290,22 @@ const HandoverDetail = () => {
     taskTitle: '',
     taskDesc: '',
     priority: 'Medium',
-    status: 'open' // Always open for new tasks
+    status: 'open'
   });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Get user level from localStorage
+    const level = localStorage.getItem('userlevel') || 'L2';
+    setUserLevel(level);
+  }, []);
+
+  useEffect(() => {
     fetchHandoverData();
   }, [id]);
+
+  // Check if user has admin access
+  const hasAdminAccess = userLevel === 'ADMIN' || userLevel === 'L1';
 
   const fetchHandoverData = async () => {
     setLoading(true);
@@ -363,7 +369,6 @@ const HandoverDetail = () => {
     setSelectedTask(task);
     setModalOpen(true);
     setAckDescription(task.ackDesc || '');
-    // Set default to "in progress" instead of current status
     setAckStatus('in progress');
     setError('');
   };
@@ -411,7 +416,6 @@ const HandoverDetail = () => {
       setAckStatus('in progress');
       setError('');
 
-      // Refresh the entire page after successful acknowledgment
       window.location.reload();
     } catch (err) {
       setError('Failed to update task on server!');
@@ -424,7 +428,7 @@ const HandoverDetail = () => {
       taskTitle: '',
       taskDesc: '',
       priority: 'Medium',
-      status: 'open' // Always open for new tasks
+      status: 'open'
     });
     setError('');
   };
@@ -439,7 +443,7 @@ const HandoverDetail = () => {
     const payload = {
       taskTitle: newTask.taskTitle,
       taskDesc: newTask.taskDesc,
-      status: 'open', // Force open status
+      status: 'open',
       priority: newTask.priority,
       acknowledgeStatus: 'Pending',
       ackDesc: '',
@@ -448,10 +452,7 @@ const HandoverDetail = () => {
 
     try {
       await createTask(payload);
-
-      // Refresh data after creating task
       await fetchHandoverData();
-
       setShowCreateTaskModal(false);
       setError('');
     } catch (err) {
@@ -459,7 +460,6 @@ const HandoverDetail = () => {
     }
   };
 
-  // Calculate task statistics
   const getTaskStats = (tasks) => {
     return {
       pending: tasks.filter(t => t.status === 'open' || t.status === 'pending').length,
@@ -479,8 +479,6 @@ const HandoverDetail = () => {
     );
   }
 
-  // FIXED: Check if backendData exists and has TeamHandoverDetails
-  // Don't show "not found" if we have handover data even if tasks are empty
   if (!backendData || !backendData.TeamHandoverDetails || backendData.TeamHandoverDetails.length === 0) {
     return (
       <div className="handover-detail-container">
@@ -508,7 +506,6 @@ const HandoverDetail = () => {
       </div>
 
       <div className="handover-detail-content">
-        {/* Task Statistics - Only show if there are tasks */}
         {tasks.length > 0 && (
           <div className="task-stats">
             <div className="task-stat-card pending">
@@ -526,7 +523,6 @@ const HandoverDetail = () => {
           </div>
         )}
 
-        {/* Handover Details */}
         <div className="detail-section">
           <h3>Handover Information</h3>
           <div className="detail-grid">
@@ -549,18 +545,20 @@ const HandoverDetail = () => {
           </div>
         </div>
 
-        {/* Tasks Section */}
         <div className="detail-section">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
               <h3>Tasks ({tasks.length})</h3>
-              <button
-                className="summary-button"
-                onClick={handleSummaryClick}
-                disabled={summaryLoading}
-              >
-                {summaryLoading ? 'Loading...' : '📊 View History Summary'}
-              </button>
+              {/* Only show History Summary button for ADMIN and L1 users */}
+              {hasAdminAccess && (
+                <button
+                  className="summary-button"
+                  onClick={handleSummaryClick}
+                  disabled={summaryLoading}
+                >
+                  {summaryLoading ? 'Loading...' : '📊 View History Summary'}
+                </button>
+              )}
             </div>
             <button className="create-task-btn" onClick={handleCreateTask}>
               + Create New Task
@@ -620,7 +618,6 @@ const HandoverDetail = () => {
           )}
         </div>
 
-        {/* Acknowledge Modal */}
         {modalOpen && selectedTask && (
           <Modal open={modalOpen} onClose={() => setModalOpen(false)}>
             <div className="modal-form-container">
@@ -643,7 +640,6 @@ const HandoverDetail = () => {
                 </div>
               </div>
 
-              {/* Timeline Component */}
               <AcknowledgeTimeline acknowledgeDetails={selectedTask.acknowledgeDetails} />
 
               <div className="form-group">
@@ -696,7 +692,6 @@ const HandoverDetail = () => {
           </Modal>
         )}
 
-        {/* Create Task Modal */}
         {showCreateTaskModal && (
           <Modal open={showCreateTaskModal} onClose={() => setShowCreateTaskModal(false)}>
             <form onSubmit={handleCreateTaskSubmit} className="modal-form-container">
@@ -782,7 +777,6 @@ const HandoverDetail = () => {
           </Modal>
         )}
 
-        {/* Summary Modal */}
         {showSummaryModal && (
           <Modal open={showSummaryModal} onClose={() => setShowSummaryModal(false)}>
             <SummaryModal

@@ -1,7 +1,6 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route,Navigate } from 'react-router-dom';
-import { useState } from 'react';
-// import { dummyHandovers } from './data/dummyHandovers'; // Commented out to use API data
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
 import { dummyShifts } from './data/dummyShifts';
 
 // Import Components
@@ -10,18 +9,35 @@ import Sidebar from './components/UI/Sidebar';
 import HandoverList from './components/Handovers/HandoverList';
 import CreateHandover from './components/Handovers/CreateHandover';
 import HandoverDetail from './components/Handovers/HandoverDetail';
-// import ShiftManager from './components/Shifts/ShiftManager';
 import HandoverReports from './components/Reports/HandoverReports';
 import DeploymentLogger from './components/DeploymentLogger/DeploymentLogger';
+import BillingAnalysis from './components/BillingAnalysis/BillingAnalysis';
 
 // Main CSS
 import './App.css';
 
+// Protected Route Component
+const ProtectedRoute = ({ children, allowedRoles }) => {
+  const userLevel = localStorage.getItem('userlevel');
+  
+  if (!allowedRoles.includes(userLevel)) {
+    return <Navigate to="/dashboard" replace />;
+  }
+  
+  return children;
+};
+
 function App() {
   // State for handovers and shifts
-  // Start with empty array to force API call
   const [handovers, setHandovers] = useState([]);
   const [shifts, setShifts] = useState(dummyShifts);
+  const [userLevel, setUserLevel] = useState('');
+
+  useEffect(() => {
+    // Get user level from localStorage
+    const level = localStorage.getItem('userlevel') || 'L2';
+    setUserLevel(level);
+  }, []);
 
   // Function to add new handover
   const addHandover = (newHandover) => {
@@ -30,7 +46,7 @@ function App() {
         ...newHandover,
         id: `handover-${Date.now()}`,
         createdAt: new Date().toISOString(),
-        createdBy: { name: "System User" } // Default user since no auth
+        createdBy: { name: "System User" }
       },
       ...handovers
     ]);
@@ -46,7 +62,7 @@ function App() {
       <div className="app-container">
         <Header />
         <div className="main-content">
-          <Sidebar />
+          <Sidebar userLevel={userLevel} />
           <div className="content-area">
             <Routes>
               {/* Add root route that redirects to dashboard */}
@@ -57,6 +73,7 @@ function App() {
                 element={
                   <HandoverList
                     onHandoversUpdate={updateHandovers}
+                    userLevel={userLevel}
                   />
                 }
               />
@@ -72,21 +89,31 @@ function App() {
               <Route
                 path="/handover/:id"
                 element={
-                  <HandoverDetail handovers={handovers} />
+                  <HandoverDetail 
+                    handovers={handovers}
+                    userLevel={userLevel}
+                  />
                 }
               />
-              {/* <Route
-                path="/shifts"
-                element={
-                  <ShiftManager shifts={shifts} setShifts={setShifts} />
-                }
-              /> */}
+              
+              {/* Protected Routes - Only accessible by ADMIN and L1 */}
               <Route
                 path="/reports"
                 element={
-                  <HandoverReports handovers={handovers} />
+                  <ProtectedRoute allowedRoles={['ADMIN', 'L1']}>
+                    <HandoverReports handovers={handovers} />
+                  </ProtectedRoute>
                 }
               />
+              <Route
+                path="/billing-analysis"
+                element={
+                  <ProtectedRoute allowedRoles={['ADMIN', 'L1']}>
+                    <BillingAnalysis />
+                  </ProtectedRoute>
+                }
+              />
+              
               <Route
                 path="/deployment-logger"
                 element={<DeploymentLogger />}
