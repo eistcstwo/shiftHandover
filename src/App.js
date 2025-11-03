@@ -16,7 +16,7 @@ import BillingAnalysis from './components/BillingAnalysis/BillingAnalysis';
 // Main CSS
 import './App.css';
 
-// Protected Route Component
+// Protected Route Component - Updated to block L1 users
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const userLevel = localStorage.getItem('userlevel');
   
@@ -96,11 +96,11 @@ function App() {
                 }
               />
               
-              {/* Protected Routes - Only accessible by ADMIN and L1 */}
+              {/* Protected Routes - Only accessible by ADMIN and L2 (NOT L1) */}
               <Route
                 path="/reports"
                 element={
-                  <ProtectedRoute allowedRoles={['ADMIN', 'L1']}>
+                  <ProtectedRoute allowedRoles={['ADMIN', 'L2']}>
                     <HandoverReports handovers={handovers} />
                   </ProtectedRoute>
                 }
@@ -108,7 +108,7 @@ function App() {
               <Route
                 path="/billing-analysis"
                 element={
-                  <ProtectedRoute allowedRoles={['ADMIN', 'L1']}>
+                  <ProtectedRoute allowedRoles={['ADMIN', 'L2']}>
                     <BillingAnalysis />
                   </ProtectedRoute>
                 }
