@@ -1,9 +1,25 @@
-import React, { useState, useEffect } from 'react';
+HandoverDetail.js
+-rwxrwxrwx 1 root root 27422 Nov  7 13:39 HandoverDetail.js_081125
+-rwxrwxrwx 1 root root 20214 Nov 22 12:03 HandoverDetail.js_22112025
+-rwxrwxrwx 1 root root 16283 Oct 23 12:43 HandoverDetail.js_231025
+-rwxrwxrwx 1 root root 18972 Nov 27 17:50 HandoverDetail.js_27112025
+-rwxrwxrwx 1 root root 17840 Oct 28 18:54 HandoverDetail.js_291025
+-rwxrwxrwx 1 root root  3266 Sep 25 14:29 HandoverItem.css
+-rwxrwxrwx 1 root root  3989 Oct  8 14:07 HandoverItem.js
+-rwxrwxrwx 1 root root  8410 Oct 23 16:24 HandoverList.css
+-rwxrwxrwx 1 root root 13817 Oct 27 18:10 HandoverList.js
+-rwxrwxrwx 1 root root  5267 Oct  3 18:28 HandoverList.js_081025
+-rwxrwxrwx 1 root root 13143 Oct  8 19:10 HandoverList.js_231025
+-rwxrwxrwx 1 root root 14850 Nov 22 20:41 HistorySummary.css
+-rwxrwxrwx 1 root root 13048 Nov 24 15:04 HistorySummary.js
+[root@eispr-prt1-01 Handovers]# cat HandoverDetail.js
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import './HandoverDetail.css';
 import Modal from '../UI/Modal';
-import { getHandovers, createTask, updateTask, getHistoryHandovers } from '../../Api/HandOverApi';
+import { getHandovers, createTask, updateTask } from '../../Api/HandOverApi';
+import HistorySummary from './HistorySummary';
 
 // Status options for acknowledging tasks (no "open" option)
 const acknowledgeStatusOptions = [
@@ -11,8 +27,10 @@ const acknowledgeStatusOptions = [
   { value: 'completed', label: 'Completed' }
 ];
 
-// Timeline Component
+// Timeline Component with Horizontal Scroll - MOVED OUTSIDE HandoverDetail
 const AcknowledgeTimeline = ({ acknowledgeDetails }) => {
+  const timelineScrollRef = useRef(null);
+
   if (!acknowledgeDetails || acknowledgeDetails.length === 0) {
     return (
       <div className="timeline-container">
@@ -26,243 +44,34 @@ const AcknowledgeTimeline = ({ acknowledgeDetails }) => {
   return (
     <div className="timeline-container">
       <h4 className="timeline-title">Acknowledgment History</h4>
-      <div className="timeline-horizontal">
-        {acknowledgeDetails.map((ack, index) => (
-          <div key={ack.ackId} className="timeline-item">
-            <div className="timeline-marker">
-              <div className="timeline-dot"></div>
-              {index < acknowledgeDetails.length - 1 && (
-                <div className="timeline-connector"></div>
-              )}
-            </div>
-            <div className="timeline-content">
-              <div className="timeline-header">
-                <span className="timeline-time">
-                  {format(new Date(ack.acknowledgeTime), 'MMM d, yyyy h:mm a')}
-                </span>
-                <span className="timeline-user">
-                  User ID: {ack.userAcknowleged_id}
-                </span>
+      <div
+        ref={timelineScrollRef}
+        className="timeline-scroll-wrapper"
+      >
+        <div className="timeline-horizontal">
+          {acknowledgeDetails.map((ack, index) => (
+            <div key={ack.ackId} className="timeline-item">
+              <div className="timeline-marker">
+                <div className="timeline-dot"></div>
+                {index < acknowledgeDetails.length - 1 && (
+                  <div className="timeline-connector"></div>
+                )}
               </div>
-              <div className="timeline-description">
-                {ack.ackDesc}
+              <div className="timeline-content">
+                <div className="timeline-header">
+                  <span className="timeline-time">
+                    {format(new Date(ack.acknowledgeTime), 'MMM d, yyyy h:mm a')}
+                  </span>
+                  <span className="timeline-user">
+                    User ID: {ack.userAcknowleged_id}
+                  </span>
+                </div>
+                <div className="timeline-description">
+                  {ack.ackDesc}
+                </div>
               </div>
             </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-};
-
-// Summary Modal Component - Uses history handover data from API
-const SummaryModal = ({ historyData, onClose, loading }) => {
-  // Calculate summary statistics from history handover data
-  const calculateSummary = (data) => {
-    if (!data || !data.TeamHandoverDetails || !data.Tasksdata) {
-      return {
-        totalTasks: 0,
-        acknowledgedTasks: 0,
-        pendingTasks: 0,
-        totalAcknowledgment: 0,
-        teams: [],
-        statusDistribution: {},
-        tasksBreakdown: []
-      };
-    }
-
-    const tasks = data.Tasksdata || [];
-    const teamHandovers = data.TeamHandoverDetails || [];
-
-    const totalTasks = tasks.length;
-    const acknowledgedTasks = tasks.filter(task =>
-      task.acknowledgeDetails && task.acknowledgeDetails.length > 0
-    ).length;
-    const pendingTasks = totalTasks - acknowledgedTasks;
-
-    const totalAcknowledgment = tasks.reduce((sum, task) => {
-      return sum + (task.acknowledgeDetails?.length || 0);
-    }, 0);
-
-    const teams = [...new Set(teamHandovers.map(item => item.role).filter(Boolean))];
-
-    const statusDistribution = {};
-    tasks.forEach(task => {
-      const status = task.status || 'unknown';
-      statusDistribution[status] = (statusDistribution[status] || 0) + 1;
-    });
-
-    const tasksBreakdown = tasks.map(task => ({
-      taskId: task.historyTaskId || task.Taskid,
-      taskDesc: task.task || task.taskDesc,
-      ackCount: task.acknowledgeDetails?.length || 0,
-      latestAck: task.acknowledgeDetails && task.acknowledgeDetails.length > 0
-        ? task.acknowledgeDetails[task.acknowledgeDetails.length - 1]
-        : null,
-      acknowledgeDetails: task.acknowledgeDetails || [],
-      status: task.status || 'unknown',
-      priority: task.priority || 'Medium'
-    }))
-    .sort((a, b) => b.ackCount - a.ackCount);
-
-    return {
-      totalTasks,
-      acknowledgedTasks,
-      pendingTasks,
-      totalAcknowledgment,
-      teams: teams.slice(0, 5),
-      teamCount: teams.length,
-      statusDistribution,
-      tasksBreakdown
-    };
-  };
-
-  const summary = calculateSummary(historyData);
-
-  if (loading) {
-    return (
-      <div className="summary-modal">
-        <div className="modal-header">
-          <h3>Handover History Summary</h3>
-          <button onClick={onClose} className="close-button">×</button>
-        </div>
-        <div className="loading-message">
-          <div className="loading-spinner"></div>
-          <p>Loading history data...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!historyData) {
-    return (
-      <div className="summary-modal">
-        <div className="modal-header">
-          <h3>Handover History Summary</h3>
-          <button onClick={onClose} className="close-button">×</button>
-        </div>
-        <div className="no-summary-data">
-          <p>No history data available</p>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="summary-modal">
-      <div className="modal-header">
-        <h3>Handover History Summary</h3>
-        <button onClick={onClose} className="close-button">×</button>
-      </div>
-      <div className="summary-content">
-        {/* Key Metrics */}
-        <div className="summary-grid">
-          <div className="summary-item total">
-            <span className="summary-label">Total Tasks</span>
-            <span className="summary-value">{summary.totalTasks}</span>
-          </div>
-          <div className="summary-item active">
-            <span className="summary-label">Acknowledged</span>
-            <span className="summary-value">{summary.acknowledgedTasks}</span>
-          </div>
-          <div className="summary-item completed">
-            <span className="summary-label">Pending</span>
-            <span className="summary-value">{summary.pendingTasks}</span>
-          </div>
-          <div className="summary-item tasks">
-            <span className="summary-label">Total Acks</span>
-            <span className="summary-value">{summary.totalAcknowledgment}</span>
-          </div>
-        </div>
-
-        {/* Status Distribution */}
-        {Object.keys(summary.statusDistribution).length > 0 && (
-          <div className="status-distribution">
-            <h4>Status Distribution</h4>
-            <div className="status-bars">
-              {Object.entries(summary.statusDistribution).map(([status, count]) => {
-                const percentage = summary.totalTasks > 0
-                  ? (count / summary.totalTasks * 100).toFixed(1)
-                  : 0;
-                return (
-                  <div key={status} className="status-bar-item">
-                    <div className="status-bar-header">
-                      <span className="status-name">{status}</span>
-                      <span className="status-count">{count} ({percentage}%)</span>
-                    </div>
-                    <div className="status-bar">
-                      <div
-                        className={`status-bar-fill ${status.toLowerCase().replace(' ', '\\ ')}`}
-                        style={{ width: `${percentage}%` }}
-                      ></div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Teams Overview */}
-        {summary.teams.length > 0 && (
-          <div className="teams-overview">
-            <h4>Teams/Roles</h4>
-            <div className="teams-list">
-              {summary.teams.map((team, index) => (
-                <div key={index} className="team-tag">
-                  {team}
-                </div>
-              ))}
-              {summary.teamCount > 5 && (
-                <div className="team-tag more">
-                  +{summary.teamCount - 5} more
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Tasks Breakdown */}
-        {summary.tasksBreakdown && summary.tasksBreakdown.length > 0 && (
-          <div className="tasks-breakdown">
-            <h4>Tasks by Acknowledgments</h4>
-            <div className="breakdown-list">
-              {summary.tasksBreakdown.map((task, index) => (
-                <div key={task.taskId || index} className="breakdown-item">
-                  <div className="breakdown-header">
-                    <span className="task-id">Task #{task.taskId}</span>
-                    <span className={`ack-count-badge ${task.ackCount > 0 ? 'has-acks' : 'no-acks'}`}>
-                      {task.ackCount} {task.ackCount === 1 ? 'ack' : 'acks'}
-                    </span>
-                  </div>
-                  <div className="task-description">
-                    {task.taskDesc || 'No description'}
-                  </div>
-                  <div className="task-meta">
-                    <span className={`status-badge ${task.status === 'in progress' ? 'in-progress' : task.status}`}>
-                      {task.status === 'in progress' ? 'In Progress' : task.status}
-                    </span>
-                    <span className={`priority-badge priority-${(task.priority || 'medium').toLowerCase()}`}>
-                      {task.priority || 'Medium'}
-                    </span>
-                  </div>
-                  {task.latestAck && (
-                    <div className="latest-ack">
-                      Latest: "{task.latestAck.ackDesc}" by User {task.latestAck.userAcknowleged_id}
-                      {' '}on {format(new Date(task.latestAck.acknowledgeTime), 'MMM d, h:mm a')}
-                    </div>
-                  )}
-                  {task.acknowledgeDetails && task.acknowledgeDetails.length > 0 && (
-                    <AcknowledgeTimeline acknowledgeDetails={task.acknowledgeDetails} />
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <div className="data-source">
-          <p>Historical data from all handovers ({summary.totalTasks} total tasks)</p>
+          ))}
         </div>
       </div>
     </div>
@@ -275,7 +84,7 @@ const HandoverDetail = () => {
 
   // Get user level from localStorage
   const [userLevel, setUserLevel] = useState('');
-  
+
   const [backendData, setBackendData] = useState(null);
   const [selectedTask, setSelectedTask] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
@@ -283,9 +92,7 @@ const HandoverDetail = () => {
   const [ackStatus, setAckStatus] = useState('in progress');
   const [error, setError] = useState('');
   const [showCreateTaskModal, setShowCreateTaskModal] = useState(false);
-  const [showSummaryModal, setShowSummaryModal] = useState(false);
-  const [summaryLoading, setSummaryLoading] = useState(false);
-  const [historyData, setHistoryData] = useState(null);
+
   const [newTask, setNewTask] = useState({
     taskTitle: '',
     taskDesc: '',
@@ -295,17 +102,25 @@ const HandoverDetail = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Get user level from localStorage
-    const level = localStorage.getItem('userlevel') || 'L2';
+    // Get user level from localStorage and normalize it
+    const level = (localStorage.getItem('userlevel') || 'L1').toUpperCase().trim();
+    console.log('User Level from localStorage:', level); // Debug log
     setUserLevel(level);
   }, []);
 
   useEffect(() => {
     fetchHandoverData();
+    // eslint-disable-next-line
   }, [id]);
 
-  // Check if user has admin access
-  const hasAdminAccess = userLevel === 'ADMIN' || userLevel === 'L1';
+  // Check if user has admin access - ONLY for ADMIN, NOT L2
+  const hasAdminAccess = userLevel === 'ADMIN';
+
+  // L2 users can access dashboard and tasks but not admin features
+  const canAccessDashboard = userLevel === 'ADMIN' || userLevel === 'L2' || userLevel === 'L1';
+
+  // Debug log
+  console.log('Current userLevel:', userLevel, 'hasAdminAccess:', hasAdminAccess, 'canAccessDashboard:', canAccessDashboard);
 
   const fetchHandoverData = async () => {
     setLoading(true);
@@ -330,11 +145,12 @@ const HandoverDetail = () => {
         throw new Error('Invalid data structure');
       }
     } catch (err) {
+      console.error('Error fetching handover:', err);
       setError('Failed to load handover details');
     } finally {
       setLoading(false);
     }
-  };
+  }
 
   const formatDate = (dateString) => {
     if (!dateString) return '-';
@@ -342,26 +158,6 @@ const HandoverDetail = () => {
       return format(new Date(dateString), 'MMM d, yyyy h:mm a');
     } catch (e) {
       return '-';
-    }
-  };
-
-  const handleSummaryClick = async () => {
-    setSummaryLoading(true);
-    setShowSummaryModal(true);
-    setError('');
-
-    try {
-      const data = await getHistoryHandovers();
-      if (data && data.TeamHandoverDetails && data.Tasksdata) {
-        setHistoryData(data);
-      } else {
-        throw new Error('Invalid history data structure');
-      }
-    } catch (err) {
-      setError('Failed to load history data');
-      setHistoryData(null);
-    } finally {
-      setSummaryLoading(false);
     }
   };
 
@@ -500,9 +296,7 @@ const HandoverDetail = () => {
     <div className="handover-detail-container">
       <div className="handover-detail-header">
         <h2>{handover.role} Team Handover</h2>
-        <button onClick={() => navigate('/dashboard')} className="back-button">
-          ← Back to List
-        </button>
+
       </div>
 
       <div className="handover-detail-content">
@@ -549,14 +343,13 @@ const HandoverDetail = () => {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
               <h3>Tasks ({tasks.length})</h3>
-              {/* Only show History Summary button for ADMIN and L1 users */}
+              {/* Only show History Summary button for ADMIN users (NOT L2) */}
               {hasAdminAccess && (
                 <button
                   className="summary-button"
-                  onClick={handleSummaryClick}
-                  disabled={summaryLoading}
+                  onClick={() => navigate('/history-summary', { state: { handoverId: id } })}
                 >
-                  {summaryLoading ? 'Loading...' : '📊 View History Summary'}
+                  📊 View History Summary
                 </button>
               )}
             </div>
@@ -568,7 +361,7 @@ const HandoverDetail = () => {
           {tasks.length > 0 ? (
             <table className="tasks-table">
               <thead>
-                 <tr>
+                <tr>
                   <th>ID</th>
                   <th>Title</th>
                   <th>Description</th>
@@ -579,7 +372,7 @@ const HandoverDetail = () => {
                   <th>Action</th>
                 </tr>
               </thead>
-                <tbody>
+              <tbody>
                 {tasks.map(task => (
                   <tr key={task.Taskid}>
                     <td>{task.Taskid}</td>
@@ -613,7 +406,6 @@ const HandoverDetail = () => {
           ) : (
             <div className="no-tasks">
               <p>No tasks found for this handover. Create your first task to get started!</p>
-
             </div>
           )}
         </div>
@@ -621,7 +413,9 @@ const HandoverDetail = () => {
         {modalOpen && selectedTask && (
           <Modal open={modalOpen} onClose={() => setModalOpen(false)}>
             <div className="modal-form-container">
-              <h2 className="modal-title">Acknowledge Task</h2>
+              <div className="modal-header-container">
+                <h2 className="modal-title">Acknowledge Task</h2>
+              </div>
 
               <div className="task-info-horizontal">
                 <div className="info-column">
@@ -695,7 +489,9 @@ const HandoverDetail = () => {
         {showCreateTaskModal && (
           <Modal open={showCreateTaskModal} onClose={() => setShowCreateTaskModal(false)}>
             <form onSubmit={handleCreateTaskSubmit} className="modal-form-container">
-              <h2 className="modal-title">Create New Task</h2>
+              <div className="modal-header-container">
+                <h2 className="modal-title">Create New Task</h2>
+              </div>
 
               <div className="form-group">
                 <label>
@@ -774,16 +570,6 @@ const HandoverDetail = () => {
                 </button>
               </div>
             </form>
-          </Modal>
-        )}
-
-        {showSummaryModal && (
-          <Modal open={showSummaryModal} onClose={() => setShowSummaryModal(false)}>
-            <SummaryModal
-              historyData={historyData}
-              loading={summaryLoading}
-              onClose={() => setShowSummaryModal(false)}
-            />
           </Modal>
         )}
       </div>
