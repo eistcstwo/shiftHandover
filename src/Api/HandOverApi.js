@@ -29,6 +29,27 @@ export const getHandovers = async () => {
   }
 };
 
+// Get all tasks from all handovers
+export const getAllTasks = async () => {
+  try {
+    const uid = localStorage.getItem('uidd');
+    const password = localStorage.getItem('password');
+    if (!uid || !password) {
+      throw new Error('Authentication credentials not found in localStorage');
+    }
+    const payload = { uid, password };
+    const response = await api.post('/get_Handover_All/', payload, {
+      timeout: 30000,
+      headers: {
+        'Content-Type': 'application/json',
+      }
+    });
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
+
 // Create new task
 export const createTask = async (taskData) => {
   try {
@@ -109,7 +130,6 @@ export const saveTask = async (taskData) => {
     return createTask(taskData);
   }
 };
-
 
 export const getHistoryHandovers = async () => {
   try {
