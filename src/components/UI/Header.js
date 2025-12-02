@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import './Header.css';
 
 // Robust function to clear all cookies (within JS limitations)
@@ -66,6 +66,7 @@ async function callLogoutAPI(username) {
 }
 
 const Header = ({ onLogout }) => {
+  const navigate = useNavigate();
   const [userInfo, setUserInfo] = useState({
     username: '',
     uid: '',
@@ -109,6 +110,10 @@ const Header = ({ onLogout }) => {
     redirectToLogin();
   };
 
+  const handleBucketClick = () => {
+    navigate('/tasks-bucket');
+  };
+
   return (
     <header className="app-header">
       <div className="header-left">
@@ -119,6 +124,17 @@ const Header = ({ onLogout }) => {
       </div>
 
       <div className="header-right">
+        {/* Bucket Icon Button */}
+        <button
+          className="bucket-btn"
+          onClick={handleBucketClick}
+          title="View all tasks bucket"
+          aria-label="View all tasks bucket"
+        >
+          <span className="bucket-icon">📦</span>
+        </button>
+
+        {/* User Avatar */}
         <div
           className="user-avatar-container"
           onMouseEnter={() => setShowTooltip(true)}
