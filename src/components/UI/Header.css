@@ -1,14 +1,3 @@
-Header.css
--rwxrwxrwx 1 root root 5687 Nov  8 16:46 Header.css_081125
--rwxrwxrwx 1 root root 4549 Nov 24 15:13 Header.js
--rwxrwxrwx 1 root root  403 Oct  3 17:27 Header.js_081025
--rwxrwxrwx 1 root root 1736 Oct 31 18:25 Header.js_081125
--rwxrwxrwx 1 root root 3921 Nov 24 15:08 Header.js_24112025
--rwxrwxrwx 1 root root 5495 Nov 27 18:17 Modal.css
--rwxrwxrwx 1 root root  646 Nov 24 13:48 Modal.js
--rwxrwxrwx 1 root root  687 Oct 22 14:30 Sidebar.css
--rwxrwxrwx 1 root root 1431 Nov  3 13:39 Sidebar.js
-[root@eispr-prt1-01 UI]# cat Header.css
 /* Header Container */
 .app-header {
   display: flex;
@@ -77,6 +66,64 @@ Header.css
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+}
+
+/* Bucket Button Styles */
+.bucket-btn {
+  background: linear-gradient(135deg, rgba(46, 213, 255, 0.12) 0%, rgba(138, 43, 226, 0.08) 100%);
+  border: 1px solid rgba(46, 213, 255, 0.3);
+  border-radius: 12px;
+  padding: 0.65rem 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(2, 6, 23, 0.3);
+  position: relative;
+  overflow: hidden;
+}
+
+.bucket-btn::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
+  animation: bucketShine 3s ease-in-out infinite;
+}
+
+@keyframes bucketShine {
+  0%, 100% { transform: rotate(0deg) scale(1); opacity: 0.3; }
+  50% { transform: rotate(180deg) scale(1.1); opacity: 0.6; }
+}
+
+.bucket-icon {
+  font-size: 1.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 1;
+  animation: bucketBounce 2s ease-in-out infinite;
+}
+
+@keyframes bucketBounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+.bucket-btn:hover {
+  transform: translateY(-2px) scale(1.05);
+  box-shadow: 0 8px 25px rgba(46, 213, 255, 0.3);
+  background: linear-gradient(135deg, rgba(46, 213, 255, 0.2) 0%, rgba(138, 43, 226, 0.15) 100%);
+  border-color: rgba(46, 213, 255, 0.5);
+}
+
+.bucket-btn:active {
+  transform: translateY(0) scale(0.98);
 }
 
 /* User Avatar Styles */
@@ -148,7 +195,7 @@ Header.css
     0 0 0 1px rgba(46, 213, 255, 0.2);
   z-index: 1000;
   backdrop-filter: blur(12px);
-  animation: tooltipFadeIn 5s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: tooltipFadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @keyframes tooltipFadeIn {
@@ -244,6 +291,14 @@ Header.css
     gap: 1rem;
   }
 
+  .bucket-btn {
+    padding: 0.5rem 0.75rem;
+  }
+
+  .bucket-icon {
+    font-size: 1.2rem;
+  }
+
   .user-avatar {
     width: 38px;
     height: 38px;
@@ -268,6 +323,14 @@ Header.css
 
   .header-right {
     gap: 0.75rem;
+  }
+
+  .bucket-btn {
+    padding: 0.4rem 0.65rem;
+  }
+
+  .bucket-icon {
+    font-size: 1rem;
   }
 
   .user-avatar {
