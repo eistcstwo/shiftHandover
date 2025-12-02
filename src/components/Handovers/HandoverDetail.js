@@ -6,6 +6,19 @@ import Modal from '../UI/Modal';
 import { getHandovers, createTask, updateTask } from '../../Api/HandOverApi';
 import HistorySummary from './HistorySummary';
 
+// Team data with role and handover mapping
+const TEAMS_DATA = [
+  { rid: 1, role: 'Project Management', handover_id_id: 6 },
+  { rid: 2, role: 'IIB Admin', handover_id_id: 3 },
+  { rid: 3, role: 'Database Administration - Belapur', handover_id_id: 7 },
+  { rid: 4, role: 'Linux Administration - Belapur', handover_id_id: 4 },
+  { rid: 5, role: 'Windows Admin', handover_id_id: 8 },
+  { rid: 6, role: 'Config Management', handover_id_id: 5 },
+  { rid: 8, role: 'Monitoring', handover_id_id: 9 },
+  { rid: 9, role: 'MQ Administration', handover_id_id: 1 },
+  { rid: 10, role: 'EIS-Infra Development', handover_id_id: 2 }
+];
+
 // Status options for acknowledging tasks (no "open" option)
 const acknowledgeStatusOptions = [
   { value: 'in progress', label: 'In Progress' },
@@ -75,6 +88,7 @@ const HandoverDetail = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [ackDescription, setAckDescription] = useState('');
   const [ackStatus, setAckStatus] = useState('in progress');
+  const [reassignTeam, setReassignTeam] = useState(''); // New state for reassign team
   const [error, setError] = useState('');
   const [showCreateTaskModal, setShowCreateTaskModal] = useState(false);
 
@@ -151,6 +165,7 @@ const HandoverDetail = () => {
     setModalOpen(true);
     setAckDescription(task.ackDesc || '');
     setAckStatus('in progress');
+    setReassignTeam(''); // Reset reassign team
     setError('');
   };
 
@@ -170,6 +185,14 @@ const HandoverDetail = () => {
       ackDesc: ackDescription
     };
 
+    // Add handover_id_id only if a team is selected for reassignment
+    if (reassignTeam) {
+      const selectedTeamData = TEAMS_DATA.find(team => team.rid === parseInt(reassignTeam));
+      if (selectedTeamData) {
+        payload.handover_id_id = selectedTeamData.handover_id_id;
+      }
+    }
+
     try {
       await updateTask(payload);
 
@@ -181,7 +204,8 @@ const HandoverDetail = () => {
               acknowledgeStatus: 'Acknowledged',
               ackDesc: ackDescription,
               acknowledgeTime: new Date().toISOString(),
-              statusUpdateTime: new Date().toISOString()
+              statusUpdateTime: new Date().toISOString(),
+              ...(reassignTeam && { handover_id_id: TEAMS_DATA.find(team => team.rid === parseInt(reassignTeam))?.handover_id_id })
             }
           : t
       );
@@ -195,6 +219,7 @@ const HandoverDetail = () => {
       setSelectedTask(null);
       setAckDescription('');
       setAckStatus('in progress');
+      setReassignTeam('');
       setError('');
 
       window.location.reload();
@@ -454,6 +479,26 @@ const HandoverDetail = () => {
                     Please fill description to enable status change.
                   </div>
                 )}
+              </div>
+
+              {/* NEW: Reassign Team Field */}
+              <div className="form-group">
+                <label>Reassign Task to Team (Optional)</label>
+                <select
+                  value={reassignTeam}
+                  onChange={e => setReassignTeam(e.target.value)}
+                  className="form-select"
+                >
+                  <option value="">-- Select Team to Reassign --</option>
+                  {TEAMS_DATA.map(team => (
+                    <option key={team.rid} value={team.rid}>
+                      {team.role}
+                    </option>
+                  ))}
+                </select>
+                <div className="form-hint">
+                  {reassignTeam ? `This task will be reassigned to: ${TEAMS_DATA.find(t => t.rid === parseInt(reassignTeam))?.role}` : 'Leave empty if you do not want to reassign this task'}
+                </div>
               </div>
 
               {error && <div className="error-message">{error}</div>}
