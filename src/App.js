@@ -1,3 +1,16 @@
+App.js
+-rwxrwxrwx 1 root root  2556 Oct  8 13:19 App.js_081025
+-rwxrwxrwx 1 root root  3831 Nov  3 13:41 App.js_171125
+-rwxrwxrwx 1 root root  4000 Nov 24 15:06 App.js_24112025
+-rwxrwxrwx 1 root root  3223 Oct 23 14:19 App.js_261025
+-rwxrwxrwx 1 root root   246 Sep 25 14:29 App.test.js
+drwxrwxrwx 7 root root    85 Oct 28 17:04 components
+drwxrwxrwx 2 root root    53 Oct  8 12:44 data
+-rwxrwxrwx 1 root root  1214 Oct 22 16:02 index.css
+-rwxrwxrwx 1 root root   254 Sep 29 13:08 index.js
+-rwxrwxrwx 1 root root   362 Sep 25 14:29 reportWebVitals.js
+-rwxrwxrwx 1 root root   241 Sep 25 14:29 setupTests.js
+[root@eispr-prt1-01 src]# cat App.js
 import React, { useState, useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 
