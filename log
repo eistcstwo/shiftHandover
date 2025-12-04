@@ -1,32 +1,35 @@
 // loginApi.js
+import api from './api'; // Assuming you have an api instance configured
 
-export async function postLogin(username, password) {
+export const postLogin = async (uid, password) => {
   try {
-    const response = await fetch(
-      'https://10.191.171.12:5443/EISHOME/awthenticationService/newLogin/',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ username, password })
-      }
-    );
-    const data = await response.json();
+    const response = await api.post('awthenticationService/newLogin/', { "uid": uid, "password": password });
     
-    // Store session data in localStorage if login is successful
-    if (data.status === 302 || data.status === 200) {
-      if (data.sessionid) localStorage.setItem('sessionid', data.sessionid);
-      if (data.uid) localStorage.setItem('uidd', data.uid);
-      if (data.userLevel) localStorage.setItem('userlevel', data.userLevel);
-      if (data.username || username) localStorage.setItem('username', data.username || username);
+    const uidd = response.data.userId;
+    const passwordd = response.data.password;
+    const username = response.data.username;
+    const userlevel = response.data.userLevel;
+    const sessionToken = response.data.session_token;
+    
+    console.log("Login response - username:", username);
+    console.log("Login response - userlevel:", userlevel);
+    
+    // Store credentials in localStorage if valid
+    if (uidd && passwordd) {
+      localStorage.setItem('uidd', uidd);
+      localStorage.setItem('password', passwordd);
+      localStorage.setItem('username', username);
+      localStorage.setItem('userlevel', userlevel);
+      localStorage.setItem('sessionid', sessionToken);
+      console.log('Stored uidd in localStorage:', localStorage.getItem('uidd'));
     }
     
-    return { data };
+    return response;
   } catch (error) {
-    console.error('Error in postLogin:', error);
-    throw error;
+    console.error('Login error:', error);
+    throw error; // Re-throw to allow component-level handling
   }
-}
+};
 
 export async function authenticatePortal() {
   try {
