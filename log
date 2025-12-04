@@ -46,28 +46,30 @@ export async function authenticatePortal() {
       };
     }
     
-    const response = await fetch(
-      'https://10.191.171.12:5443/EISHOME/awthenticationService/authenticatePortal/',
+    // Use the api instance for consistency
+    const response = await api.post('awthenticationService/authenticatePortal/', 
+      { uid },
       {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
+        headers: {
           'Authorization': `Bearer ${sessionId}`
-        },
-        credentials: 'include',
-        body: JSON.stringify({ uid })
+        }
       }
     );
     
-    const data = await response.json();
+    const data = response.data;
     
     console.log('authenticatePortal response:', {
       status: response.status,
       data
     });
     
+    // Check if authentication was successful
+    const isSuccess = response.status === 302 || 
+                      response.status === 200 || 
+                      data.Response === "login successfull";
+    
     return {
-      success: response.status === 302 || response.status === 200,
+      success: isSuccess,
       status: response.status,
       message: data.Response || data.message,
       data: data
@@ -76,7 +78,7 @@ export async function authenticatePortal() {
     console.error('Error authenticating portal:', error);
     return {
       success: false,
-      status: 0,
+      status: error.response?.status || 0,
       message: error.message,
       data: null
     };
