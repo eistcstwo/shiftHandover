@@ -69,6 +69,66 @@
 }
 
 /* Bucket Button Styles */
+.checklist-btn {
+  background: linear-gradient(135deg, rgba(46, 213, 255, 0.12) 0%, rgba(138, 43, 226, 0.08) 100%);
+  border: 1px solid rgba(46, 213, 255, 0.3);
+  border-radius: 12px;
+  padding: 0.65rem 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(2, 6, 23, 0.3);
+  position: relative;
+  overflow: hidden;
+}
+
+.checklist-btn::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
+  animation: bucketShine 3s ease-in-out infinite;
+}
+
+@keyframes bucketShine {
+  0%, 100% { transform: rotate(0deg) scale(1); opacity: 0.3; }
+  50% { transform: rotate(180deg) scale(1.1); opacity: 0.6; }
+}
+
+.checklist-icon {
+  font-size: 1.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 1;
+  animation: bucketBounce 2s ease-in-out infinite;
+}
+
+@keyframes bucketBounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+.checklist-btn:hover {
+  transform: translateY(-2px) scale(1.05);
+  box-shadow: 0 8px 25px rgba(46, 213, 255, 0.3);
+  background: linear-gradient(135deg, rgba(46, 213, 255, 0.2) 0%, rgba(138, 43, 226, 0.15) 100%);
+  border-color: rgba(46, 213, 255, 0.5);
+}
+
+.checklist-btn:active {
+  transform: translateY(0) scale(0.98);
+}
+
+
+
+/* Bucket Button Styles */
 .bucket-btn {
   background: linear-gradient(135deg, rgba(46, 213, 255, 0.12) 0%, rgba(138, 43, 226, 0.08) 100%);
   border: 1px solid rgba(46, 213, 255, 0.3);
