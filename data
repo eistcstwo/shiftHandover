@@ -1,228 +1,170 @@
-// FDC Error Alert Handler - Integrated Version
-class FDCErrorAlert {
-    constructor() {
-        this.errorData = [];
-        this.init();
-    }
+// FDCAlert.js
 
-    init() {
-        // Don't create UI elements yet - wait until we have errors
-        this.bannerCreated = false;
-        this.modalCreated = false;
-    }
-
-    createAlertBanner() {
-        if (this.bannerCreated) return;
-        const banner = document.createElement('div');
-        banner.id = 'fdc-alert-banner';
-        banner.className = 'fdc-alert-banner';
-        banner.innerHTML = `
-            <div class="fdc-alert-content">
-                <div class="fdc-alert-message">
-                    <span class="fdc-alert-icon">⚠️</span>
-                    <div class="fdc-alert-text">
-                        <div class="fdc-alert-title">FDC Errors Detected</div>
-                        <div class="fdc-alert-details" id="fdc-alert-error-count"></div>
-                    </div>
-                </div>
-                <div class="fdc-alert-actions">
-                    <button class="fdc-alert-btn fdc-alert-btn-primary" id="fdc-view-errors-btn">
-                        View Details
-                    </button>
-                    <button class="fdc-alert-btn fdc-alert-btn-close" id="fdc-close-alert-btn">
-                        ✕
-                    </button>
-                </div>
-            </div>
-        `;
-        document.body.insertBefore(banner, document.body.firstChild);
-
-        document.getElementById('fdc-view-errors-btn').addEventListener('click', () => {
-            this.showErrorModal();
-        });
-
-        document.getElementById('fdc-close-alert-btn').addEventListener('click', () => {
-            this.hideAlert();
-        });
-        
-        this.bannerCreated = true;
-    }
-
-    createErrorModal() {
-        if (this.modalCreated) return;
-        const modal = document.createElement('div');
-        modal.id = 'fdc-error-modal';
-        modal.className = 'fdc-error-modal';
-        modal.innerHTML = `
-            <div class="fdc-error-modal-content">
-                <div class="fdc-error-modal-header">
-                    <h2>FDC Error Details</h2>
-                    <button class="fdc-alert-btn fdc-alert-btn-close" id="fdc-close-modal-btn">✕</button>
-                </div>
-                <div class="fdc-error-modal-body">
-                    <div class="fdc-error-table-container">
-                        <table class="fdc-error-table">
-                            <thead>
-                                <tr>
-                                    <th>IP Address</th>
-                                    <th>First Occurrence</th>
-                                    <th>Last Occurrence</th>
-                                </tr>
-                            </thead>
-                            <tbody id="fdc-error-table-body"></tbody>
-                        </table>
-                    </div>
-                </div>
-                <div class="fdc-error-modal-footer">
-                    <div class="fdc-error-count" id="fdc-modal-error-count"></div>
-                    <button class="fdc-modal-close-btn" id="fdc-footer-close-btn">Close</button>
-                </div>
-            </div>
-        `;
-        document.body.appendChild(modal);
-
-        document.getElementById('fdc-close-modal-btn').addEventListener('click', () => {
-            this.hideErrorModal();
-        });
-
-        document.getElementById('fdc-footer-close-btn').addEventListener('click', () => {
-            this.hideErrorModal();
-        });
-
-        modal.addEventListener('click', (e) => {
-            if (e.target === modal) {
-                this.hideErrorModal();
-            }
-        });
-        
-        this.modalCreated = true;
-    }
-
-    checkForErrors(jsonData) {
-        this.errorData = [];
-        
-        for (const [ip, data] of Object.entries(jsonData)) {
-            if (data.FIRST_occurance !== "" || data.Last_occurance !== "") {
-                // Determine network
-                let network = 'Other';
-                if (ip.startsWith('10.188.24.')) {
-                    network = '24';
-                } else if (ip.startsWith('10.188.25.')) {
-                    network = '25';
-                }
-
-                this.errorData.push({
-                    ip: ip,
-                    firstOccurrence: data.FIRST_occurance,
-                    lastOccurrence: data.Last_occurance,
-                    network: network
-                });
-            }
-        }
-
-        // Sort by IP address
-        this.errorData.sort((a, b) => {
-            const partsA = a.ip.split('.').map(num => parseInt(num));
-            const partsB = b.ip.split('.').map(num => parseInt(num));
-            
-            for (let i = 0; i < 4; i++) {
-                if (partsA[i] !== partsB[i]) {
-                    return partsA[i] - partsB[i];
-                }
-            }
-            return 0;
-        });
-
-        if (this.errorData.length > 0) {
-            // Create UI elements only when errors exist
-            if (!this.bannerCreated) {
-                this.createAlertBanner();
-            }
-            if (!this.modalCreated) {
-                this.createErrorModal();
-            }
-            this.showAlert();
-        } else {
-            // Hide alert if no errors and elements exist
-            if (this.bannerCreated) {
-                this.hideAlert();
-            }
-        }
-    }
-
-    showAlert() {
-        const banner = document.getElementById('fdc-alert-banner');
-        if (!banner) return; // Safety check
-        
-        const errorCount = document.getElementById('fdc-alert-error-count');
-        
-        errorCount.textContent = `${this.errorData.length} IP address${this.errorData.length > 1 ? 'es' : ''} with errors detected`;
-        
-        banner.classList.add('show');
-        document.body.style.paddingTop = banner.offsetHeight + 'px';
-    }
-
-    hideAlert() {
-        const banner = document.getElementById('fdc-alert-banner');
-        if (!banner) return; // Safety check
-        
-        banner.classList.remove('show');
-        document.body.style.paddingTop = '0';
-    }
-
-    showErrorModal() {
-        const modal = document.getElementById('fdc-error-modal');
-        if (!modal) return; // Safety check
-        
-        const tableBody = document.getElementById('fdc-error-table-body');
-        const modalCount = document.getElementById('fdc-modal-error-count');
-        
-        tableBody.innerHTML = '';
-        
-        this.errorData.forEach(error => {
-            const row = document.createElement('tr');
-            row.innerHTML = `
-                <td class="ip-cell">
-                    ${error.ip}
-                    <span class="network-badge net-${error.network}">10.188.${error.network}.x</span>
-                </td>
-                <td class="time-cell">${error.firstOccurrence || '-'}</td>
-                <td class="time-cell">${error.lastOccurrence || '-'}</td>
-            `;
-            tableBody.appendChild(row);
-        });
-        
-        modalCount.textContent = `Total Errors: ${this.errorData.length}`;
-        modal.classList.add('show');
-    }
-
-    hideErrorModal() {
-        const modal = document.getElementById('fdc-error-modal');
-        if (!modal) return; // Safety check
-        
-        modal.classList.remove('show');
-    }
-
-    async loadAndCheckErrors(jsonFilePath) {
+// Function to fetch JSON and render the FDC alert widget
+async function fetchAndRenderFDCAlerts() {
+    const jsonUrl = 'FINAL_FDC_error.json';
+    try {
+        const response = await fetch(jsonUrl);
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        const rawData = await response.text();
+        let data;
         try {
-            const response = await fetch(jsonFilePath);
-            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-            const data = await response.json();
-            this.checkForErrors(data);
-        } catch (error) {
-            console.error('Error loading FDC error data:', error);
+            data = JSON.parse(rawData);
+        } catch (e) {
+            console.error('Could not parse FDC JSON. Ensure the file contains valid JSON.', e);
+            return;
+        }
+        renderFDCAlertWidget(data);
+    } catch (error) {
+        console.error('Error fetching FDC JSON data:', error);
+    }
+}
+
+// Function to render the fixed alert box and the alert table
+function renderFDCAlertWidget(jsonData) {
+    const container = document.getElementById('fdc-alert-widget-container');
+    if (!container) return;
+
+    const allAlerts = [];
+
+    for (const ipAddress in jsonData) {
+        const errorData = jsonData[ipAddress];
+        if (errorData.FIRST_occurance !== "" || errorData.Last_occurance !== "") {
+            allAlerts.push({
+                id: `${ipAddress}-${Date.now()}`,
+                ip: ipAddress,
+                firstOccurance: errorData.FIRST_occurance,
+                lastOccurance: errorData.Last_occurance,
+                env: ipAddress.startsWith('10.188.24') ? '10.188.24.x' : 
+                     (ipAddress.startsWith('10.188.25') ? '10.188.25.x' : 'Other')
+            });
         }
     }
 
-    checkDirectData(jsonData) {
-        this.checkForErrors(jsonData);
+    const alertCount = allAlerts.length;
+
+    // Only show alert widget if there are errors
+    if (alertCount === 0) {
+        return; // Exit early, don't create any UI elements
     }
+
+    // --- Alert Box (Widget) Creation ---
+    const alertBox = document.createElement('div');
+    alertBox.id = 'fdc-alert-box';
+    alertBox.innerHTML = `
+        <span class="icon">⚠️</span>
+        <span class="count">${alertCount}</span>
+        <div class="message">FDC Errors</div>
+    `;
+    alertBox.className = "blink";
+    container.appendChild(alertBox);
+
+    // --- Modal (Backdrop and Table) Creation ---
+    const backdrop = document.createElement('div');
+    backdrop.className = 'fdc-backdrop';
+    backdrop.style.display = 'none';
+    document.body.appendChild(backdrop);
+
+    const alertTable = document.createElement('div');
+    alertTable.id = 'fdc-alert-table';
+    alertTable.style.display = 'none';
+    container.appendChild(alertTable);
+
+    function closeAlertTable() {
+        alertTable.style.display = 'none';
+        backdrop.style.display = 'none';
+    }
+
+    // Helper function to generate table rows with IP grouping using rowspan
+    function generateTableRows(filterEnv = null) {
+        const filteredAlerts = filterEnv
+            ? allAlerts.filter(alert => alert.env === filterEnv)
+            : allAlerts;
+
+        // Sort alerts by IP
+        filteredAlerts.sort((a, b) => {
+            const numA = Number(a.ip.split('.').map(num => num.padStart(3, '0')).join(''));
+            const numB = Number(b.ip.split('.').map(num => num.padStart(3, '0')).join(''));
+            return numA - numB;
+        });
+
+        let tableHtml = '';
+        let ipGroups = {}; // Count occurrences of each IP
+
+        // Count group sizes
+        filteredAlerts.forEach(alert => {
+            ipGroups[alert.ip] = (ipGroups[alert.ip] || 0) + 1;
+        });
+
+        let previousIp = '';
+
+        filteredAlerts.forEach(alert => {
+            tableHtml += `<tr class="alert-row error" data-alert-id="${alert.id}">`;
+
+            // Add IP Cell with Rowspan (only for the first item in the group)
+            if (alert.ip !== previousIp) {
+                const rowSpanCount = ipGroups[alert.ip];
+                tableHtml += `
+                    <td rowspan="${rowSpanCount}" class="ip-group-cell">
+                        <strong>${alert.ip}</strong>
+                    </td>
+                `;
+                previousIp = alert.ip;
+            }
+
+            // Add the rest of the cells
+            tableHtml += `
+                <td>${alert.firstOccurance}</td>
+                <td>${alert.lastOccurance}</td>
+            </tr>
+            `;
+        });
+
+        return tableHtml;
+    }
+
+    // Function to render the full table structure (combined, no tabs)
+    function renderTableContent() {
+        alertTable.innerHTML = `
+            <h3>FDC Error Alerts (${alertCount})</h3>
+
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>IP Address</th>
+                            <th>First Occurrence</th>
+                            <th>Last Occurrence</th>
+                        </tr>
+                    </thead>
+                    <tbody id="fdc-alert-table-body">
+                        ${generateTableRows(null)}
+                    </tbody>
+                </table>
+            </div>
+            <button id="close-table-btn" class="modal-action-btn">Close</button>
+        `;
+    }
+
+    // --- EVENT DELEGATION ---
+    alertTable.addEventListener('click', function(event) {
+        if (event.target.id === 'close-table-btn') {
+            closeAlertTable();
+        }
+    });
+
+    // --- Initial Setup ---
+    renderTableContent();
+
+    container.appendChild(alertTable);
+
+    alertBox.addEventListener('click', () => {
+        alertTable.style.display = 'block';
+        backdrop.style.display = 'block';
+    });
+
+    backdrop.addEventListener('click', closeAlertTable);
 }
 
-// Initialize the alert system
-const fdcAlert = new FDCErrorAlert();
-
-// Auto-check if FDC_ERROR_DATA is available
-if (typeof FDC_ERROR_DATA !== 'undefined') {
-    fdcAlert.checkDirectData(FDC_ERROR_DATA);
-}
+// Call the main function to start everything when the script loads
+fetchAndRenderFDCAlerts();
