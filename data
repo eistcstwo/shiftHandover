@@ -1,241 +1,385 @@
-/* --- Global Reset/Base Styles (Optional but helpful) --- */
-body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-   /* margin: 20px;*/
-    background-color: #f0f4f8;
-    color: #333;
-}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FDC Error Monitoring</title>
+    <style>
+        /* 
+        ISOLATED CSS - Only affects elements starting with "fdc-" 
+        This ensures NO conflicts with existing page elements
+        */
 
-/* --- The Main Alert Widget (The fixed button) --- */
-#alert-widget-container {
-    /* Position the widget somewhere prominent, like the top right of the screen */
-    position: fixed;
-        top: 11px;
-    right: 344px;
-    z-index: 1001; /* Above the backdrop */
-}
+        /* --- Alert Widget Container --- */
+        #fdc-alert-widget-container {
+            position: fixed;
+            top: 11px;
+            right: 344px;
+            z-index: 1001;
+            /* Isolated - won't affect other elements */
+        }
 
+        /* --- Alert Box --- */
+        #fdc-alert-box {
+            display: flex;
+            align-items: center;
+            padding: 12px 20px;
+            background-color: #ff0000;
+            color: white;
+            border-radius: 8px;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+            transition: background-color 0.3s ease, transform 0.2s ease;
+            gap: 10px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
 
+        #fdc-alert-box:hover {
+            background-color: #0056b3;
+            transform: translateY(-2px);
+        }
 
-.tabs-container {
-    display: flex; /* Keeps the flex behavior for child elements */
-    margin-bottom: 15px;
-    border-bottom: 1px solid #ccc;
-    flex-direction: unset;
-    /* Centering styles below */
-    width: 40%; /* Example width, adjust as needed */
-    margin-left: auto;
-    margin-right: auto;
-}
+        #fdc-alert-box .fdc-icon {
+            font-size: 1.4em;
+        }
 
+        #fdc-alert-box .fdc-count {
+            font-size: 1.1em;
+            font-weight: bold;
+            padding: 2px 8px;
+            border-radius: 50%;
+            background: white;
+            color: #ff0000;
+        }
 
-.tab-btn {
-    padding: 32px 186px;
-    cursor: pointer;
-    border: none;
-    background-color: #f1f1f1;
-    margin-right: 5px;
-    border-radius: 5px 5px 0 0;
-    transition: background-color 0.3s;
-    font-size: large;
+        #fdc-alert-box .fdc-message {
+            font-weight: 500;
+        }
 
-}
+        /* --- Blink effect --- */
+        .fdc-blink {
+            animation: fdc-pulse 1.5s infinite alternate;
+        }
 
-.tab-btn:hover {
-    background-color: #e0e0e0;
-}
+        @keyframes fdc-pulse {
+            from {
+                box-shadow: 0 0 0 0px rgba(255, 0, 0, 0.7);
+            }
+            to {
+                box-shadow: 0 0 0 10px rgba(255, 0, 0, 0);
+            }
+        }
 
-.tab-btn.active {
-    background-color: #007bff; /* Active tab color */
-    color: white;
-    border-bottom: 1px solid #007bff;
-}
+        /* --- Modal Table --- */
+        #fdc-alert-table {
+            position: fixed;
+            top: 53%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            z-index: 1002;
+            max-height: 150vh;
+            overflow-y: auto;
+            width: 100%;
+            max-width: 2500px;
+            display: none;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
 
+        /* --- FDC Table Content --- */
+        #fdc-alert-table h3 {
+            margin-top: 0;
+            color: #dc3545;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+            font-size: 24px;
+            font-weight: bold;
+        }
 
-#alert-box {
-    display: flex;
-    align-items: center;
-    padding: 12px 20px;
-    background-color: #ff0000;
-    color: white;
-    border-radius: 8px;
-    cursor: pointer;
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-    transition: background-color 0.3s ease,
-    transform 0.2s ease;
-    gap: 10px;
-}
+        /* FDC Table Container */
+        .fdc-table-container {
+            max-height: 80vh;
+            overflow-y: auto;
+            margin-bottom: 20px;
+        }
 
-#alert-box:hover {
-    background-color: #0056b3; /* Darker shade on hover */
-    transform: translateY(-2px); /* Slight lift effect */
-}
+        /* FDC Table Styling */
+        .fdc-alerts-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            font-size: 20px;
+        }
 
-#alert-box .icon {
-    font-size: 1.4em;
-    /* Use a bell emoji or a proper icon font like FontAwesome */
-}
+        /* Table Headers - VERY SPECIFIC selector */
+        .fdc-alerts-table thead tr th {
+            background-color: #333131 !important;
+            color: white !important;
+            border: 1px solid #ddd !important;
+            padding: 12px !important;
+            text-align: left !important;
+            font-weight: 600 !important;
+            position: sticky !important;
+            top: 0 !important;
+            z-index: 99 !important;
+        }
 
-#alert-box .count {
-    font-size: 1.1em;
-    font-weight: bold;
+        /* Table Cells - VERY SPECIFIC selector */
+        .fdc-alerts-table tbody tr td {
+            border: 1px solid #ddd !important;
+            padding: 12px !important;
+            text-align: left !important;
+            vertical-align: middle !important;
+        }
 
-    padding: 2px 8px;
-    border-radius: 50%;
-}
+        /* IP Group Cell */
+        .fdc-ip-group-cell {
+            vertical-align: top !important;
+            text-align: left !important;
+            background-color: #3b3939 !important;
+            border-right: 1px solid #ccc !important;
+            padding: 10px !important;
+            color: white !important;
+            font-weight: bold !important;
+        }
 
-#alert-box .message {
-    font-weight: 500;
-}
+        /* Alert Row */
+        .fdc-alert-row:hover {
+            background-color: #f8f9fa !important;
+        }
 
-/* --- Blink effect for active alerts (only applied if count > 0) --- */
-.blink {
-    /* Subtle glow/blink rather than color change */
-    animation: pulse 1.5s infinite alternate;
-}
+        .fdc-alert-row.fdc-error {
+            background-color: #fff3cd !important;
+        }
 
-@keyframes pulse {
-  from {
-    box-shadow: 0 0 0 0px rgba(0, 123, 255, 0.7);
-  }
-  to {
-    box-shadow: 0 0 0 10px rgba(0, 123, 255, 0);
-  }
-}
+        /* --- FDC Close Button --- */
+        .fdc-close-btn {
+            padding: 10px 20px !important;
+            background-color: #6c757d !important;
+            color: white !important;
+            border: none !important;
+            border-radius: 5px !important;
+            cursor: pointer !important;
+            font-size: 1em !important;
+            float: right !important;
+            font-family: inherit !important;
+        }
 
-/* --- The Alert Table Overlay (Modal) --- */
+        .fdc-close-btn:hover {
+            background-color: #5a6268 !important;
+        }
 
-#alert-table {
-    position: fixed;
-    top: 53%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background-color: white;
-    padding: 30px;
-    border-radius: 10px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-    z-index: 1002;
-    max-height: 150vh;
-    overflow-y: auto;
-    width: 100%;
-    max-width: 2500px;
-    display: none;
-    box-sizing: border-box;
-}
+        /* --- FDC Backdrop --- */
+        .fdc-backdrop {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100% !important;
+            height: 100% !important;
+            background: rgba(0, 0, 0, 0.6) !important;
+            z-index: 1000 !important;
+            display: none !important;
+        }
 
-.ip-group-cell {
-    vertical-align: top; /* Align content to the top of the merged cell */
-    text-align: left;
-    background-color: #3b3939; /* Subtle background difference */
-    border-right: 1px solid #ccc;
-    padding: 10px;
-}
+        /* --- VERY IMPORTANT: Reset button styles ONLY for FDC elements --- */
+        #fdc-alert-table button.fdc-close-btn,
+        #fdc-alert-table .tab-btn {
+            appearance: none !important;
+            -webkit-appearance: none !important;
+            -moz-appearance: none !important;
+            background: none !important;
+            border: none !important;
+            margin: 0 !important;
+            font-family: inherit !important;
+            font-size: inherit !important;
+            line-height: inherit !important;
+            color: inherit !important;
+            cursor: pointer !important;
+        }
+    </style>
+</head>
+<body>
+    <!-- Alert Widget Container -->
+    <div id="fdc-alert-widget-container"></div>
 
-/* Ensure checkboxes are sized correctly (as requested previously) */
-.resolve-checkbox,
-.group-master-checkbox {
-  width: 20px;
-  height: 20px;
-  cursor: pointer;
-  vertical-align: middle;
-  margin-right: 5px; /* Add space next to the "Select All" text */
-}
+    <!-- Your existing page content -->
+    <h1>FDC Error Monitoring Dashboard</h1>
+    <p>The alert widget will appear in the top-right corner when errors are detected.</p>
+    
+    <!-- Other tables on your page WON'T be affected -->
+    <div id="other-content">
+        <table class="some-other-table">
+            <tr><td>Other table content - WON'T be affected</td></tr>
+        </table>
+    </div>
 
+    <script>
+        // Function to fetch JSON and render the alert widget
+        async function fetchAndRenderFDCAlerts() {
+            const jsonUrl = 'FINAL_FDC_error.json';
+            try {
+                const response = await fetch(jsonUrl);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                const rawData = await response.text();
+                let data;
+                try {
+                    data = JSON.parse(rawData);
+                } catch (e) {
+                    console.error('Could not parse JSON. Ensure the file contains valid JSON.', e);
+                    return;
+                }
+                renderFDCAlertWidget(data);
+            } catch (error) {
+                console.error('Error fetching JSON data:', error);
+            }
+        }
 
-/* Increase the size of both individual and group checkboxes */
-.resolve-checkbox,
-.group-master-checkbox {
-  width: 20px;
-  height: 20px;
-  cursor: pointer;
-  vertical-align: middle;
-}
+        // Function to render the fixed alert box and the alert table
+        function renderFDCAlertWidget(jsonData) {
+            const container = document.getElementById('fdc-alert-widget-container');
+            if (!container) return;
 
+            const allAlerts = [];
 
-#alert-table h3 {
-    margin-top: 0;
-    color: #dc3545; /* Red color for alert title */
-    border-bottom: 2px solid #eee;
-    padding-bottom: 10px;
-}
+            for (const ipAddress in jsonData) {
+                const errorData = jsonData[ipAddress];
+                if (errorData.FIRST_occurance !== "" || errorData.Last_occurance !== "") {
+                    allAlerts.push({
+                        id: `${ipAddress}-${Date.now()}`,
+                        ip: ipAddress,
+                        firstOccurance: errorData.FIRST_occurance,
+                        lastOccurance: errorData.Last_occurance,
+                        env: ipAddress.startsWith('10.188.24') ? '10.188.24.x' : 
+                             (ipAddress.startsWith('10.188.25') ? '10.188.25.x' : 'Other')
+                    });
+                }
+            }
 
-.table-container {
-    max-height: 80vh; /* Responsive height for scrollable area */
-    overflow-y: auto;
-    margin-bottom: 20px;
-}
+            const alertCount = allAlerts.length;
 
-#alert-table table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 15px;
-}
+            // Only show alert widget if there are errors
+            if (alertCount === 0) {
+                return;
+            }
 
-/* Increase the size of the checkbox input itself */
-.resolve-checkbox {
-  /* Standard size adjustments */
-  width: 20px;
-  height: 20px;
-  /* Makes the checkbox easier to click/interact with on hover */
-  cursor: pointer;
-  /* Optional: Adjust vertical alignment within the table cell */
-  vertical-align: middle;
-}
+            // --- Alert Box (Widget) Creation ---
+            const alertBox = document.createElement('div');
+            alertBox.id = 'fdc-alert-box';
+            alertBox.innerHTML = `
+                <span class="fdc-icon">⚠️</span>
+                <span class="fdc-count">${alertCount}</span>
+                <div class="fdc-message">FDC Errors</div>
+            `;
+            alertBox.className = "fdc-blink";
+            container.appendChild(alertBox);
 
+            // --- Modal (Backdrop and Table) Creation ---
+            const backdrop = document.createElement('div');
+            backdrop.className = 'fdc-backdrop';
+            backdrop.style.display = 'none';
+            document.body.appendChild(backdrop);
 
-#alert-table th, #alert-table td {
-    font-size: 20px; /* Adjust the value as needed */
-    padding: 8px; /* Optional: Add some padding for better readability with larger text */
-}
+            const alertTable = document.createElement('div');
+            alertTable.id = 'fdc-alert-table';
+            alertTable.style.display = 'none';
+            document.body.appendChild(alertTable); // Append to body, not container
 
-#alert-table th, #alert-table td {
-    border: 1px solid #ddd;
-    padding: 12px;
-    text-align: left;
-    /* Aligns content nicely within cells */
-    vertical-align: middle;
-}
+            function closeAlertTable() {
+                alertTable.style.display = 'none';
+                backdrop.style.display = 'none';
+            }
 
-#alert-table th {
-    background-color: #333131;
-    font-weight: 600;
-    position: sticky; /* Keeps headers visible when scrolling table */
-    top: 0;
-    z-index: 99;
-}
+            // Helper function to generate table rows with IP grouping
+            function generateTableRows() {
+                // Sort alerts by IP
+                const sortedAlerts = [...allAlerts].sort((a, b) => {
+                    const numA = Number(a.ip.split('.').map(num => num.padStart(3, '0')).join(''));
+                    const numB = Number(b.ip.split('.').map(num => num.padStart(3, '0')).join(''));
+                    return numA - numB;
+                });
 
-/* Specific column alignment for better readability */
-#alert-table td:nth-child(1) { width: 15%; } /* Server IP */
-#alert-table td:nth-child(2) { width: 15%; } /* Broker Name */
-#alert-table td:nth-child(3) { width: 15%; } /* EG Name */
-#alert-table td:nth-child(4) { width: 55%; } /* Error Message */
+                let tableHtml = '';
+                let ipGroups = {};
 
+                // Count group sizes
+                sortedAlerts.forEach(alert => {
+                    ipGroups[alert.ip] = (ipGroups[alert.ip] || 0) + 1;
+                });
 
-/* Close button styling */
-#close-table-btn {
-    padding: 10px 20px;
-    background-color: #6c757d; /* Gray button */
-    color: white;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    font-size: 1em;
-    float: right; /* Aligns button to the right */
-}
+                let previousIp = '';
 
-#close-table-btn:hover {
-    background-color: #5a6268;
-}
+                sortedAlerts.forEach(alert => {
+                    tableHtml += `<tr class="fdc-alert-row fdc-error" data-alert-id="${alert.id}">`;
 
+                    // Add IP Cell with Rowspan
+                    if (alert.ip !== previousIp) {
+                        const rowSpanCount = ipGroups[alert.ip];
+                        tableHtml += `
+                            <td rowspan="${rowSpanCount}" class="fdc-ip-group-cell">
+                                <strong>${alert.ip}</strong>
+                            </td>
+                        `;
+                        previousIp = alert.ip;
+                    }
 
-/* --- Backdrop Overlay --- */
-/* This needs to be added via JS when the table opens for a proper modal effect */
-.backdrop {
+                    // Add the rest of the cells
+                    tableHtml += `
+                        <td>${alert.firstOccurance || 'N/A'}</td>
+                        <td>${alert.lastOccurance || 'N/A'}</td>
+                    </tr>
+                    `;
+                });
 
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.6); /* Dark semi-transparent background */
-    z-index: 1000;
-}
+                return tableHtml;
+            }
+
+            // Function to render the full table structure
+            function renderTableContent() {
+                alertTable.innerHTML = `
+                    <h3>FDC Error Alerts (${alertCount})</h3>
+                    <div class="fdc-table-container">
+                        <table class="fdc-alerts-table">
+                            <thead>
+                                <tr>
+                                    <th>IP Address</th>
+                                    <th>First Occurrence</th>
+                                    <th>Last Occurrence</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${generateTableRows()}
+                            </tbody>
+                        </table>
+                    </div>
+                    <button class="fdc-close-btn">Close</button>
+                `;
+            }
+
+            // --- EVENT DELEGATION ---
+            alertTable.addEventListener('click', function(event) {
+                if (event.target.classList.contains('fdc-close-btn')) {
+                    closeAlertTable();
+                }
+            });
+
+            // --- Initial Setup ---
+            renderTableContent();
+
+            alertBox.addEventListener('click', () => {
+                alertTable.style.display = 'block';
+                backdrop.style.display = 'block';
+            });
+
+            backdrop.addEventListener('click', closeAlertTable);
+        }
+
+        // Call the main function to start everything when the script loads
+        fetchAndRenderFDCAlerts();
+    </script>
+</body>
+</html>
