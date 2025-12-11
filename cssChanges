@@ -165,6 +165,7 @@
 }
 
 /* Close Button */
+#fdc-close-table-btn,
 .fdc-close-btn {
     padding: 12px 30px !important;
     background-color: #6c757d !important;
@@ -182,6 +183,7 @@
     -moz-appearance: none !important;
 }
 
+#fdc-close-table-btn:hover,
 .fdc-close-btn:hover {
     background-color: #5a6268 !important;
 }
