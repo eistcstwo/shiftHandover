@@ -1,438 +1,101 @@
-import React, { useState, useEffect } from 'react';
-import '../styles/Login.css';
-import Header from './Header';
-import Footer from './Footer';
-import { postLogin } from "../api/loginApi";
-import { postGetSecurityQuestion, postForgotPassword } from "../api/PostApi";
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EIS MONITORING</title>
 
-function Login({ onLogin }) {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [darkMode, setDarkMode] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [sessionLoading, setSessionLoading] = useState(true);
-  const [sessionChecked, setSessionChecked] = useState(false);
-  // Forgot password popup states
-  const [showEmpIdModal, setShowEmpIdModal] = useState(false);
-  const [empId, setEmpId] = useState('');
-  const [secQLoading, setSecQLoading] = useState(false);
-  const [securityQ, setSecurityQ] = useState('');
-  const [showSecQModal, setShowSecQModal] = useState(false);
-  const [securityAnswer, setSecurityAnswer] = useState('');
-  const [newPwd, setNewPwd] = useState('');
-  const [forgotPwdMsg, setForgotPwdMsg] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
 
-  useEffect(() => {
-    if (forgotPwdMsg) {
-      const timer = setTimeout(() => {
-        setForgotPwdMsg('');
-      }, 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [forgotPwdMsg]);
+ <!-- add icon link -->
+ <link rel = "icon" href ="EISicon.png" type = "image/x-icon">
 
-  // Check for redirect URL and validate session on component mount
-  useEffect(() => {
-    // Only run once
-    if (sessionChecked) return;
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="button.css">
+    <link rel="stylesheet" href="db.css">
+    <link rel="stylesheet" href="switch.css">
+    <link rel="stylesheet" href="loader.css">
+    <link rel="stylesheet" href="indexm.css">
+    <link rel="stylesheet" href ="alertsStyle.css">
+    <link rel="stylesheet" href="FDCAlert.css">
 
-    const validateAndRestoreSession = async () => {
-      try {
-        console.log("Login page loaded - checking for redirect URL and session");
-        const urlParams = new URLSearchParams(window.location.search);
-        const returnUrl = urlParams.get('return_url');
 
-        if (returnUrl) {
-          console.log("Found return URL in parameters:", returnUrl);
-          localStorage.setItem('post_login_redirect', returnUrl);
-        }
 
-        // Check for existing session
-        const sessionId = localStorage.getItem('sessionid');
-        const uid = localStorage.getItem('uidd');
-        const storedUsername = localStorage.getItem('username');
+</head>
 
-        console.log("Checking for existing session - sessionId:", !!sessionId, "uid:", !!uid, "username:", storedUsername);
+<body>
+<div class="title_div">
 
-        if (sessionId && uid) {
-          console.log("Found session credentials in localStorage");
-          setSessionLoading(true);
+<div style="padding-left: 0.5%" id='PORTAL_TEXT' onclick="refreshpage()" > EIS PORTAL</div>
 
-          try {
-            // Call authenticatePortal endpoint for session validation
-            const response = await fetch(
-              'https://10.191.171.12:5443/EISHOME/awthenticationService/authenticatePortal/',
-              {
-                method: 'POST',
-                headers: {
-                  'Authorization': `Bearer ${sessionId}`,
-                  'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ uid: uid })
-              }
-            );
 
-            const data = await response.json();
-            console.log("Session validation response:", data, "Status:", response.status);
 
-            if (response.ok && (data.status === 200 || data.status === 302)) {
-              console.log("Session is valid - proceeding with auto-login");
-              
-              // Get username from stored data or response
-              const validatedUsername = storedUsername || data.username || data.user || uid;
-              
-              // Prepare login data from validation response
-              const loginData = {
-                username: validatedUsername,
-                userLevel: data.userLevel || localStorage.getItem('userlevel') || '',
-                sessionid: sessionId,
-                uid: uid,
-                status: data.status
-              };
-              
-              console.log("Auto-login with username:", validatedUsername, "Full data:", loginData);
-              
-              // Mark session as checked to prevent loop
-              setSessionChecked(true);
-              
-              // Directly call onLogin without going through handleLoginSuccess
-              // to avoid redirect issues
-              const redirectUrl = localStorage.getItem('post_login_redirect');
-              if (redirectUrl) {
-                localStorage.removeItem('post_login_redirect');
-                console.log("Redirecting back to:", redirectUrl);
-                window.location.href = redirectUrl;
-              } else {
-                console.log("Calling onLogin for auto-login");
-                onLogin(validatedUsername, loginData);
-              }
-            } else {
-              console.log("Session validation failed - clearing invalid session");
-              localStorage.removeItem('sessionid');
-              localStorage.removeItem('uidd');
-              setSessionLoading(false);
-              setSessionChecked(true);
-            }
-          } catch (err) {
-            console.error('Error validating session:', err);
-            localStorage.removeItem('sessionid');
-            localStorage.removeItem('uidd');
-            setSessionLoading(false);
-            setSessionChecked(true);
-          }
-        } else {
-          console.log("No session credentials found in localStorage");
-          setSessionLoading(false);
-          setSessionChecked(true);
-        }
-      } catch (err) {
-        console.error('Error in session validation:', err);
-        setSessionLoading(false);
-        setSessionChecked(true);
-      }
-    };
 
-    validateAndRestoreSession();
-  }, [sessionChecked, onLogin]);
+<div class="Select_zone_div">
+    <label for="cars">CHOOSE A ZONE :</label>
+    <select name="ZONES" id="select_zone">
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
-    
-    console.log("Form submitted with username:", username);
+        <option value="UNIFIED">UNIFIED</option>
+        <option value="PR">PR</option>
+        <option value="DR">DR</option>
+    </select>
+</div>
 
-    try {
-      // This calls newLogin endpoint and stores data in localStorage
-      const response = await postLogin(username, password);
-      
-      console.log("Login API response:", response);
-      console.log("Response data:", response.data);
-      console.log("Response status:", response.data?.status);
 
-      // Check for successful login status codes
-      if (response.data.status === 302 || response.data.status === 200) {
-        console.log("Login successful! Status:", response.data.status);
+<div id="alert-widget-container"></div>
+<div id="fdc-alert-widget-container"></div>
+<!-- SLIDER  -->
 
-        // Get the username from response (postLogin already stored it)
-        const loginUsername = response.data.username || username;
-        
-        console.log("Manual login with username:", loginUsername);
+<!--
+<label class="switch">
+ <input type="checkbox" id="CHECKBOX_PR_DR">
+ <span class="slider round"></span>
+</label>
 
-        // Check if there's a redirect URL stored
-        const redirectUrl = localStorage.getItem('post_login_redirect');
-        if (redirectUrl) {
-          localStorage.removeItem('post_login_redirect');
-          console.log("Redirecting back to:", redirectUrl);
-          window.location.href = redirectUrl;
-        } else {
-          // Call onLogin with the response data
-          console.log("Calling onLogin for manual login");
-          onLogin(loginUsername, response.data);
-        }
-      } else {
-        console.error("Login failed - invalid status:", response.data.status);
-        setError('Invalid credentials');
-      }
-    } catch (error) {
-      console.error('Login error:', error);
-      setError('Invalid credentials');
-    } finally {
-      setLoading(false);
-    }
-  };
+    -->
+<!-- SLIDER\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\  -->
 
-  // --- Forgot Password Flow ---
-  // Open Modal 1 (enter Employee ID)
-  const openForgotPwdModal = () => {
-    setShowEmpIdModal(true);
-    setEmpId('');
-    setForgotPwdMsg('');
-  };
+<div class="date_div" id="HISTORICDATA_div" >
+       <label class="DATE_LABEL">Enter Date :</label>
+    <input class="date_time" type="datetime-local" name="date" id="DATE_TIME">
+    <input type="button" value="Get Data" class="GET_DATA_BUTTON" id="GET_DATA_BUTTON">
 
-  // Submit Employee ID, get security question
-  const handleEmpIdSubmit = async (e) => {
-    e.preventDefault();
-    setSecQLoading(true);
-    setForgotPwdMsg('');
-    try {
-      const res = await postGetSecurityQuestion(empId);
-      const secQ = res.data.securityQuestion;
+</div></div>
+ <div id="Datedisplay_div"></div>
 
-      if (res.data && (secQ !== null && secQ !== '')) {
-        setSecurityQ(secQ);
-        setShowEmpIdModal(false);
-        setShowSecQModal(true);
-        setSecurityAnswer('');
-        setNewPwd('');
-        setForgotPwdMsg('');
-      } else {
-        if (res.data && (secQ === '' || secQ === null)) {
-          setSecurityQ('');
-          setShowEmpIdModal(false);
-          setShowSecQModal(true);
-          setSecurityAnswer('');
-          setNewPwd('');
-          setForgotPwdMsg('');
-        } else {
-          setForgotPwdMsg(res.data?.msg || 'Invalid employee ID. Please try again.');
-        }
-      }
-    } catch (err) {
-      console.error('Error fetching security question:', err);
-      setForgotPwdMsg('Invalid employee ID. Please try again.');
-    } finally {
-      setSecQLoading(false);
-    }
-  };
 
-  // Submit Security Answer, New Password
-  const handleSecQSubmit = async (e) => {
-    e.preventDefault();
-    setSecQLoading(true);
-    setForgotPwdMsg('');
-    try {
-      const res = await postForgotPassword({
-        uid: empId,
-        securityQuestion: securityQ,
-        password: newPwd,
-        answer: securityAnswer
-      });
-      if (res.data.msg && res.data.msg.toLowerCase().includes('success')) {
-        setForgotPwdMsg('Password updated successfully. You can now login.');
-        setShowSecQModal(false);
-      } else {
-        setForgotPwdMsg(res.data.msg || 'Failed to reset password. Please check your answer.');
-      }
-    } catch (err) {
-      setForgotPwdMsg('Failed to reset password. Please check your answer.');
-    } finally {
-      setSecQLoading(false);
-    }
-  };
-
-  // Close all modals
-  const closeModals = () => {
-    setShowEmpIdModal(false);
-    setShowSecQModal(false);
-    setForgotPwdMsg('');
-  };
-
-  const handleRegisterRedirect = () => {
-    window.open('https://10.191.171.12:5443/EISInfra/EIS/EIS/Registration.php', '_blank');
-  };
-
-  // Show loading state while checking session
-  if (sessionLoading) {
-    return (
-      <div className={darkMode ? 'dark-mode' : ''}>
-        <Header darkMode={darkMode} setDarkMode={setDarkMode} hideMarqueeAndAlertIcon={true} />
-        <div className="login-container">
-          <div style={{ textAlign: 'center', padding: '40px' }}>
-            <p>Validating session...</p>
-          </div>
+<div id="DROP_DIV" class="wow bounceInUp">
+        +
+        <div id="DROP_DOWN"></div>
         </div>
-        <Footer />
-      </div>
-    );
-  }
 
-  return (
-    <div className={darkMode ? 'dark-mode' : ''}>
-      <Header darkMode={darkMode} setDarkMode={setDarkMode} hideMarqueeAndAlertIcon={true} />
-      <div className="login-container">
-        <div className="bubble"></div>
-        <div className="bubble"></div>
-        <form className="login-form" onSubmit={handleSubmit}>
-          <h2>Login</h2>
-          {error && <div className="error-message">{error}</div>}
-          <input
-            type="text"
-            placeholder="Username"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            required
-          />
+    <div id="pin_div"></div>
 
-          <div className="password-wrapper">
-            <input
-              type={showPassword ? "text" : "password"}
-              className="password-input"
-              placeholder="Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-            <span
-              className={`toggle-password ${showPassword ? "active" : ""}`}
-              onClick={() => setShowPassword(!showPassword)}
-            ></span>
-          </div>
 
-          <button type="submit" disabled={loading}>
-            {loading ? 'Logging in...' : 'Login'}
-          </button>
-          <button type="button" onClick={handleRegisterRedirect}>
-            Register
-          </button>
-          {/* Forgot Password link always visible */}
-          <div style={{ marginTop: "10px" }}>
-            <a
-              href="#"
-              onClick={e => { e.preventDefault(); openForgotPwdModal(); }}
-              style={{
-                color: '#007bff',
-                cursor: 'pointer',
-                textDecoration: 'underline',
-                fontSize: '0.95em',
-                display: 'inline-block'
-              }}
-            >
-              Forgot Password?
-            </a>
-          </div>
-        </form>
-        {forgotPwdMsg && !showEmpIdModal && !showSecQModal && (
-          <div className="info-message">{forgotPwdMsg}</div>
-        )}
-      </div>
-      <Footer />
 
-      {/* Employee ID Modal */}
-      {showEmpIdModal && (
-        <div className="modal-overlay">
-          <div className="modal-box">
-            <h3>Forgot Password</h3>
-            <form onSubmit={handleEmpIdSubmit}>
-              <label>Enter your Employee ID:</label>
-              <input
-                type="text"
-                value={empId}
-                onChange={(e) => setEmpId(e.target.value)}
-                required
-                autoFocus
-                className="modal-input"
-              />
-              <div className="modal-actions">
-                <button className="modal-btn" type="submit" disabled={secQLoading}>
-                  {secQLoading ? 'Loading...' : 'Next'}
-                </button>
-                <button className="modal-btn cancel" type="button" onClick={closeModals}>Cancel</button>
-              </div>
-            </form>
-            {forgotPwdMsg && <div className="modal-error-message">{forgotPwdMsg}</div>}
-          </div>
-        </div>
-      )}
 
-      {/* Security Question Modal */}
-      {showSecQModal && (
-        <div className="modal-overlay">
-          <div className="modal-box security-modal">
-            <h3>Reset Password</h3>
-            <form onSubmit={handleSecQSubmit}>
-              {forgotPwdMsg && <div className="modal-error-message">{forgotPwdMsg}</div>}
 
-              <label>Employee ID:</label>
-              <input
-                type="text"
-                value={empId}
-                readOnly
-                className="modal-input readonly"
-              />
+<div class="tablecontainer" id="tablecontainer_div"> </div>
 
-              <label>Security Question:</label>
-              <input
-                type="text"
-                value={securityQ || 'No security question set'}
-                readOnly
-                className="modal-input readonly"
-              />
 
-              {securityQ === "" && (
-                <div className="modal-info-message">
-                  No security question set for this user. Please contact admin if you cannot reset your password.
-                </div>
-              )}
 
-              <label>Your Answer:</label>
-              <input
-                type="password"
-                placeholder="Enter your answer"
-                value={securityAnswer}
-                onChange={e => setSecurityAnswer(e.target.value)}
-                required={securityQ !== ""}
-                disabled={securityQ === ""}
-                className="modal-input"
-              />
 
-              <label>New Password:</label>
-              <input
-                type="password"
-                placeholder="Enter new password"
-                value={newPwd}
-                onChange={e => setNewPwd(e.target.value)}
-                required
-                className="modal-input"
-              />
+<script type="text/javascript" src="wow/wow.min.js"></script>
+<script>
+new WOW().init();
+</script>
+<script src="MAIN_WTH_ZN.js"></script>
+<script  src="Refresh.js"></script>
+<script  src="Reup.js"></script>
 
-              <div className="modal-actions">
-                <button className="modal-btn" type="submit" disabled={secQLoading || !securityQ}>
-                  {secQLoading ? 'Submitting...' : 'Submit'}
-                </button>
-                <button className="modal-btn cancel" type="button" onClick={closeModals}>
-                  Cancel
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
-    </div>
-  );
-}
+<script  src="makeonetb.js"></script>
+<script src="alertsJson.js"></script>
 
-export default Login;
+
+
+
+
+</body>
+</html>
+
+
