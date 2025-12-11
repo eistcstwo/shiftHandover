@@ -1,196 +1,379 @@
-// Function to fetch JSON and render the alert widget (remains the same)
-async function fetchAndRenderAlerts() {
-  const jsonUrl = 'main_alerts.json';
-  try {
-    const response = await fetch(jsonUrl);
-    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-    const rawData = await response.text();
-    let data;
-    try {
-        data = JSON.parse(rawData);
-    } catch (e) {
-        console.error('Could not parse JSON. Ensure the file contains one valid JSON object structure.', e);
-        return;
-    }
-    renderAlertWidget(data);
-  } catch (error) {
-    console.error('Error fetching JSON data:', error);
-  }
-}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FDC Error Monitoring</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        /* Alert Widget Styles */
+        #fdc-alert-widget-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+        }
+        
+        #fdc-alert-box {
+            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+            color: white;
+            padding: 15px 25px;
+            border-radius: 50px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            box-shadow: 0 4px 15px rgba(220, 53, 69, 0.4);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        #fdc-alert-box:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(220, 53, 69, 0.5);
+        }
+        
+        #fdc-alert-box.blink {
+            animation: blink-animation 2s infinite;
+        }
+        
+        @keyframes blink-animation {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        
+        #fdc-alert-box .icon {
+            font-size: 24px;
+        }
+        
+        #fdc-alert-box .count {
+            background: white;
+            color: #dc3545;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 16px;
+        }
+        
+        #fdc-alert-box .message {
+            font-weight: bold;
+            font-size: 16px;
+        }
+        
+        /* Backdrop */
+        .backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1001;
+            display: none;
+        }
+        
+        /* Modal Table */
+        #fdc-alert-table {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+            max-width: 90%;
+            max-height: 85vh;
+            overflow: auto;
+            z-index: 1002;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            display: none;
+        }
+        
+        #fdc-alert-table h3 {
+            margin-top: 0;
+            color: #333;
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+        
+        /* Tabs */
+        .tabs-container {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #e0e0e0;
+            padding-bottom: 10px;
+        }
+        
+        .tab-btn {
+            background: transparent;
+            border: none;
+            padding: 10px 20px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            color: #666;
+            border-radius: 5px 5px 0 0;
+            transition: all 0.3s;
+        }
+        
+        .tab-btn:hover {
+            background: #f5f5f5;
+            color: #333;
+        }
+        
+        .tab-btn.active {
+            background: #007bff;
+            color: white;
+        }
+        
+        /* Table Styles */
+        .table-container {
+            overflow-x: auto;
+            margin-bottom: 20px;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: white;
+        }
+        
+        th {
+            background-color: #007bff;
+            color: white;
+            padding: 12px;
+            text-align: left;
+            font-weight: bold;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        .alert-row:hover {
+            background-color: #f8f9fa;
+        }
+        
+        .alert-row.error {
+            background-color: #fff3cd;
+        }
+        
+        .ip-group-cell {
+            background-color: #e7f3ff;
+            font-weight: bold;
+            vertical-align: middle;
+            border-right: 2px solid #007bff;
+        }
+        
+        /* Close Button */
+        .modal-action-btn {
+            background-color: #6c757d;
+            color: white;
+            border: none;
+            padding: 10px 30px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        
+        .modal-action-btn:hover {
+            background-color: #5a6268;
+        }
+        
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <!-- Alert Widget Container -->
+    <div id="fdc-alert-widget-container"></div>
 
-// Function to render the fixed alert box and the alert table
-function renderAlertWidget(jsonData) {
-  const container = document.getElementById('alert-widget-container');
-  if (!container) return;
+    <h1>FDC Error Monitoring Dashboard</h1>
+    <p>The alert widget will appear in the top-right corner when errors are detected.</p>
 
-  const allAlerts = [];
-
-  for (const ipAddress in jsonData) {
-    const errorsList = jsonData[ipAddress];
-    if (Array.isArray(errorsList) && errorsList.length > 0) {
-      errorsList.forEach((errorObj, index) => {
-        allAlerts.push({
-          id: `${ipAddress}-${index}-${Date.now()}`,
-          ip: ipAddress,
-          broker: errorObj.Broker_Name,
-          eg: errorObj.Eg_Name,
-          message: errorObj.Error,
-          time : errorObj.IssueTime,
-          env: ipAddress.startsWith('10.188') ? 'PR' : (ipAddress.startsWith('10.177') ? 'DR' : 'Other')
-        });
-      });
-    }
-  }
-
-  const alertCount = allAlerts.length;
-
-  // --- Alert Box (Widget) Creation ---
-  const alertBox = document.createElement('div');
-  alertBox.id = 'alert-box';
-  alertBox.innerHTML = `
-    <span class="icon">🔔</span>
-    <span class="count">${alertCount}</span>
-    <div class="message">Alerts</div>
-  `;
-  if (alertCount > 0) {
-    alertBox.className = "blink";
-  }
-  container.appendChild(alertBox);
-
-  // --- Modal (Backdrop and Table) Creation ---
-  const backdrop = document.createElement('div');
-  backdrop.className = 'backdrop';
-  backdrop.style.display = 'none';
-  document.body.appendChild(backdrop);
-
-  const alertTable = document.createElement('div');
-  alertTable.id = 'alert-table';
-  alertTable.style.display = 'none';
-  container.appendChild(alertTable);
-
-  function closeAlertTable() {
-    alertTable.style.display = 'none';
-    backdrop.style.display = 'none';
-  }
-
-  // Helper function to generate table rows, now with IP grouping using rowspan
-  function generateTableRows(filterEnv = null) {
-    const filteredAlerts = filterEnv
-      ? allAlerts.filter(alert => alert.env === filterEnv)
-      : allAlerts;
-
-    // 1. Sort alerts by IP
-    filteredAlerts.sort((a, b) => {
-        const numA = Number(a.ip.split('.').map(num => num.padStart(3, '0')).join(''));
-        const numB = Number(b.ip.split('.').map(num => num.padStart(3, '0')).join(''));
-        return numA - numB;
-    });
-
-    let tableHtml = '';
-    let ipGroups = {}; // Object to count occurrences of each IP
-
-    // Count group sizes
-    filteredAlerts.forEach(alert => {
-        ipGroups[alert.ip] = (ipGroups[alert.ip] || 0) + 1;
-    });
-
-    let previousIp = '';
-
-    filteredAlerts.forEach(alert => {
-        tableHtml += `<tr class="alert-row ${alert.env}" data-alert-id="${alert.id}">`;
-
-        // 2. Add IP Cell with Rowspan (only for the first item in the group)
-        if (alert.ip !== previousIp) {
-            const rowSpanCount = ipGroups[alert.ip];
-            tableHtml += `
-                <td rowspan="${rowSpanCount}" class="ip-group-cell">
-                    <strong>${alert.ip}</strong>
-                </td>
-            `;
-            previousIp = alert.ip; // Update the previous IP tracker
+    <script>
+        // Function to fetch JSON and render the alert widget
+        async function fetchAndRenderFDCAlerts() {
+            const jsonUrl = 'FINAL_FDC_error.json';
+            try {
+                const response = await fetch(jsonUrl);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                const rawData = await response.text();
+                let data;
+                try {
+                    data = JSON.parse(rawData);
+                } catch (e) {
+                    console.error('Could not parse JSON. Ensure the file contains valid JSON.', e);
+                    return;
+                }
+                renderFDCAlertWidget(data);
+            } catch (error) {
+                console.error('Error fetching JSON data:', error);
+            }
         }
 
-        // 3. Add the rest of the cells
-        tableHtml += `
-            <td>${alert.broker}</td>
-            <td>${alert.eg}</td>
-            <td>${alert.message}</td>
-                <td>${alert.time}</td>
-        </tr>
-        `;
-    });
+        // Function to render the fixed alert box and the alert table
+        function renderFDCAlertWidget(jsonData) {
+            const container = document.getElementById('fdc-alert-widget-container');
+            if (!container) return;
 
-    return tableHtml;
-  }
+            const allAlerts = [];
 
-  // Function to render the full table structure including tabs
-  function renderTableContent(activeTab = 'PR') {
-    const prCount = allAlerts.filter(a => a.env === 'PR').length;
-    const drCount = allAlerts.filter(a => a.env === 'DR').length;
-    const currentAlerts = allAlerts.filter(a => a.env === activeTab);
+            for (const ipAddress in jsonData) {
+                const errorData = jsonData[ipAddress];
+                if (errorData.FIRST_occurance !== "" || errorData.Last_occurance !== "") {
+                    allAlerts.push({
+                        id: `${ipAddress}-${Date.now()}`,
+                        ip: ipAddress,
+                        firstOccurance: errorData.FIRST_occurance,
+                        lastOccurance: errorData.Last_occurance,
+                        env: ipAddress.startsWith('10.188.24') ? '10.188.24.x' : 
+                             (ipAddress.startsWith('10.188.25') ? '10.188.25.x' : 'Other')
+                    });
+                }
+            }
 
-    alertTable.innerHTML = `
-      <h3>Active Alerts (${currentAlerts.length})</h3>
+            const alertCount = allAlerts.length;
 
-      <div class="tabs-container">
-        <button class="tab-btn ${activeTab === 'PR' ? 'active' : ''}" data-env="PR">
-          PR Alerts (${prCount})
-        </button>
-        <button class="tab-btn ${activeTab === 'DR' ? 'active' : ''}" data-env="DR">
-          DR Alerts (${drCount})
-        </button>
-      </div>
+            // Only show alert widget if there are errors
+            if (alertCount === 0) {
+                return; // Exit early, don't create any UI elements
+            }
 
-      <div class="table-container">
-        <table>
-          <thead>
-            <tr>
-              <!-- Adjusted Headers for column layout -->
-              <th>Server IP</th>
-              <th>Broker Name</th>
-              <th>EG Name</th>
-              <th>Error Message</th>
-              <th>Time</th>
-            </tr>
-          </thead>
-          <tbody id="alert-table-body">
-            ${generateTableRows(activeTab)}
-          </tbody>
-        </table>
-      </div>
-      <button id="close-table-btn" class="modal-action-btn">Close</button>
-    `;
-  }
+            // --- Alert Box (Widget) Creation ---
+            const alertBox = document.createElement('div');
+            alertBox.id = 'fdc-alert-box';
+            alertBox.innerHTML = `
+                <span class="icon">⚠️</span>
+                <span class="count">${alertCount}</span>
+                <div class="message">FDC Errors</div>
+            `;
+            alertBox.className = "blink";
+            container.appendChild(alertBox);
 
-  // --- EVENT DELEGATION ---
-  alertTable.addEventListener('click', function(event) {
-    if (event.target.closest('.tab-btn')) {
-        const selectedEnv = event.target.closest('.tab-btn').getAttribute('data-env');
-        renderTableContent(selectedEnv);
-    }
+            // --- Modal (Backdrop and Table) Creation ---
+            const backdrop = document.createElement('div');
+            backdrop.className = 'backdrop';
+            backdrop.style.display = 'none';
+            document.body.appendChild(backdrop);
 
-    if (event.target.id === 'close-table-btn') {
-        closeAlertTable();
-    }
-  });
+            const alertTable = document.createElement('div');
+            alertTable.id = 'fdc-alert-table';
+            alertTable.style.display = 'none';
+            container.appendChild(alertTable);
 
-  // --- Initial Setup ---
-  if (alertCount > 0) {
-    renderTableContent('PR');
-  } else {
-    alertTable.innerHTML = `<h3>No Active Alerts</h3><button id="close-table-btn" class="modal-action-btn">Close</button>`;
-  }
+            function closeAlertTable() {
+                alertTable.style.display = 'none';
+                backdrop.style.display = 'none';
+            }
 
-  container.appendChild(alertTable);
+            // Helper function to generate table rows with IP grouping using rowspan
+            function generateTableRows(filterEnv = null) {
+                const filteredAlerts = filterEnv
+                    ? allAlerts.filter(alert => alert.env === filterEnv)
+                    : allAlerts;
 
-  alertBox.addEventListener('click', () => {
-    alertTable.style.display = 'block';
-    backdrop.style.display = 'block';
-  });
+                // Sort alerts by IP
+                filteredAlerts.sort((a, b) => {
+                    const numA = Number(a.ip.split('.').map(num => num.padStart(3, '0')).join(''));
+                    const numB = Number(b.ip.split('.').map(num => num.padStart(3, '0')).join(''));
+                    return numA - numB;
+                });
 
-  backdrop.addEventListener('click', closeAlertTable);
-}
+                let tableHtml = '';
+                let ipGroups = {}; // Count occurrences of each IP
 
-// Call the main function to start everything when the script loads
-fetchAndRenderAlerts();
+                // Count group sizes
+                filteredAlerts.forEach(alert => {
+                    ipGroups[alert.ip] = (ipGroups[alert.ip] || 0) + 1;
+                });
 
+                let previousIp = '';
+
+                filteredAlerts.forEach(alert => {
+                    tableHtml += `<tr class="alert-row error" data-alert-id="${alert.id}">`;
+
+                    // Add IP Cell with Rowspan (only for the first item in the group)
+                    if (alert.ip !== previousIp) {
+                        const rowSpanCount = ipGroups[alert.ip];
+                        tableHtml += `
+                            <td rowspan="${rowSpanCount}" class="ip-group-cell">
+                                <strong>${alert.ip}</strong>
+                            </td>
+                        `;
+                        previousIp = alert.ip;
+                    }
+
+                    // Add the rest of the cells
+                    tableHtml += `
+                        <td>${alert.firstOccurance}</td>
+                        <td>${alert.lastOccurance}</td>
+                    </tr>
+                    `;
+                });
+
+                return tableHtml;
+            }
+
+            // Function to render the full table structure (combined, no tabs)
+            function renderTableContent() {
+                alertTable.innerHTML = `
+                    <h3>FDC Error Alerts (${alertCount})</h3>
+
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>IP Address</th>
+                                    <th>First Occurrence</th>
+                                    <th>Last Occurrence</th>
+                                </tr>
+                            </thead>
+                            <tbody id="fdc-alert-table-body">
+                                ${generateTableRows(null)}
+                            </tbody>
+                        </table>
+                    </div>
+                    <button id="close-table-btn" class="modal-action-btn">Close</button>
+                `;
+            }
+
+            // --- EVENT DELEGATION ---
+            alertTable.addEventListener('click', function(event) {
+                if (event.target.id === 'close-table-btn') {
+                    closeAlertTable();
+                }
+            });
+
+            // --- Initial Setup ---
+            renderTableContent();
+
+            container.appendChild(alertTable);
+
+            alertBox.addEventListener('click', () => {
+                alertTable.style.display = 'block';
+                backdrop.style.display = 'block';
+            });
+
+            backdrop.addEventListener('click', closeAlertTable);
+        }
+
+        // Call the main function to start everything when the script loads
+        fetchAndRenderFDCAlerts();
+    </script>
+</body>
+</html>
