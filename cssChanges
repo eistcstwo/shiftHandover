@@ -1,151 +1,199 @@
-{
-    "TeamHandoverDetails": [
-        {
-            "rid": 10,
-            "role": "EIS-Infra Development",
-            "pid": 1,
-            "rate": 0,
-            "billable_count": 0,
-            "max_days": 0,
-            "handover_id_id": 2
-        }
-    ],
-    "Tasksdata": [
-        {
-            "historyTaskId": 50,
-            "task": "sdadsafdsgfdvcsd",
-            "userCompleted_id": 2743582,
-            "timing": "2025-10-29 17:40:01.530840",
-            "handover_id_id": 2,
-            "acknowledgeDetails": [
-                {
-                    "ackId": 24,
-                    "ackDesc": "done",
-                    "userAcknowleged_id": 2743582,
-                    "acknowledgeTime": "2025-10-29 12:07:36",
-                    "ackTask_id_id": 50
-                },
-                {
-                    "ackId": 25,
-                    "ackDesc": "done",
-                    "userAcknowleged_id": 2743582,
-                    "acknowledgeTime": "2025-10-29 12:07:38",
-                    "ackTask_id_id": 50
-                },
-                {
-                    "ackId": 26,
-                    "ackDesc": "done",
-                    "userAcknowleged_id": 2743582,
-                    "acknowledgeTime": "2025-10-29 12:08:32",
-                    "ackTask_id_id": 50
-                },
-                {
-                    "ackId": 27,
-                    "ackDesc": "done",
-                    "userAcknowleged_id": 2743582,
-                    "acknowledgeTime": "2025-10-29 12:08:34",
-                    "ackTask_id_id": 50
-                },
-                {
-                    "ackId": 28,
-                    "ackDesc": "done",
-                    "userAcknowleged_id": 2743582,
-                    "acknowledgeTime": "2025-10-29 12:10:01",
-                    "ackTask_id_id": 50
-                }
-            ]
-        },
-        {
-            "historyTaskId": 51,
-            "task": "dsfdsfdgfdv",
-            "userCompleted_id": 2798445,
-            "timing": "2025-10-29 17:43:30.103248",
-            "handover_id_id": 2,
-            "acknowledgeDetails": [
-                {
-                    "ackId": 29,
-                    "ackDesc": "okkk ",
-                    "userAcknowleged_id": 2790746,
-                    "acknowledgeTime": "2025-10-28 13:26:22",
-                    "ackTask_id_id": 51
-                },
-                {
-                    "ackId": 30,
-                    "ackDesc": "g",
-                    "userAcknowleged_id": 2798445,
-                    "acknowledgeTime": "2025-10-29 12:13:30",
-                    "ackTask_id_id": 51
-                }
-            ]
-        },
-        {
-            "historyTaskId": 52,
-            "task": "asdasfsaf",
-            "userCompleted_id": 2743582,
-            "timing": "2025-10-29 17:45:48.885266",
-            "handover_id_id": 2,
-            "acknowledgeDetails": [
-                {
-                    "ackId": 31,
-                    "ackDesc": "okkk",
-                    "userAcknowleged_id": 2790746,
-                    "acknowledgeTime": "2025-10-28 13:21:02",
-                    "ackTask_id_id": 52
-                },
-                {
-                    "ackId": 32,
-                    "ackDesc": "okkkkkk",
-                    "userAcknowleged_id": 2743582,
-                    "acknowledgeTime": "2025-10-29 12:15:48",
-                    "ackTask_id_id": 52
-                }
-            ]
-        },
-        {
-            "historyTaskId": 53,
-            "task": "phase",
-            "userCompleted_id": 2798445,
-            "timing": "2025-10-29 20:05:28.171958",
-            "handover_id_id": 2,
-            "acknowledgeDetails": [
-                {
-                    "ackId": 33,
-                    "ackDesc": "this is acknowledge b me",
-                    "userAcknowleged_id": 2743582,
-                    "acknowledgeTime": "2025-10-25 12:38:17",
-                    "ackTask_id_id": 53
-                },
-                {
-                    "ackId": 34,
-                    "ackDesc": "okk",
-                    "userAcknowleged_id": 2790746,
-                    "acknowledgeTime": "2025-10-26 06:36:49",
-                    "ackTask_id_id": 53
-                },
-                {
-                    "ackId": 35,
-                    "ackDesc": "sff",
-                    "userAcknowleged_id": 2798445,
-                    "acknowledgeTime": "2025-10-29 14:35:28",
-                    "ackTask_id_id": 53
-                }
-            ]
-        },
-        {
-            "historyTaskId": 54,
-            "task": "adda",
-            "userCompleted_id": 2798445,
-            "timing": "2025-10-29 20:52:23.183101",
-            "handover_id_id": 2,
-            "acknowledgeDetails": [
-                {
-                    "ackId": 36,
-                    "ackDesc": "dada",
-                    "userAcknowleged_id": 2798445,
-                    "acknowledgeTime": "2025-10-29 15:22:23",
-                    "ackTask_id_id": 54
-                }
-            ]
-        }
-    ]
+/* FDC Alert Widget Styles - COMPLETELY ISOLATED */
+/* These styles ONLY affect elements with fdc- prefix */
+
+/* Alert Widget Container */
+#fdc-alert-widget-container {
+    position: fixed;
+    top: 11px;
+    right: 344px;
+    z-index: 999999;
+    font-family: Arial, sans-serif;
+}
+
+/* Alert Box */
+#fdc-alert-box {
+    display: flex !important;
+    align-items: center;
+    padding: 12px 20px !important;
+    background-color: #ff0000 !important;
+    color: white !important;
+    border-radius: 8px !important;
+    cursor: pointer !important;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2) !important;
+    transition: background-color 0.3s ease, transform 0.2s ease !important;
+    gap: 10px !important;
+    border: none !important;
+    margin: 0 !important;
+    font: inherit !important;
+}
+
+#fdc-alert-box:hover {
+    background-color: #0056b3 !important;
+    transform: translateY(-2px) !important;
+}
+
+#fdc-alert-box .fdc-icon {
+    font-size: 1.4em !important;
+}
+
+#fdc-alert-box .fdc-count {
+    font-size: 1.1em !important;
+    font-weight: bold !important;
+    padding: 4px 10px !important;
+    border-radius: 50% !important;
+    background: white !important;
+    color: #ff0000 !important;
+    min-width: 30px !important;
+    text-align: center !important;
+    line-height: 1 !important;
+}
+
+#fdc-alert-box .fdc-message {
+    font-weight: 500 !important;
+}
+
+/* Blink effect */
+.fdc-blink {
+    animation: fdc-pulse 1.5s infinite alternate !important;
+}
+
+@keyframes fdc-pulse {
+    from {
+        box-shadow: 0 0 0 0px rgba(255, 0, 0, 0.7) !important;
+    }
+    to {
+        box-shadow: 0 0 0 10px rgba(255, 0, 0, 0) !important;
+    }
+}
+
+/* Modal Table */
+#fdc-alert-table {
+    position: fixed !important;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    background-color: white !important;
+    padding: 30px !important;
+    border-radius: 10px !important;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3) !important;
+    z-index: 1000001 !important;
+    max-height: 80vh !important;
+    overflow-y: auto !important;
+    width: 90% !important;
+    max-width: 1200px !important;
+    display: none !important;
+    box-sizing: border-box !important;
+}
+
+#fdc-alert-table h3 {
+    margin-top: 0 !important;
+    color: #dc3545 !important;
+    border-bottom: 2px solid #eee !important;
+    padding-bottom: 10px !important;
+    margin-bottom: 20px !important;
+    font-size: 24px !important;
+    font-weight: bold !important;
+}
+
+/* Table Container */
+.fdc-table-container {
+    max-height: 60vh !important;
+    overflow-y: auto !important;
+    margin-bottom: 20px !important;
+    border: 1px solid #ddd !important;
+    border-radius: 5px !important;
+}
+
+/* Table Styling */
+.fdc-alerts-table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    font-size: 16px !important;
+    display: table !important;
+}
+
+.fdc-alerts-table thead {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 10 !important;
+    display: table-header-group !important;
+}
+
+.fdc-alerts-table tbody {
+    display: table-row-group !important;
+}
+
+.fdc-alerts-table tr {
+    display: table-row !important;
+}
+
+.fdc-alerts-table th {
+    background-color: #333131 !important;
+    color: white !important;
+    border: 1px solid #444 !important;
+    padding: 15px !important;
+    text-align: left !important;
+    font-weight: 600 !important;
+    font-size: 18px !important;
+    display: table-cell !important;
+}
+
+.fdc-alerts-table td {
+    border: 1px solid #ddd !important;
+    padding: 12px !important;
+    text-align: left !important;
+    vertical-align: middle !important;
+    display: table-cell !important;
+}
+
+/* IP Group Cell */
+.fdc-ip-group-cell {
+    background-color: #3b3939 !important;
+    color: white !important;
+    font-weight: bold !important;
+    border-right: 2px solid #555 !important;
+    vertical-align: top !important;
+}
+
+/* Alert Row */
+.fdc-alert-row:hover {
+    background-color: #f8f9fa !important;
+}
+
+.fdc-alert-row.fdc-error {
+    background-color: #fff3cd !important;
+}
+
+/* Close Button */
+.fdc-close-btn {
+    padding: 12px 30px !important;
+    background-color: #6c757d !important;
+    color: white !important;
+    border: none !important;
+    border-radius: 5px !important;
+    cursor: pointer !important;
+    font-size: 16px !important;
+    font-weight: 500 !important;
+    transition: background-color 0.3s !important;
+    display: block !important;
+    margin-left: auto !important;
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    -moz-appearance: none !important;
+}
+
+.fdc-close-btn:hover {
+    background-color: #5a6268 !important;
+}
+
+/* Backdrop */
+.fdc-backdrop {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    background: rgba(0, 0, 0, 0.6) !important;
+    z-index: 1000000 !important;
+    display: none !important;
 }
