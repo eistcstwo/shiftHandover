@@ -1,5 +1,23 @@
 /* FDCAlert.css */
 
+/* Reset user agent styles specifically for FDC alert elements */
+#fdc-alert-widget-container,
+#fdc-alert-widget-container *,
+#fdc-alert-box,
+#fdc-alert-box *,
+#fdc-alert-table,
+#fdc-alert-table *,
+.fdc-backdrop {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    font-size: 100%;
+    font-family: Arial, sans-serif;
+    vertical-align: baseline;
+    box-sizing: border-box;
+    line-height: normal;
+}
+
 /* Alert Widget Styles */
 #fdc-alert-widget-container {
     position: fixed;
@@ -26,7 +44,7 @@
     box-shadow: 0 6px 20px rgba(220, 53, 69, 0.5);
 }
 
-#fdc-alert-box.blink {
+#fdc-alert-box.fdc-blink {
     animation: fdc-blink-animation 2s infinite;
 }
 
@@ -35,22 +53,25 @@
     50% { opacity: 0.7; }
 }
 
-#fdc-alert-box .icon {
+#fdc-alert-box .fdc-icon {
     font-size: 24px;
+    display: inline-block;
 }
 
-#fdc-alert-box .count {
+#fdc-alert-box .fdc-count {
     background: white;
     color: #dc3545;
     padding: 4px 12px;
     border-radius: 20px;
     font-weight: bold;
     font-size: 16px;
+    display: inline-block;
 }
 
-#fdc-alert-box .message {
+#fdc-alert-box .fdc-message {
     font-weight: bold;
     font-size: 16px;
+    display: inline-block;
 }
 
 /* Backdrop */
@@ -83,22 +104,25 @@
 }
 
 #fdc-alert-table h3 {
-    margin-top: 0;
+    margin: 0 0 20px 0;
+    padding: 0;
     color: #333;
     font-size: 24px;
-    margin-bottom: 20px;
+    font-weight: bold;
 }
 
 /* Table Styles */
-#fdc-alert-table .table-container {
+#fdc-alert-table .fdc-table-container {
     overflow-x: auto;
-    margin-bottom: 20px;
+    margin: 0 0 20px 0;
+    padding: 0;
 }
 
 #fdc-alert-table table {
     width: 100%;
     border-collapse: collapse;
     background-color: white;
+    border-spacing: 0;
 }
 
 #fdc-alert-table th {
@@ -110,47 +134,58 @@
     position: sticky;
     top: 0;
     z-index: 10;
+    border: none;
 }
 
 #fdc-alert-table td {
     padding: 12px;
     border-bottom: 1px solid #ddd;
+    border-left: none;
+    border-right: none;
+    border-top: none;
 }
 
-#fdc-alert-table .alert-row:hover {
+#fdc-alert-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+#fdc-alert-table .fdc-alert-row:hover {
     background-color: #f8f9fa;
 }
 
-#fdc-alert-table .alert-row.error {
+#fdc-alert-table .fdc-alert-row.fdc-error {
     background-color: #fff3cd;
 }
 
-#fdc-alert-table .ip-group-cell {
+#fdc-alert-table .fdc-ip-group-cell {
     background-color: #e7f3ff;
     font-weight: bold;
     vertical-align: middle;
-    border-right: 2px solid #007bff;
+    border-right: 2px solid #007bff !important;
 }
 
 /* Close Button */
-#fdc-alert-table .modal-action-btn {
+#fdc-alert-table .fdc-modal-action-btn {
     background-color: #6c757d;
     color: white;
     border: none;
     padding: 10px 30px;
+    margin: 0;
     font-size: 16px;
     border-radius: 5px;
     cursor: pointer;
     transition: background-color 0.3s;
+    display: inline-block;
 }
 
-#fdc-alert-table .modal-action-btn:hover {
+#fdc-alert-table .fdc-modal-action-btn:hover {
     background-color: #5a6268;
 }
 
 /* Empty State */
-#fdc-alert-table .empty-state {
+#fdc-alert-table .fdc-empty-state {
     text-align: center;
     padding: 40px;
+    margin: 0;
     color: #666;
 }
