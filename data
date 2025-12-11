@@ -1,385 +1,270 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FDC Error Monitoring</title>
-    <style>
-        /* 
-        ISOLATED CSS - Only affects elements starting with "fdc-" 
-        This ensures NO conflicts with existing page elements
-        */
+// FDC Alert Widget - Isolated JavaScript
+// Add this to your existing HTML page
 
-        /* --- Alert Widget Container --- */
-        #fdc-alert-widget-container {
-            position: fixed;
-            top: 11px;
-            right: 344px;
-            z-index: 1001;
-            /* Isolated - won't affect other elements */
-        }
-
-        /* --- Alert Box --- */
-        #fdc-alert-box {
-            display: flex;
-            align-items: center;
-            padding: 12px 20px;
-            background-color: #ff0000;
-            color: white;
-            border-radius: 8px;
-            cursor: pointer;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-            transition: background-color 0.3s ease, transform 0.2s ease;
-            gap: 10px;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-
-        #fdc-alert-box:hover {
-            background-color: #0056b3;
-            transform: translateY(-2px);
-        }
-
-        #fdc-alert-box .fdc-icon {
-            font-size: 1.4em;
-        }
-
-        #fdc-alert-box .fdc-count {
-            font-size: 1.1em;
-            font-weight: bold;
-            padding: 2px 8px;
-            border-radius: 50%;
-            background: white;
-            color: #ff0000;
-        }
-
-        #fdc-alert-box .fdc-message {
-            font-weight: 500;
-        }
-
-        /* --- Blink effect --- */
-        .fdc-blink {
-            animation: fdc-pulse 1.5s infinite alternate;
-        }
-
-        @keyframes fdc-pulse {
-            from {
-                box-shadow: 0 0 0 0px rgba(255, 0, 0, 0.7);
-            }
-            to {
-                box-shadow: 0 0 0 10px rgba(255, 0, 0, 0);
-            }
-        }
-
-        /* --- Modal Table --- */
-        #fdc-alert-table {
-            position: fixed;
-            top: 53%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background-color: white;
-            padding: 30px;
-            border-radius: 10px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-            z-index: 1002;
-            max-height: 150vh;
-            overflow-y: auto;
-            width: 100%;
-            max-width: 2500px;
-            display: none;
-            box-sizing: border-box;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-
-        /* --- FDC Table Content --- */
-        #fdc-alert-table h3 {
-            margin-top: 0;
-            color: #dc3545;
-            border-bottom: 2px solid #eee;
-            padding-bottom: 10px;
-            margin-bottom: 20px;
-            font-size: 24px;
-            font-weight: bold;
-        }
-
-        /* FDC Table Container */
-        .fdc-table-container {
-            max-height: 80vh;
-            overflow-y: auto;
-            margin-bottom: 20px;
-        }
-
-        /* FDC Table Styling */
-        .fdc-alerts-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 15px;
-            font-size: 20px;
-        }
-
-        /* Table Headers - VERY SPECIFIC selector */
-        .fdc-alerts-table thead tr th {
-            background-color: #333131 !important;
-            color: white !important;
-            border: 1px solid #ddd !important;
-            padding: 12px !important;
-            text-align: left !important;
-            font-weight: 600 !important;
-            position: sticky !important;
-            top: 0 !important;
-            z-index: 99 !important;
-        }
-
-        /* Table Cells - VERY SPECIFIC selector */
-        .fdc-alerts-table tbody tr td {
-            border: 1px solid #ddd !important;
-            padding: 12px !important;
-            text-align: left !important;
-            vertical-align: middle !important;
-        }
-
-        /* IP Group Cell */
-        .fdc-ip-group-cell {
-            vertical-align: top !important;
-            text-align: left !important;
-            background-color: #3b3939 !important;
-            border-right: 1px solid #ccc !important;
-            padding: 10px !important;
-            color: white !important;
-            font-weight: bold !important;
-        }
-
-        /* Alert Row */
-        .fdc-alert-row:hover {
-            background-color: #f8f9fa !important;
-        }
-
-        .fdc-alert-row.fdc-error {
-            background-color: #fff3cd !important;
-        }
-
-        /* --- FDC Close Button --- */
-        .fdc-close-btn {
-            padding: 10px 20px !important;
-            background-color: #6c757d !important;
-            color: white !important;
-            border: none !important;
-            border-radius: 5px !important;
-            cursor: pointer !important;
-            font-size: 1em !important;
-            float: right !important;
-            font-family: inherit !important;
-        }
-
-        .fdc-close-btn:hover {
-            background-color: #5a6268 !important;
-        }
-
-        /* --- FDC Backdrop --- */
-        .fdc-backdrop {
-            position: fixed !important;
-            top: 0 !important;
-            left: 0 !important;
-            width: 100% !important;
-            height: 100% !important;
-            background: rgba(0, 0, 0, 0.6) !important;
-            z-index: 1000 !important;
-            display: none !important;
-        }
-
-        /* --- VERY IMPORTANT: Reset button styles ONLY for FDC elements --- */
-        #fdc-alert-table button.fdc-close-btn,
-        #fdc-alert-table .tab-btn {
-            appearance: none !important;
-            -webkit-appearance: none !important;
-            -moz-appearance: none !important;
-            background: none !important;
-            border: none !important;
-            margin: 0 !important;
-            font-family: inherit !important;
-            font-size: inherit !important;
-            line-height: inherit !important;
-            color: inherit !important;
-            cursor: pointer !important;
-        }
-    </style>
-</head>
-<body>
-    <!-- Alert Widget Container -->
-    <div id="fdc-alert-widget-container"></div>
-
-    <!-- Your existing page content -->
-    <h1>FDC Error Monitoring Dashboard</h1>
-    <p>The alert widget will appear in the top-right corner when errors are detected.</p>
+(function() {
+    'use strict';
     
-    <!-- Other tables on your page WON'T be affected -->
-    <div id="other-content">
-        <table class="some-other-table">
-            <tr><td>Other table content - WON'T be affected</td></tr>
-        </table>
-    </div>
-
-    <script>
-        // Function to fetch JSON and render the alert widget
-        async function fetchAndRenderFDCAlerts() {
-            const jsonUrl = 'FINAL_FDC_error.json';
-            try {
-                const response = await fetch(jsonUrl);
-                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                const rawData = await response.text();
-                let data;
-                try {
-                    data = JSON.parse(rawData);
-                } catch (e) {
-                    console.error('Could not parse JSON. Ensure the file contains valid JSON.', e);
-                    return;
-                }
-                renderFDCAlertWidget(data);
-            } catch (error) {
-                console.error('Error fetching JSON data:', error);
+    // Prevent multiple initializations
+    if (window.FDCAlertInitialized) {
+        return;
+    }
+    window.FDCAlertInitialized = true;
+    
+    // Configuration
+    const CONFIG = {
+        jsonUrl: 'FINAL_FDC_error.json',
+        pollInterval: 60000, // Check every 60 seconds
+        widgetPosition: {
+            top: '11px',
+            right: '344px'
+        }
+    };
+    
+    // State management
+    let widgetState = {
+        alerts: [],
+        isModalOpen: false,
+        backdrop: null,
+        alertTable: null
+    };
+    
+    // Main initialization
+    function initFDCAlertWidget() {
+        console.log('Initializing FDC Alert Widget...');
+        
+        // Create or get container
+        let container = document.getElementById('fdc-alert-widget-container');
+        if (!container) {
+            console.error('FDC Alert Container not found!');
+            return;
+        }
+        
+        // Ensure container is empty
+        container.innerHTML = '';
+        
+        // Load data
+        loadFDCData();
+        
+        // Set up polling
+        setInterval(loadFDCData, CONFIG.pollInterval);
+    }
+    
+    // Load JSON data
+    async function loadFDCData() {
+        try {
+            const response = await fetch(CONFIG.jsonUrl);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const jsonData = await response.json();
+            processFDCData(jsonData);
+        } catch (error) {
+            console.error('Error loading FDC data:', error);
+            // You could show a fallback or error state here
+        }
+    }
+    
+    // Process the JSON data
+    function processFDCData(jsonData) {
+        const allAlerts = [];
+        
+        for (const ipAddress in jsonData) {
+            const errorData = jsonData[ipAddress];
+            if (errorData.FIRST_occurance || errorData.Last_occurance) {
+                allAlerts.push({
+                    id: `${ipAddress}-${Date.now()}`,
+                    ip: ipAddress,
+                    firstOccurance: errorData.FIRST_occurance || 'N/A',
+                    lastOccurance: errorData.Last_occurance || 'N/A',
+                    env: ipAddress.startsWith('10.188.24') ? '10.188.24.x' : 
+                         (ipAddress.startsWith('10.188.25') ? '10.188.25.x' : 'Other')
+                });
             }
         }
-
-        // Function to render the fixed alert box and the alert table
-        function renderFDCAlertWidget(jsonData) {
-            const container = document.getElementById('fdc-alert-widget-container');
-            if (!container) return;
-
-            const allAlerts = [];
-
-            for (const ipAddress in jsonData) {
-                const errorData = jsonData[ipAddress];
-                if (errorData.FIRST_occurance !== "" || errorData.Last_occurance !== "") {
-                    allAlerts.push({
-                        id: `${ipAddress}-${Date.now()}`,
-                        ip: ipAddress,
-                        firstOccurance: errorData.FIRST_occurance,
-                        lastOccurance: errorData.Last_occurance,
-                        env: ipAddress.startsWith('10.188.24') ? '10.188.24.x' : 
-                             (ipAddress.startsWith('10.188.25') ? '10.188.25.x' : 'Other')
-                    });
-                }
-            }
-
-            const alertCount = allAlerts.length;
-
-            // Only show alert widget if there are errors
-            if (alertCount === 0) {
-                return;
-            }
-
-            // --- Alert Box (Widget) Creation ---
-            const alertBox = document.createElement('div');
-            alertBox.id = 'fdc-alert-box';
-            alertBox.innerHTML = `
-                <span class="fdc-icon">⚠️</span>
-                <span class="fdc-count">${alertCount}</span>
-                <div class="fdc-message">FDC Errors</div>
-            `;
-            alertBox.className = "fdc-blink";
-            container.appendChild(alertBox);
-
-            // --- Modal (Backdrop and Table) Creation ---
-            const backdrop = document.createElement('div');
-            backdrop.className = 'fdc-backdrop';
-            backdrop.style.display = 'none';
-            document.body.appendChild(backdrop);
-
-            const alertTable = document.createElement('div');
-            alertTable.id = 'fdc-alert-table';
-            alertTable.style.display = 'none';
-            document.body.appendChild(alertTable); // Append to body, not container
-
-            function closeAlertTable() {
-                alertTable.style.display = 'none';
-                backdrop.style.display = 'none';
-            }
-
-            // Helper function to generate table rows with IP grouping
-            function generateTableRows() {
-                // Sort alerts by IP
-                const sortedAlerts = [...allAlerts].sort((a, b) => {
-                    const numA = Number(a.ip.split('.').map(num => num.padStart(3, '0')).join(''));
-                    const numB = Number(b.ip.split('.').map(num => num.padStart(3, '0')).join(''));
-                    return numA - numB;
-                });
-
-                let tableHtml = '';
-                let ipGroups = {};
-
-                // Count group sizes
-                sortedAlerts.forEach(alert => {
-                    ipGroups[alert.ip] = (ipGroups[alert.ip] || 0) + 1;
-                });
-
-                let previousIp = '';
-
-                sortedAlerts.forEach(alert => {
-                    tableHtml += `<tr class="fdc-alert-row fdc-error" data-alert-id="${alert.id}">`;
-
-                    // Add IP Cell with Rowspan
-                    if (alert.ip !== previousIp) {
-                        const rowSpanCount = ipGroups[alert.ip];
-                        tableHtml += `
-                            <td rowspan="${rowSpanCount}" class="fdc-ip-group-cell">
-                                <strong>${alert.ip}</strong>
-                            </td>
-                        `;
-                        previousIp = alert.ip;
-                    }
-
-                    // Add the rest of the cells
-                    tableHtml += `
-                        <td>${alert.firstOccurance || 'N/A'}</td>
-                        <td>${alert.lastOccurance || 'N/A'}</td>
-                    </tr>
-                    `;
-                });
-
-                return tableHtml;
-            }
-
-            // Function to render the full table structure
-            function renderTableContent() {
-                alertTable.innerHTML = `
-                    <h3>FDC Error Alerts (${alertCount})</h3>
-                    <div class="fdc-table-container">
-                        <table class="fdc-alerts-table">
-                            <thead>
-                                <tr>
-                                    <th>IP Address</th>
-                                    <th>First Occurrence</th>
-                                    <th>Last Occurrence</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${generateTableRows()}
-                            </tbody>
-                        </table>
-                    </div>
-                    <button class="fdc-close-btn">Close</button>
+        
+        widgetState.alerts = allAlerts;
+        renderFDCWidget(allAlerts);
+    }
+    
+    // Render the widget
+    function renderFDCWidget(alerts) {
+        const container = document.getElementById('fdc-alert-widget-container');
+        if (!container) return;
+        
+        const alertCount = alerts.length;
+        
+        // Clear existing widget
+        const existingAlertBox = document.getElementById('fdc-alert-box');
+        if (existingAlertBox) {
+            existingAlertBox.remove();
+        }
+        
+        // Don't show widget if no alerts
+        if (alertCount === 0) {
+            return;
+        }
+        
+        // Create alert box
+        const alertBox = document.createElement('div');
+        alertBox.id = 'fdc-alert-box';
+        alertBox.className = 'fdc-blink';
+        alertBox.innerHTML = `
+            <span class="fdc-icon">⚠️</span>
+            <span class="fdc-count">${alertCount}</span>
+            <div class="fdc-message">FDC Errors</div>
+        `;
+        
+        container.appendChild(alertBox);
+        
+        // Add click handler
+        alertBox.addEventListener('click', openFDCModal);
+        
+        // Create modal elements if they don't exist
+        createFDCModal();
+    }
+    
+    // Create modal elements
+    function createFDCModal() {
+        // Create backdrop if it doesn't exist
+        if (!widgetState.backdrop) {
+            widgetState.backdrop = document.createElement('div');
+            widgetState.backdrop.className = 'fdc-backdrop';
+            document.body.appendChild(widgetState.backdrop);
+            
+            // Close modal when clicking backdrop
+            widgetState.backdrop.addEventListener('click', closeFDCModal);
+        }
+        
+        // Create alert table if it doesn't exist
+        if (!widgetState.alertTable) {
+            widgetState.alertTable = document.createElement('div');
+            widgetState.alertTable.id = 'fdc-alert-table';
+            document.body.appendChild(widgetState.alertTable);
+        }
+    }
+    
+    // Open modal
+    function openFDCModal() {
+        if (!widgetState.alertTable) return;
+        
+        // Update modal content
+        updateFDCModalContent();
+        
+        // Show modal
+        widgetState.alertTable.style.display = 'block';
+        widgetState.backdrop.style.display = 'block';
+        widgetState.isModalOpen = true;
+        
+        // Prevent body scrolling
+        document.body.style.overflow = 'hidden';
+    }
+    
+    // Close modal
+    function closeFDCModal() {
+        if (!widgetState.alertTable) return;
+        
+        widgetState.alertTable.style.display = 'none';
+        widgetState.backdrop.style.display = 'none';
+        widgetState.isModalOpen = false;
+        
+        // Restore body scrolling
+        document.body.style.overflow = '';
+    }
+    
+    // Update modal content
+    function updateFDCModalContent() {
+        if (!widgetState.alertTable) return;
+        
+        const alertCount = widgetState.alerts.length;
+        
+        // Sort alerts by IP
+        const sortedAlerts = [...widgetState.alerts].sort((a, b) => {
+            const ipToNum = (ip) => {
+                const parts = ip.split('.').map(Number);
+                return (parts[0] << 24) + (parts[1] << 16) + (parts[2] << 8) + parts[3];
+            };
+            return ipToNum(a.ip) - ipToNum(b.ip);
+        });
+        
+        // Generate table HTML
+        let tableHTML = '';
+        let ipGroups = {};
+        
+        // Count occurrences of each IP
+        sortedAlerts.forEach(alert => {
+            ipGroups[alert.ip] = (ipGroups[alert.ip] || 0) + 1;
+        });
+        
+        let previousIp = '';
+        
+        sortedAlerts.forEach(alert => {
+            tableHTML += `<tr class="fdc-alert-row fdc-error">`;
+            
+            // Add IP cell with rowspan for first occurrence
+            if (alert.ip !== previousIp) {
+                const rowSpanCount = ipGroups[alert.ip];
+                tableHTML += `
+                    <td rowspan="${rowSpanCount}" class="fdc-ip-group-cell">
+                        <strong>${alert.ip}</strong>
+                    </td>
                 `;
+                previousIp = alert.ip;
             }
-
-            // --- EVENT DELEGATION ---
-            alertTable.addEventListener('click', function(event) {
-                if (event.target.classList.contains('fdc-close-btn')) {
-                    closeAlertTable();
-                }
-            });
-
-            // --- Initial Setup ---
-            renderTableContent();
-
-            alertBox.addEventListener('click', () => {
-                alertTable.style.display = 'block';
-                backdrop.style.display = 'block';
-            });
-
-            backdrop.addEventListener('click', closeAlertTable);
+            
+            // Add data cells
+            tableHTML += `
+                <td>${alert.firstOccurance}</td>
+                <td>${alert.lastOccurance}</td>
+            </tr>`;
+        });
+        
+        // Update modal HTML
+        widgetState.alertTable.innerHTML = `
+            <h3>FDC Error Alerts (${alertCount})</h3>
+            <div class="fdc-table-container">
+                <table class="fdc-alerts-table">
+                    <thead>
+                        <tr>
+                            <th width="25%">IP Address</th>
+                            <th width="37.5%">First Occurrence</th>
+                            <th width="37.5%">Last Occurrence</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${tableHTML}
+                    </tbody>
+                </table>
+            </div>
+            <button class="fdc-close-btn">Close</button>
+        `;
+        
+        // Add close button event listener
+        const closeBtn = widgetState.alertTable.querySelector('.fdc-close-btn');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', closeFDCModal);
         }
-
-        // Call the main function to start everything when the script loads
-        fetchAndRenderFDCAlerts();
-    </script>
-</body>
-</html>
+        
+        // Close modal on Escape key
+        document.addEventListener('keydown', function escapeHandler(e) {
+            if (e.key === 'Escape' && widgetState.isModalOpen) {
+                closeFDCModal();
+                document.removeEventListener('keydown', escapeHandler);
+            }
+        });
+    }
+    
+    // Initialize when DOM is ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initFDCAlertWidget);
+    } else {
+        initFDCAlertWidget();
+    }
+    
+    // Make functions available globally if needed
+    window.FDCAlert = {
+        refresh: loadFDCData,
+        openModal: openFDCModal,
+        closeModal: closeFDCModal
+    };
+    
+})();
