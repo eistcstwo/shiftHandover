@@ -1,4 +1,4 @@
-// FDC Alert Widget - Complete Integration
+// FDC Alert Widget - Fixed Rendering
 (function() {
     'use strict';
     
@@ -61,6 +61,15 @@
             return; // Exit early, don't create any UI elements
         }
 
+        // Remove existing elements if they exist (for refresh)
+        const existingBox = document.getElementById('fdc-alert-box');
+        const existingTable = document.getElementById('fdc-alert-table');
+        const existingBackdrop = document.querySelector('.fdc-backdrop');
+        
+        if (existingBox) existingBox.remove();
+        if (existingTable) existingTable.remove();
+        if (existingBackdrop) existingBackdrop.remove();
+
         // --- Alert Box (Widget) Creation ---
         const alertBox = document.createElement('div');
         alertBox.id = 'fdc-alert-box';
@@ -81,11 +90,20 @@
         const alertTable = document.createElement('div');
         alertTable.id = 'fdc-alert-table';
         alertTable.style.display = 'none';
-        document.body.appendChild(alertTable); // Append to body, not container
+        document.body.appendChild(alertTable);
 
         function closeAlertTable() {
             alertTable.style.display = 'none';
             backdrop.style.display = 'none';
+            console.log('Table closed');
+        }
+
+        function openAlertTable() {
+            console.log('Opening table...');
+            alertTable.style.display = 'block';
+            backdrop.style.display = 'block';
+            console.log('Table display:', alertTable.style.display);
+            console.log('Backdrop display:', backdrop.style.display);
         }
 
         // Helper function to generate table rows with IP grouping using rowspan
@@ -136,7 +154,7 @@
             return tableHtml;
         }
 
-        // Function to render the full table structure (combined, no tabs)
+        // Function to render the full table structure
         function renderTableContent() {
             alertTable.innerHTML = `
                 <h3>FDC Error Alerts (${alertCount})</h3>
@@ -157,24 +175,34 @@
                 </div>
                 <button id="fdc-close-table-btn" class="fdc-close-btn">Close</button>
             `;
+            
+            console.log('Table content rendered');
         }
-
-        // --- EVENT DELEGATION ---
-        alertTable.addEventListener('click', function(event) {
-            if (event.target.id === 'fdc-close-table-btn') {
-                closeAlertTable();
-            }
-        });
 
         // --- Initial Setup ---
         renderTableContent();
 
-        alertBox.addEventListener('click', () => {
-            alertTable.style.display = 'block';
-            backdrop.style.display = 'block';
+        // --- EVENT LISTENERS ---
+        alertBox.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            openAlertTable();
         });
 
-        backdrop.addEventListener('click', closeAlertTable);
+        backdrop.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            closeAlertTable();
+        });
+
+        // Event delegation for close button
+        alertTable.addEventListener('click', function(event) {
+            if (event.target.id === 'fdc-close-table-btn') {
+                event.preventDefault();
+                event.stopPropagation();
+                closeAlertTable();
+            }
+        });
         
         // Close on Escape key
         document.addEventListener('keydown', function(event) {
@@ -182,11 +210,13 @@
                 closeAlertTable();
             }
         });
+
+        console.log('FDC Alert Widget initialized with', alertCount, 'alerts');
     }
 
     // Initialize when DOM is ready
     function initializeFDCWidget() {
-        // Call the main function to start everything
+        console.log('Initializing FDC Widget...');
         fetchAndRenderFDCAlerts();
         
         // Optional: Auto-refresh every 60 seconds
@@ -206,5 +236,4 @@
         refresh: fetchAndRenderFDCAlerts,
         render: renderFDCAlertWidget
     };
-    
 })();
