@@ -1,89 +1,170 @@
-// FDC Alert Widget - Isolated JavaScript
-// Add this to your existing HTML page
-
+// FDC Alert Widget - Debugged Version
 (function() {
     'use strict';
     
     // Prevent multiple initializations
     if (window.FDCAlertInitialized) {
+        console.log('FDC Alert already initialized');
         return;
     }
     window.FDCAlertInitialized = true;
     
     // Configuration
     const CONFIG = {
-        jsonUrl: 'FINAL_FDC_error.json',
-        pollInterval: 60000, // Check every 60 seconds
-        widgetPosition: {
-            top: '11px',
-            right: '344px'
-        }
+        jsonUrl: 'FINAL_FDC_error.json', // Your JSON file path
+        pollInterval: 30000, // Check every 30 seconds
+        debug: true // Set to false in production
     };
     
-    // State management
+    // State
     let widgetState = {
         alerts: [],
         isModalOpen: false,
         backdrop: null,
-        alertTable: null
+        alertTable: null,
+        alertBox: null
     };
+    
+    // Debug logging
+    function logDebug(message, data = null) {
+        if (CONFIG.debug) {
+            console.log(`[FDC Alert] ${message}`, data || '');
+        }
+    }
     
     // Main initialization
     function initFDCAlertWidget() {
-        console.log('Initializing FDC Alert Widget...');
+        logDebug('Initializing FDC Alert Widget...');
         
         // Create or get container
         let container = document.getElementById('fdc-alert-widget-container');
         if (!container) {
-            console.error('FDC Alert Container not found!');
+            console.error('FDC Alert Container not found! Make sure you have <div id="fdc-alert-widget-container"></div> in your HTML');
             return;
         }
         
-        // Ensure container is empty
-        container.innerHTML = '';
+        logDebug('Container found:', container);
         
-        // Load data
+        // Create modal elements FIRST
+        createModalElements();
+        
+        // Load initial data
         loadFDCData();
         
         // Set up polling
         setInterval(loadFDCData, CONFIG.pollInterval);
+        
+        logDebug('FDC Alert Widget initialized successfully');
+    }
+    
+    // Create modal elements
+    function createModalElements() {
+        logDebug('Creating modal elements...');
+        
+        // Create backdrop
+        widgetState.backdrop = document.createElement('div');
+        widgetState.backdrop.className = 'fdc-backdrop';
+        widgetState.backdrop.style.display = 'none';
+        document.body.appendChild(widgetState.backdrop);
+        
+        // Create alert table modal
+        widgetState.alertTable = document.createElement('div');
+        widgetState.alertTable.id = 'fdc-alert-table';
+        widgetState.alertTable.style.display = 'none';
+        document.body.appendChild(widgetState.alertTable);
+        
+        logDebug('Modal elements created');
     }
     
     // Load JSON data
     async function loadFDCData() {
+        logDebug('Loading FDC data from:', CONFIG.jsonUrl);
+        
         try {
             const response = await fetch(CONFIG.jsonUrl);
             if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
-            const jsonData = await response.json();
+            
+            const text = await response.text();
+            logDebug('Raw JSON response:', text.substring(0, 200) + '...');
+            
+            let jsonData;
+            try {
+                jsonData = JSON.parse(text);
+            } catch (parseError) {
+                console.error('Failed to parse JSON:', parseError);
+                console.error('Invalid JSON content:', text);
+                return;
+            }
+            
+            logDebug('JSON parsed successfully:', Object.keys(jsonData).length + ' entries');
             processFDCData(jsonData);
+            
         } catch (error) {
             console.error('Error loading FDC data:', error);
-            // You could show a fallback or error state here
+            // Show error in widget
+            showErrorMessage('Failed to load error data');
         }
     }
     
     // Process the JSON data
     function processFDCData(jsonData) {
+        logDebug('Processing JSON data...');
+        
         const allAlerts = [];
         
+        // Check if jsonData is an object
+        if (!jsonData || typeof jsonData !== 'object') {
+            console.error('Invalid JSON structure. Expected object, got:', typeof jsonData);
+            return;
+        }
+        
+        // Parse each IP address entry
         for (const ipAddress in jsonData) {
-            const errorData = jsonData[ipAddress];
-            if (errorData.FIRST_occurance || errorData.Last_occurance) {
-                allAlerts.push({
-                    id: `${ipAddress}-${Date.now()}`,
-                    ip: ipAddress,
-                    firstOccurance: errorData.FIRST_occurance || 'N/A',
-                    lastOccurance: errorData.Last_occurance || 'N/A',
-                    env: ipAddress.startsWith('10.188.24') ? '10.188.24.x' : 
-                         (ipAddress.startsWith('10.188.25') ? '10.188.25.x' : 'Other')
-                });
+            if (jsonData.hasOwnProperty(ipAddress)) {
+                const errorData = jsonData[ipAddress];
+                logDebug(`Processing IP ${ipAddress}:`, errorData);
+                
+                // Check if this IP has any error data
+                const hasFirst = errorData && (errorData.FIRST_occurance || errorData.first_occurance || errorData.firstOccurance);
+                const hasLast = errorData && (errorData.Last_occurance || errorData.last_occurance || errorData.lastOccurance);
+                
+                if (hasFirst || hasLast) {
+                    // Get the values (handle different property names)
+                    const firstOccurrence = errorData.FIRST_occurance || errorData.first_occurance || errorData.firstOccurance || 'N/A';
+                    const lastOccurrence = errorData.Last_occurance || errorData.last_occurance || errorData.lastOccurance || 'N/A';
+                    
+                    allAlerts.push({
+                        id: `${ipAddress}-${Date.now()}`,
+                        ip: ipAddress,
+                        firstOccurance: firstOccurrence,
+                        lastOccurance: lastOccurrence,
+                        env: ipAddress.startsWith('10.188.24') ? '10.188.24.x' : 
+                             (ipAddress.startsWith('10.188.25') ? '10.188.25.x' : 'Other')
+                    });
+                    
+                    logDebug(`Added alert for ${ipAddress}:`, { firstOccurrence, lastOccurrence });
+                }
             }
         }
         
+        logDebug(`Total alerts found: ${allAlerts.length}`, allAlerts);
         widgetState.alerts = allAlerts;
         renderFDCWidget(allAlerts);
+    }
+    
+    // Show error message
+    function showErrorMessage(message) {
+        const container = document.getElementById('fdc-alert-widget-container');
+        if (!container) return;
+        
+        container.innerHTML = `
+            <div id="fdc-alert-box" style="background-color: #ff9800 !important;">
+                <span class="fdc-icon">⚠️</span>
+                <div class="fdc-message">${message}</div>
+            </div>
+        `;
     }
     
     // Render the widget
@@ -92,8 +173,9 @@
         if (!container) return;
         
         const alertCount = alerts.length;
+        logDebug(`Rendering widget with ${alertCount} alerts`);
         
-        // Clear existing widget
+        // Remove existing alert box
         const existingAlertBox = document.getElementById('fdc-alert-box');
         if (existingAlertBox) {
             existingAlertBox.remove();
@@ -101,51 +183,36 @@
         
         // Don't show widget if no alerts
         if (alertCount === 0) {
+            logDebug('No alerts to display');
             return;
         }
         
         // Create alert box
-        const alertBox = document.createElement('div');
-        alertBox.id = 'fdc-alert-box';
-        alertBox.className = 'fdc-blink';
-        alertBox.innerHTML = `
+        widgetState.alertBox = document.createElement('div');
+        widgetState.alertBox.id = 'fdc-alert-box';
+        widgetState.alertBox.className = 'fdc-blink';
+        widgetState.alertBox.innerHTML = `
             <span class="fdc-icon">⚠️</span>
             <span class="fdc-count">${alertCount}</span>
             <div class="fdc-message">FDC Errors</div>
         `;
         
-        container.appendChild(alertBox);
+        container.appendChild(widgetState.alertBox);
         
         // Add click handler
-        alertBox.addEventListener('click', openFDCModal);
+        widgetState.alertBox.addEventListener('click', openFDCModal);
         
-        // Create modal elements if they don't exist
-        createFDCModal();
-    }
-    
-    // Create modal elements
-    function createFDCModal() {
-        // Create backdrop if it doesn't exist
-        if (!widgetState.backdrop) {
-            widgetState.backdrop = document.createElement('div');
-            widgetState.backdrop.className = 'fdc-backdrop';
-            document.body.appendChild(widgetState.backdrop);
-            
-            // Close modal when clicking backdrop
-            widgetState.backdrop.addEventListener('click', closeFDCModal);
-        }
-        
-        // Create alert table if it doesn't exist
-        if (!widgetState.alertTable) {
-            widgetState.alertTable = document.createElement('div');
-            widgetState.alertTable.id = 'fdc-alert-table';
-            document.body.appendChild(widgetState.alertTable);
-        }
+        logDebug('Widget rendered successfully');
     }
     
     // Open modal
     function openFDCModal() {
-        if (!widgetState.alertTable) return;
+        logDebug('Opening modal...');
+        
+        if (!widgetState.alertTable || !widgetState.backdrop) {
+            logDebug('Modal elements not found, creating...');
+            createModalElements();
+        }
         
         // Update modal content
         updateFDCModalContent();
@@ -157,114 +224,162 @@
         
         // Prevent body scrolling
         document.body.style.overflow = 'hidden';
+        
+        logDebug('Modal opened');
     }
     
     // Close modal
     function closeFDCModal() {
-        if (!widgetState.alertTable) return;
+        logDebug('Closing modal...');
         
-        widgetState.alertTable.style.display = 'none';
-        widgetState.backdrop.style.display = 'none';
+        if (widgetState.alertTable) {
+            widgetState.alertTable.style.display = 'none';
+        }
+        if (widgetState.backdrop) {
+            widgetState.backdrop.style.display = 'none';
+        }
+        
         widgetState.isModalOpen = false;
-        
-        // Restore body scrolling
         document.body.style.overflow = '';
+        
+        logDebug('Modal closed');
     }
     
     // Update modal content
     function updateFDCModalContent() {
-        if (!widgetState.alertTable) return;
+        logDebug('Updating modal content...');
+        
+        if (!widgetState.alertTable) {
+            logDebug('Alert table element not found');
+            return;
+        }
         
         const alertCount = widgetState.alerts.length;
+        logDebug(`Generating table for ${alertCount} alerts`);
         
-        // Sort alerts by IP
-        const sortedAlerts = [...widgetState.alerts].sort((a, b) => {
-            const ipToNum = (ip) => {
-                const parts = ip.split('.').map(Number);
-                return (parts[0] << 24) + (parts[1] << 16) + (parts[2] << 8) + parts[3];
-            };
-            return ipToNum(a.ip) - ipToNum(b.ip);
-        });
-        
-        // Generate table HTML
-        let tableHTML = '';
-        let ipGroups = {};
-        
-        // Count occurrences of each IP
-        sortedAlerts.forEach(alert => {
-            ipGroups[alert.ip] = (ipGroups[alert.ip] || 0) + 1;
-        });
-        
-        let previousIp = '';
-        
-        sortedAlerts.forEach(alert => {
-            tableHTML += `<tr class="fdc-alert-row fdc-error">`;
+        if (alertCount === 0) {
+            widgetState.alertTable.innerHTML = `
+                <h3>FDC Error Alerts</h3>
+                <div style="padding: 40px; text-align: center; color: #666;">
+                    No active errors found.
+                </div>
+                <button class="fdc-close-btn">Close</button>
+            `;
+        } else {
+            // Sort alerts by IP
+            const sortedAlerts = [...widgetState.alerts].sort((a, b) => {
+                const ipToNum = (ip) => {
+                    const parts = ip.split('.').map(Number);
+                    return (parts[0] * 16777216) + (parts[1] * 65536) + (parts[2] * 256) + parts[3];
+                };
+                return ipToNum(a.ip) - ipToNum(b.ip);
+            });
             
-            // Add IP cell with rowspan for first occurrence
-            if (alert.ip !== previousIp) {
-                const rowSpanCount = ipGroups[alert.ip];
+            logDebug('Sorted alerts:', sortedAlerts);
+            
+            // Generate table HTML
+            let tableHTML = '';
+            let ipGroups = {};
+            
+            // Count occurrences of each IP
+            sortedAlerts.forEach(alert => {
+                ipGroups[alert.ip] = (ipGroups[alert.ip] || 0) + 1;
+            });
+            
+            logDebug('IP Groups:', ipGroups);
+            
+            let previousIp = '';
+            let rowIndex = 0;
+            
+            sortedAlerts.forEach(alert => {
+                rowIndex++;
+                tableHTML += `<tr class="fdc-alert-row fdc-error" data-row="${rowIndex}">`;
+                
+                // Add IP cell with rowspan for first occurrence
+                if (alert.ip !== previousIp) {
+                    const rowSpanCount = ipGroups[alert.ip];
+                    tableHTML += `
+                        <td rowspan="${rowSpanCount}" class="fdc-ip-group-cell">
+                            <strong>${alert.ip}</strong>
+                        </td>
+                    `;
+                    previousIp = alert.ip;
+                }
+                
+                // Add data cells
                 tableHTML += `
-                    <td rowspan="${rowSpanCount}" class="fdc-ip-group-cell">
-                        <strong>${alert.ip}</strong>
-                    </td>
-                `;
-                previousIp = alert.ip;
-            }
+                    <td>${alert.firstOccurance}</td>
+                    <td>${alert.lastOccurance}</td>
+                </tr>`;
+            });
             
-            // Add data cells
-            tableHTML += `
-                <td>${alert.firstOccurance}</td>
-                <td>${alert.lastOccurance}</td>
-            </tr>`;
-        });
+            // Update modal HTML
+            widgetState.alertTable.innerHTML = `
+                <h3>FDC Error Alerts (${alertCount})</h3>
+                <div class="fdc-table-container">
+                    <table class="fdc-alerts-table">
+                        <thead>
+                            <tr>
+                                <th width="25%">IP Address</th>
+                                <th width="37.5%">First Occurrence</th>
+                                <th width="37.5%">Last Occurrence</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${tableHTML}
+                        </tbody>
+                    </table>
+                </div>
+                <button class="fdc-close-btn">Close</button>
+            `;
+            
+            logDebug('Table HTML generated');
+        }
         
-        // Update modal HTML
-        widgetState.alertTable.innerHTML = `
-            <h3>FDC Error Alerts (${alertCount})</h3>
-            <div class="fdc-table-container">
-                <table class="fdc-alerts-table">
-                    <thead>
-                        <tr>
-                            <th width="25%">IP Address</th>
-                            <th width="37.5%">First Occurrence</th>
-                            <th width="37.5%">Last Occurrence</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${tableHTML}
-                    </tbody>
-                </table>
-            </div>
-            <button class="fdc-close-btn">Close</button>
-        `;
-        
-        // Add close button event listener
+        // Add event listener to close button
         const closeBtn = widgetState.alertTable.querySelector('.fdc-close-btn');
         if (closeBtn) {
             closeBtn.addEventListener('click', closeFDCModal);
+            logDebug('Close button event listener added');
         }
         
         // Close modal on Escape key
-        document.addEventListener('keydown', function escapeHandler(e) {
+        const escapeHandler = (e) => {
             if (e.key === 'Escape' && widgetState.isModalOpen) {
                 closeFDCModal();
                 document.removeEventListener('keydown', escapeHandler);
             }
-        });
+        };
+        document.addEventListener('keydown', escapeHandler);
+        
+        // Close modal when clicking backdrop
+        if (widgetState.backdrop) {
+            widgetState.backdrop.onclick = closeFDCModal;
+        }
     }
     
     // Initialize when DOM is ready
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initFDCAlertWidget);
-    } else {
-        initFDCAlertWidget();
+    function startFDCAlert() {
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initFDCAlertWidget);
+        } else {
+            // DOM already loaded
+            initFDCAlertWidget();
+        }
     }
     
-    // Make functions available globally if needed
+    // Start the widget
+    startFDCAlert();
+    
+    // Make functions available globally for debugging
     window.FDCAlert = {
         refresh: loadFDCData,
         openModal: openFDCModal,
-        closeModal: closeFDCModal
+        closeModal: closeFDCModal,
+        getState: () => widgetState,
+        debug: logDebug
     };
+    
+    logDebug('FDC Alert script loaded');
     
 })();
