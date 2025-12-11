@@ -1,3 +1,18 @@
+Header.js
+-rwxrwxrwx 1 root root 4549 Nov 24 15:13 Header.js_02122025
+-rwxrwxrwx 1 root root  403 Oct  3 17:27 Header.js_081025
+-rwxrwxrwx 1 root root 1736 Oct 31 18:25 Header.js_081125
+-rwxrwxrwx 1 root root 3921 Nov 24 15:08 Header.js_24112025
+-rwxrwxrwx 1 root root 5495 Nov 27 18:17 Modal.css
+-rwxrwxrwx 1 root root  646 Nov 24 13:48 Modal.js
+-rwxrwxrwx 1 root root  687 Oct 22 14:30 Sidebar.css
+-rwxrwxrwx 1 root root 1431 Nov  3 13:39 Sidebar.js
+[root@eispr-prt1-01 UI]#
+[root@eispr-prt1-01 UI]#
+[root@eispr-prt1-01 UI]#
+[root@eispr-prt1-01 UI]#
+[root@eispr-prt1-01 UI]#
+[root@eispr-prt1-01 UI]# cat Header.js
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import './Header.css';
@@ -114,6 +129,10 @@ const Header = ({ onLogout }) => {
     navigate('/tasks-bucket');
   };
 
+  const handleListClick = () => {
+    navigate('/tasks-checklist');
+  };
+
   return (
     <header className="app-header">
       <div className="header-left">
@@ -124,6 +143,18 @@ const Header = ({ onLogout }) => {
       </div>
 
       <div className="header-right">
+
+
+        {/* Checklist Icon Button */}
+        <button
+          className="checklist-btn"
+          onClick={handleListClick}
+          title="View task checklist"
+          aria-label="View task checklist"
+        >
+          <span className="checklist-icon">📝</span>
+        </button>
+
         {/* Bucket Icon Button */}
         <button
           className="bucket-btn"
