@@ -52,11 +52,11 @@ function renderFDCAlertWidget(jsonData) {
     const alertBox = document.createElement('div');
     alertBox.id = 'fdc-alert-box';
     alertBox.innerHTML = `
-        <span class="icon">⚠️</span>
-        <span class="count">${alertCount}</span>
-        <div class="message">FDC Errors</div>
+        <span class="fdc-icon">⚠️</span>
+        <span class="fdc-count">${alertCount}</span>
+        <div class="fdc-message">FDC Errors</div>
     `;
-    alertBox.className = "blink";
+    alertBox.className = "fdc-blink";
     container.appendChild(alertBox);
 
     // --- Modal (Backdrop and Table) Creation ---
@@ -99,13 +99,13 @@ function renderFDCAlertWidget(jsonData) {
         let previousIp = '';
 
         filteredAlerts.forEach(alert => {
-            tableHtml += `<tr class="alert-row error" data-alert-id="${alert.id}">`;
+            tableHtml += `<tr class="fdc-alert-row fdc-error" data-alert-id="${alert.id}">`;
 
             // Add IP Cell with Rowspan (only for the first item in the group)
             if (alert.ip !== previousIp) {
                 const rowSpanCount = ipGroups[alert.ip];
                 tableHtml += `
-                    <td rowspan="${rowSpanCount}" class="ip-group-cell">
+                    <td rowspan="${rowSpanCount}" class="fdc-ip-group-cell">
                         <strong>${alert.ip}</strong>
                     </td>
                 `;
@@ -128,7 +128,7 @@ function renderFDCAlertWidget(jsonData) {
         alertTable.innerHTML = `
             <h3>FDC Error Alerts (${alertCount})</h3>
 
-            <div class="table-container">
+            <div class="fdc-table-container">
                 <table>
                     <thead>
                         <tr>
@@ -142,13 +142,13 @@ function renderFDCAlertWidget(jsonData) {
                     </tbody>
                 </table>
             </div>
-            <button id="close-table-btn" class="modal-action-btn">Close</button>
+            <button id="fdc-close-table-btn" class="fdc-modal-action-btn">Close</button>
         `;
     }
 
     // --- EVENT DELEGATION ---
     alertTable.addEventListener('click', function(event) {
-        if (event.target.id === 'close-table-btn') {
+        if (event.target.id === 'fdc-close-table-btn') {
             closeAlertTable();
         }
     });
