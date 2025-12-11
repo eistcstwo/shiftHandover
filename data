@@ -1,408 +1,196 @@
-import React, { useState, useEffect, useRef } from 'react';
-import Header from './components/Header.jsx';
-import Footer from './components/Footer';
-import Menu from './components/Menu';
-import Dashboard from './components/Dashboard';
-import Chatbot from './components/ChatBot';
-import Login from './components/Login';
-import './App.css';
-import { fetchLatestAnnouncement } from './api/PostApi';
-import { authenticatePortal } from './api/loginApi'; // Import the authenticatePortal function
-
-// Robust function to clear all cookies (within JS limitations)
-function clearAllCookies() {
-  const cookies = document.cookie.split(";");
-  for (const cookie of cookies) {
-    const eqPos = cookie.indexOf("=");
-    const name = eqPos > -1 ? cookie.substr(0, eqPos).trim() : cookie.trim();
-    // Remove cookie for root path
-    document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`;
-    // Attempt to remove cookie for every path segment
-    const pathSegments = window.location.pathname.split('/');
-    let path = '';
-    for (let i = 0; i < pathSegments.length; i++) {
-      path += (path.endsWith('/') ? '' : '/') + pathSegments[i];
-      document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=${path};`;
-    }
-  }
-}
-
-// Function to conditionally disable inspect element
-function useDisableInspectElement(enabled) {
-  useEffect(() => {
-    if (!enabled) return;
-
-    document.oncontextmenu = function() {
-      return false;
-    };
-
-    const handleKeyDown = (e) => {
-      // F12
-      if (e.keyCode === 123) {
-        e.preventDefault();
-        e.stopPropagation();
-      }
-      // Ctrl+Shift+I/J/C/U, Ctrl+U (view source), Cmd+Opt+I (Mac)
-      if (
-        (e.ctrlKey && e.shiftKey && ['I', 'J', 'C', 'U'].includes(e.key.toUpperCase())) ||
-        (e.ctrlKey && e.key.toUpperCase() === 'U') ||
-        (e.metaKey && e.altKey && e.key.toUpperCase() === 'I')
-      ) {
-        e.preventDefault();
-        e.stopPropagation();
-      }
-    };
-    document.addEventListener('keydown', handleKeyDown);
-
-    const handleDragStart = (e) => e.preventDefault();
-    document.addEventListener('dragstart', handleDragStart);
-
-    const handleSelectStart = (e) => {
-      if (e.ctrlKey && e.key === 'a') {
-        e.preventDefault();
-        e.stopPropagation();
-      }
-    };
-    document.addEventListener('keydown', handleSelectStart);
-
-    return () => {
-      document.removeEventListener('contextmenu', document.oncontextmenu);
-      document.removeEventListener('keydown', handleKeyDown);
-      document.removeEventListener('dragstart', handleDragStart);
-      document.removeEventListener('keydown', handleSelectStart);
-    };
-  }, [enabled]);
-}
-
-// Logout API call
-async function callLogoutAPI(username) {
+// Function to fetch JSON and render the alert widget (remains the same)
+async function fetchAndRenderAlerts() {
+  const jsonUrl = 'main_alerts.json';
   try {
-    // 1. Retrieve the session ID from local storage
-    const sessionId = localStorage.getItem('sessionid');
-
-    // Check if session ID exists before proceeding
-    if (!sessionId) {
-      console.warn('No session ID found in local storage. Skipping API call.');
-      return;
-    }
-
-    // 2. Prepare the headers object with the correct Authorization format
-    const headers = {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${sessionId}`
-    };
-
-    const response = await fetch('https://10.191.171.12:5443/EISHOME/awthenticationService/newLogout/',
-      {
-        method: 'POST',
-        headers: headers,
-        credentials: 'include',
-        body: JSON.stringify({
-          username: username,
-          timestamp: new Date().toISOString()
-        })
-      }
-    );
-
-    if (!response.ok) {
-      console.warn('Logout API call failed:', response.status, response.statusText);
-    } else {
-      console.log('Logout API call successful');
-    }
-  } catch (error) {
-    console.error('Error calling logout API:', error);
-  }
-}
-
-function App() {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [chatbotMinimized, setChatbotMinimized] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [darkMode, setDarkMode] = useState(false);
-  const [username, setUsername] = useState('');
-  const [announcement, setAnnouncement] = useState('');
-  const [showAnnouncementPopup, setShowAnnouncementPopup] = useState(false);
-  const [userLevel, setUserLevel] = useState('');
-  const [appLoading, setAppLoading] = useState(true);
-  const inactivityTimer = useRef(null);
-
-  // Inactivity time limit in ms (60 minutes)
-  const INACTIVITY_LIMIT = 60 * 60 * 1000;
-
-  // Define allowed user levels for Chatbot access
-  const CHATBOT_ALLOWED_LEVELS = ['ADMIN', 'L2', 'Banker','L1'];
-  const CHATBOT_BLOCKED_LEVELS = ['Support'];
-
-  // Check if current user has access to chatbot
-  const hasChatbotAccess = CHATBOT_ALLOWED_LEVELS.includes(userLevel) &&
-    !CHATBOT_BLOCKED_LEVELS.includes(userLevel);
-
-  // Only disable inspect for users other than ADMIN
-  useDisableInspectElement(userLevel && userLevel !== 'ADMIN');
-
-  // Check for existing login session on app load with simultaneous API validation
-  useEffect(() => {
-    const validateSession = async () => {
-      try {
-        console.log('App.js - Starting session validation on app load/refresh');
-        
-        // Step 1: Check localStorage credentials
-        const storedUsername = localStorage.getItem('username');
-        const storedLoginTime = localStorage.getItem('loginTime');
-        const storedUserLevel = localStorage.getItem('userlevel');
-        const storedSessionId = localStorage.getItem('sessionid');
-        const storedUid = localStorage.getItem('uidd');
-
-        console.log('App.js - Checking stored session:', {
-          storedUsername,
-          storedUserLevel,
-          hasSessionId: !!storedSessionId,
-          hasUid: !!storedUid,
-          hasLoginTime: !!storedLoginTime
-        });
-
-        // If no credentials found, show login
-        if (!storedUsername || !storedUserLevel || !storedSessionId || !storedUid) {
-          console.log('App.js - No valid session found in localStorage, showing login');
-          setAppLoading(false);
-          return;
-        }
-
-        // Step 2: Simultaneously validate session with authenticatePortal API
-        console.log('App.js - Validating session with authenticatePortal API');
-        
-        const authResult = await authenticatePortal();
-        
-        console.log('App.js - authenticatePortal response:', authResult);
-
-        // Step 3: Check if session is valid
-        if (authResult.success && (authResult.status === 302 || authResult.status === 200)) {
-          console.log('App.js - Session validated successfully, restoring session');
-          
-          // Restore session state
-          setUsername(storedUsername);
-          setUserLevel(storedUserLevel);
-          setIsLoggedIn(true);
-
-          // Set login time if not already set
-          if (!storedLoginTime) {
-            localStorage.setItem('loginTime', Date.now().toString());
-          }
-
-          console.log('App.js - Session restored successfully for user:', storedUsername);
-        } else {
-          // Session invalid - clear all data and show login
-          console.log('App.js - Session validation failed, clearing invalid session');
-          console.log('App.js - Auth result:', {
-            success: authResult.success,
-            status: authResult.status,
-            message: authResult.message
-          });
-          
-          localStorage.clear();
-          sessionStorage.clear();
-          clearAllCookies();
-        }
-      } catch (error) {
-        console.error('App.js - Error during session validation:', error);
-        // On error, clear session and show login
-        localStorage.clear();
-        sessionStorage.clear();
-        clearAllCookies();
-      } finally {
-        setAppLoading(false);
-      }
-    };
-
-    validateSession();
-  }, []); // Empty dependency array - only runs once on mount/refresh
-
-  // On login from persisted session, fetch announcement
-  useEffect(() => {
-    if (isLoggedIn && !announcement) {
-      (async () => {
-        try {
-          const ann = await fetchLatestAnnouncement();
-          setAnnouncement(ann);
-          if (ann) setShowAnnouncementPopup(true);
-        } catch (err) {
-          console.error('Error fetching announcement:', err);
-        }
-      })();
-    }
-  }, [isLoggedIn, announcement]);
-
-  // Handle login from Login component (receives username and response data)
-  const handleLogin = async (user, loginData = {}) => {
+    const response = await fetch(jsonUrl);
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+    const rawData = await response.text();
+    let data;
     try {
-      console.log('App.js - handleLogin called with:', { user, loginData });
-
-      const now = Date.now();
-
-      // Extract userLevel from loginData, fallback to what's in localStorage
-      const level = loginData.userLevel || localStorage.getItem('userlevel') || '';
-
-      console.log('App.js - Setting username:', user, 'userLevel:', level);
-
-      // Store all data to localStorage
-      localStorage.setItem('username', user);
-      localStorage.setItem('userlevel', level);
-      localStorage.setItem('loginTime', now.toString());
-
-      // Session data should already be stored by postLogin or session validation
-      // But just in case, store it if provided
-      if (loginData.sessionid) {
-        console.log('App.js - Updating sessionid from loginData');
-        localStorage.setItem('sessionid', loginData.sessionid);
-      }
-      if (loginData.uid) {
-        console.log('App.js - Updating uid from loginData');
-        localStorage.setItem('uidd', loginData.uid);
-      }
-
-      // Set local state
-      setUsername(user);
-      setUserLevel(level);
-      setIsLoggedIn(true);
-
-      console.log('App.js - Login successful, state updated');
-      console.log('App.js - Final state - isLoggedIn: true, username:', user, 'userLevel:', level);
-
-    } catch (err) {
-      console.error('App.js - Login error:', err);
-      alert('Login failed: ' + err.message);
+        data = JSON.parse(rawData);
+    } catch (e) {
+        console.error('Could not parse JSON. Ensure the file contains one valid JSON object structure.', e);
+        return;
     }
-  };
-
-  // Logout and flush session storage, local storage, cookies, and caches
-  const handleLogout = async () => {
-    console.log('App.js - Logout initiated for user:', username);
-    await callLogoutAPI(username);
-
-    setIsLoggedIn(false);
-    setUsername('');
-    setUserLevel('');
-    setAnnouncement('');
-    localStorage.clear();
-    sessionStorage.clear();
-    clearAllCookies();
-
-    console.log('App.js - Logout successful - all data cleared');
-  };
-
-  // --- Cross-Tab Storage Listener Logic ---
-  useEffect(() => {
-    const handleStorageChange = (event) => {
-      // Check if the session ID was removed in another tab
-      if (event.key === 'sessionid' && !event.newValue) {
-        console.log("Session ID removed in another tab. Triggering logout.");
-        handleLogout();
-      }
-
-      // Check if username was removed in another tab
-      if (event.key === 'username' && !event.newValue) {
-        console.log("Username removed in another tab. Triggering logout.");
-        handleLogout();
-      }
-    };
-
-    window.addEventListener('storage', handleStorageChange);
-
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-    };
-  }, [username]);
-
-  // Auto logout after 60 min of inactivity
-  useEffect(() => {
-    if (!isLoggedIn) return;
-
-    const resetInactivityTimer = () => {
-      if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
-      inactivityTimer.current = setTimeout(() => {
-        alert('You have been logged out due to 60 minutes of inactivity.');
-        handleLogout();
-      }, INACTIVITY_LIMIT);
-    };
-
-    // List of events indicating user activity
-    const events = ['mousemove', 'keydown', 'mousedown', 'touchstart', 'scroll'];
-
-    // Add event listeners
-    events.forEach(event =>
-      window.addEventListener(event, resetInactivityTimer, true)
-    );
-
-    // Start timer initially
-    resetInactivityTimer();
-
-    // Cleanup event listeners and timer on unmount or logout
-    return () => {
-      events.forEach(event =>
-        window.removeEventListener(event, resetInactivityTimer, true)
-      );
-      if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
-    };
-  }, [isLoggedIn]);
-
-  // Show loading state while checking for existing session
-  if (appLoading) {
-    return (
-      <div>
-        <Header darkMode={darkMode} setDarkMode={setDarkMode} />
-        <div style={{ textAlign: 'center', padding: '40px' }}>
-          <p>Validating session...</p>
-        </div>
-        <Footer />
-      </div>
-    );
+    renderAlertWidget(data);
+  } catch (error) {
+    console.error('Error fetching JSON data:', error);
   }
-
-  if (!isLoggedIn) {
-    return <Login onLogin={handleLogin} />;
-  }
-
-  return (
-    <div>
-      <Header
-        darkMode={darkMode}
-        setDarkMode={setDarkMode}
-        username={username}
-        onLogout={handleLogout}
-      />
-      {/* Announcement Popup */}
-      {showAnnouncementPopup && announcement &&
-        <div className="announcement-popup-overlay">
-          <div className="announcement-popup">
-            <button
-              className="announcement-popup-close"
-              onClick={() => setShowAnnouncementPopup(false)}
-              aria-label="Close announcement"
-            >
-              ×
-            </button>
-            <div className="announcement-popup-content">
-              <h3>Announcement</h3>
-              <div>{announcement}</div>
-            </div>
-          </div>
-        </div>
-      }
-      {!chatbotMinimized && <div className="app-background" />}
-      <div className={`main ${isSidebarOpen ? "sidebar-open" : "sidebar-collapsed"}`}>
-        <Menu
-          isSidebarOpen={isSidebarOpen}
-          setIsSidebarOpen={setIsSidebarOpen}
-        />
-        <Dashboard isSidebarOpen={isSidebarOpen} />
-        {/* Conditionally render Chatbot only for specific user levels */}
-        {hasChatbotAccess && (
-          <Chatbot setChatbotMinimized={setChatbotMinimized} username={username} />
-        )}
-      </div>
-      <Footer />
-    </div>
-  );
 }
 
-export default App;
+// Function to render the fixed alert box and the alert table
+function renderAlertWidget(jsonData) {
+  const container = document.getElementById('alert-widget-container');
+  if (!container) return;
+
+  const allAlerts = [];
+
+  for (const ipAddress in jsonData) {
+    const errorsList = jsonData[ipAddress];
+    if (Array.isArray(errorsList) && errorsList.length > 0) {
+      errorsList.forEach((errorObj, index) => {
+        allAlerts.push({
+          id: `${ipAddress}-${index}-${Date.now()}`,
+          ip: ipAddress,
+          broker: errorObj.Broker_Name,
+          eg: errorObj.Eg_Name,
+          message: errorObj.Error,
+          time : errorObj.IssueTime,
+          env: ipAddress.startsWith('10.188') ? 'PR' : (ipAddress.startsWith('10.177') ? 'DR' : 'Other')
+        });
+      });
+    }
+  }
+
+  const alertCount = allAlerts.length;
+
+  // --- Alert Box (Widget) Creation ---
+  const alertBox = document.createElement('div');
+  alertBox.id = 'alert-box';
+  alertBox.innerHTML = `
+    <span class="icon">🔔</span>
+    <span class="count">${alertCount}</span>
+    <div class="message">Alerts</div>
+  `;
+  if (alertCount > 0) {
+    alertBox.className = "blink";
+  }
+  container.appendChild(alertBox);
+
+  // --- Modal (Backdrop and Table) Creation ---
+  const backdrop = document.createElement('div');
+  backdrop.className = 'backdrop';
+  backdrop.style.display = 'none';
+  document.body.appendChild(backdrop);
+
+  const alertTable = document.createElement('div');
+  alertTable.id = 'alert-table';
+  alertTable.style.display = 'none';
+  container.appendChild(alertTable);
+
+  function closeAlertTable() {
+    alertTable.style.display = 'none';
+    backdrop.style.display = 'none';
+  }
+
+  // Helper function to generate table rows, now with IP grouping using rowspan
+  function generateTableRows(filterEnv = null) {
+    const filteredAlerts = filterEnv
+      ? allAlerts.filter(alert => alert.env === filterEnv)
+      : allAlerts;
+
+    // 1. Sort alerts by IP
+    filteredAlerts.sort((a, b) => {
+        const numA = Number(a.ip.split('.').map(num => num.padStart(3, '0')).join(''));
+        const numB = Number(b.ip.split('.').map(num => num.padStart(3, '0')).join(''));
+        return numA - numB;
+    });
+
+    let tableHtml = '';
+    let ipGroups = {}; // Object to count occurrences of each IP
+
+    // Count group sizes
+    filteredAlerts.forEach(alert => {
+        ipGroups[alert.ip] = (ipGroups[alert.ip] || 0) + 1;
+    });
+
+    let previousIp = '';
+
+    filteredAlerts.forEach(alert => {
+        tableHtml += `<tr class="alert-row ${alert.env}" data-alert-id="${alert.id}">`;
+
+        // 2. Add IP Cell with Rowspan (only for the first item in the group)
+        if (alert.ip !== previousIp) {
+            const rowSpanCount = ipGroups[alert.ip];
+            tableHtml += `
+                <td rowspan="${rowSpanCount}" class="ip-group-cell">
+                    <strong>${alert.ip}</strong>
+                </td>
+            `;
+            previousIp = alert.ip; // Update the previous IP tracker
+        }
+
+        // 3. Add the rest of the cells
+        tableHtml += `
+            <td>${alert.broker}</td>
+            <td>${alert.eg}</td>
+            <td>${alert.message}</td>
+                <td>${alert.time}</td>
+        </tr>
+        `;
+    });
+
+    return tableHtml;
+  }
+
+  // Function to render the full table structure including tabs
+  function renderTableContent(activeTab = 'PR') {
+    const prCount = allAlerts.filter(a => a.env === 'PR').length;
+    const drCount = allAlerts.filter(a => a.env === 'DR').length;
+    const currentAlerts = allAlerts.filter(a => a.env === activeTab);
+
+    alertTable.innerHTML = `
+      <h3>Active Alerts (${currentAlerts.length})</h3>
+
+      <div class="tabs-container">
+        <button class="tab-btn ${activeTab === 'PR' ? 'active' : ''}" data-env="PR">
+          PR Alerts (${prCount})
+        </button>
+        <button class="tab-btn ${activeTab === 'DR' ? 'active' : ''}" data-env="DR">
+          DR Alerts (${drCount})
+        </button>
+      </div>
+
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <!-- Adjusted Headers for column layout -->
+              <th>Server IP</th>
+              <th>Broker Name</th>
+              <th>EG Name</th>
+              <th>Error Message</th>
+              <th>Time</th>
+            </tr>
+          </thead>
+          <tbody id="alert-table-body">
+            ${generateTableRows(activeTab)}
+          </tbody>
+        </table>
+      </div>
+      <button id="close-table-btn" class="modal-action-btn">Close</button>
+    `;
+  }
+
+  // --- EVENT DELEGATION ---
+  alertTable.addEventListener('click', function(event) {
+    if (event.target.closest('.tab-btn')) {
+        const selectedEnv = event.target.closest('.tab-btn').getAttribute('data-env');
+        renderTableContent(selectedEnv);
+    }
+
+    if (event.target.id === 'close-table-btn') {
+        closeAlertTable();
+    }
+  });
+
+  // --- Initial Setup ---
+  if (alertCount > 0) {
+    renderTableContent('PR');
+  } else {
+    alertTable.innerHTML = `<h3>No Active Alerts</h3><button id="close-table-btn" class="modal-action-btn">Close</button>`;
+  }
+
+  container.appendChild(alertTable);
+
+  alertBox.addEventListener('click', () => {
+    alertTable.style.display = 'block';
+    backdrop.style.display = 'block';
+  });
+
+  backdrop.addEventListener('click', closeAlertTable);
+}
+
+// Call the main function to start everything when the script loads
+fetchAndRenderAlerts();
+
