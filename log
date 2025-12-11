@@ -1,86 +1,139 @@
-// loginApi.js
-import api from './api'; // Assuming you have an api instance configured
-
-export const postLogin = async (uid, password) => {
-  try {
-    const response = await api.post('awthenticationService/newLogin/', { "uid": uid, "password": password });
-    
-    const uidd = response.data.userId;
-    const passwordd = response.data.password;
-    const username = response.data.username;
-    const userlevel = response.data.userLevel;
-    const sessionToken = response.data.session_token;
-    
-    console.log("Login response - username:", username);
-    console.log("Login response - userlevel:", userlevel);
-    
-    // Store credentials in localStorage if valid
-    if (uidd && passwordd) {
-      localStorage.setItem('uidd', uidd);
-      localStorage.setItem('password', passwordd);
-      localStorage.setItem('username', username);
-      localStorage.setItem('userlevel', userlevel);
-      localStorage.setItem('sessionid', sessionToken);
-      console.log('Stored uidd in localStorage:', localStorage.getItem('uidd'));
-    }
-    
-    return response;
-  } catch (error) {
-    console.error('Login error:', error);
-    throw error; // Re-throw to allow component-level handling
-  }
-};
-
-export async function authenticatePortal() {
-  try {
-    const sessionId = localStorage.getItem('sessionid');
-    const uid = localStorage.getItem('uidd');
-    
-    if (!sessionId || !uid) {
-      console.log('authenticatePortal: No session credentials found');
-      return {
-        success: false,
-        status: 0,
-        message: 'No session credentials',
-        data: null
-      };
-    }
-    
-    // Use the api instance for consistency
-    const response = await api.post('awthenticationService/authenticatePortal/', 
-      { uid },
-      {
-        headers: {
-          'Authorization': `Bearer ${sessionId}`
-        }
-      }
-    );
-    
-    const data = response.data;
-    
-    console.log('authenticatePortal response:', {
-      status: response.status,
-      data
-    });
-    
-    // Check if authentication was successful
-    const isSuccess = response.status === 302 || 
-                      response.status === 200 || 
-                      data.Response === "login successfull";
-    
-    return {
-      success: isSuccess,
-      status: response.status,
-      message: data.Response || data.message,
-      data: data
-    };
-  } catch (error) {
-    console.error('Error authenticating portal:', error);
-    return {
-      success: false,
-      status: error.response?.status || 0,
-      message: error.message,
-      data: null
-    };
-  }
+[root@eispr-prt1-01 port_monitoring]# cat FINAL_FDC_error.json
+{
+"10.188.24.10" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.24.110" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.24.111" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.24.112" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.24.113" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.24.114" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.24.115" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.24.11" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.24.12" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.24.131" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.24.132" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.24.133" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.24.134" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.24.135" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.24.13" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.24.141" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.24.142" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.24.143" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.24.144" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.24.145" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.24.146" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.24.14" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.24.155" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.24.156" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.24.157" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.24.158" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.24.159" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.24.160" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.24.163" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.24.164" : {"FIRST_occurance": "Dec 9 20:19:14" , "Last_occurance": "Dec 9 20:19:14"},
+"10.188.24.165" : {"FIRST_occurance": "Dec 9 12:31:08" , "Last_occurance": "Dec 9 12:31:08"},
+"10.188.24.166" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.24.167" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.24.173" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.24.174" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.24.175" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.24.176" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.24.190" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.24.191" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.24.192" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.24.194" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.24.195" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.24.196" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.24.197" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.24.31" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.24.32" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.24.33" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.24.34" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.24.41" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.24.42" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.24.43" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.24.44" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.24.45" : {"FIRST_occurance": "Dec 9 10:25:25" , "Last_occurance": "Dec 9 10:28:05"},
+"10.188.24.55" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.24.56" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.24.57" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.24.58" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.24.59" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.24.63" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.24.64" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.24.65" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.24.66" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.24.67" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.24.73" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.24.74" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.24.75" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.25.10" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.25.110" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.25.111" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.25.112" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.25.113" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.25.114" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.25.115" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.25.11" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.25.12" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.25.131" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.25.132" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.25.133" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.25.134" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.25.135" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.25.13" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.25.141" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.25.142" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.25.143" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.25.144" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.25.145" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.25.146" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.25.14" : {"FIRST_occurance": "Dec 9 20:57:01" , "Last_occurance": "Dec 9 21:00:17"},
+"10.188.25.155" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.25.156" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.25.157" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.25.158" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.25.159" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.25.160" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.25.163" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.25.164" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.25.165" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.25.166" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.25.167" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.25.173" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.25.174" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.25.175" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.25.176" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.25.190" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.25.191" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.25.192" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.25.194" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.25.195" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.25.196" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.25.197" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.25.31" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.25.32" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.25.33" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.25.34" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.25.41" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.25.42" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.25.43" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.25.44" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.25.45" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.25.55" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.25.56" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.25.57" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.25.58" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.25.59" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.25.63" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.25.64" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.25.65" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.25.66" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.25.67" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.25.73" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.25.74" : {"FIRST_occurance": "" , "Last_occurance": ""},
+"10.188.25.75" : {"FIRST_occurance": "" , "Last_occurance": ""}
 }
+
+
+
+
