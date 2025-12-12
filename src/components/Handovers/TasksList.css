@@ -698,3 +698,233 @@
     font-size: 1.5rem;
   }
 }
+
+/* Add these styles to TasksList.css */
+
+/* Set Support Acknowledgment */
+.set-support-ack {
+  margin-top: 1rem;
+  padding: 0.75rem;
+  background: rgba(76, 175, 80, 0.1);
+  border-radius: 6px;
+  border: 1px solid rgba(76, 175, 80, 0.2);
+  font-size: 0.85rem;
+}
+
+.set-support-ack strong {
+  color: #bbf7d0;
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+.set-support-ack small {
+  color: rgba(187, 247, 208, 0.7);
+}
+
+/* Set Completion Info */
+.set-completion-info {
+  margin-top: 1rem;
+  padding: 0.75rem;
+  background: rgba(0, 184, 148, 0.1);
+  border-radius: 6px;
+  border: 1px solid rgba(0, 184, 148, 0.2);
+  font-size: 0.85rem;
+}
+
+.set-completion-info strong {
+  color: #00b894;
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+.set-completion-info small {
+  color: rgba(0, 184, 148, 0.7);
+}
+
+/* Set Progress Info */
+.set-progress-info {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  margin-top: 0.5rem;
+  color: rgba(230, 238, 248, 0.7);
+  font-size: 0.9rem;
+}
+
+/* Modal Instructions */
+.modal-instructions {
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 8px;
+  border: 1px solid rgba(46, 213, 255, 0.1);
+}
+
+.modal-instructions p {
+  margin: 0 0 1rem 0;
+  color: rgba(230, 238, 248, 0.8);
+}
+
+.set-info {
+  padding: 0.75rem;
+  background: rgba(46, 213, 255, 0.05);
+  border-radius: 6px;
+  border: 1px solid rgba(46, 213, 255, 0.1);
+  font-size: 0.9rem;
+}
+
+.set-info strong {
+  color: #2ed5ff;
+}
+
+.modal-note {
+  margin-top: 1.5rem;
+  padding: 0.75rem;
+  background: rgba(253, 203, 110, 0.05);
+  border-radius: 6px;
+  border: 1px solid rgba(253, 203, 110, 0.1);
+  color: rgba(253, 203, 110, 0.8);
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+/* Activity Log */
+.activity-log-section {
+  background: linear-gradient(135deg, rgba(26, 26, 62, 0.4) 0%, rgba(15, 15, 35, 0.4) 100%);
+  border-radius: 16px;
+  padding: 2rem;
+  margin-bottom: 2rem;
+  border: 1px solid rgba(46, 213, 255, 0.15);
+}
+
+.activity-log-section h2 {
+  margin: 0 0 1.5rem 0;
+  color: #2ed5ff;
+  font-size: 1.5rem;
+  border-bottom: 2px solid rgba(46, 213, 255, 0.2);
+  padding-bottom: 0.75rem;
+}
+
+.activity-log-container {
+  max-height: 200px;
+  overflow-y: auto;
+  padding-right: 1rem;
+}
+
+.activity-log-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.activity-log-container::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 3px;
+}
+
+.activity-log-container::-webkit-scrollbar-thumb {
+  background: rgba(46, 213, 255, 0.2);
+  border-radius: 3px;
+}
+
+.log-entry {
+  display: flex;
+  gap: 1rem;
+  padding: 0.75rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.log-entry:last-child {
+  border-bottom: none;
+}
+
+.log-time {
+  color: #2ed5ff;
+  font-size: 0.85rem;
+  font-weight: 600;
+  min-width: 70px;
+}
+
+.log-message {
+  color: rgba(230, 238, 248, 0.8);
+  font-size: 0.9rem;
+  flex: 1;
+}
+
+/* Completion Summary */
+.completion-summary {
+  margin: 1.5rem 0;
+  padding: 1.5rem;
+  background: rgba(0, 184, 148, 0.05);
+  border-radius: 12px;
+  border: 1px solid rgba(0, 184, 148, 0.2);
+}
+
+.completion-summary h4 {
+  margin: 0 0 1rem 0;
+  color: #00b894;
+}
+
+.completion-summary ul {
+  margin: 0;
+  padding-left: 1.5rem;
+  color: rgba(230, 238, 248, 0.8);
+}
+
+.completion-summary li {
+  margin-bottom: 0.5rem;
+}
+
+.completion-summary strong {
+  color: #00b894;
+}
+
+/* Step Details Improvements */
+.step-details {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-top: 1rem;
+}
+
+.detail-item {
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.detail-item strong {
+  color: #2ed5ff;
+  margin-right: 0.5rem;
+}
+
+.ack-info {
+  padding: 0.75rem;
+  background: rgba(76, 175, 80, 0.1);
+  border-radius: 6px;
+  border: 1px solid rgba(76, 175, 80, 0.2);
+  margin-top: 0.5rem;
+}
+
+.ack-info strong {
+  color: #bbf7d0;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .set-support-ack,
+  .set-completion-info {
+    font-size: 0.8rem;
+  }
+  
+  .activity-log-container {
+    max-height: 150px;
+  }
+  
+  .log-entry {
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+  
+  .log-time {
+    min-width: auto;
+  }
+}
