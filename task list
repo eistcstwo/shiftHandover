@@ -1,0 +1,97 @@
+CACHE UPDATED AFTER 12:00 A.M.
+
+2 INFORM START OF ACTIVITY TO SUPPORT TEAM.
+
+3 SETS READY FOR RESTART.
+
+4 ISOLATOR DOWN
+
+5 BROKER STOPPED
+
+6 HEARTBEAT & CACHE BROKER STARTED
+
+7 ALL BROKER STARTED
+
+8 CACHE HIT & WORKLOAD DONE
+
+9 UDP CHANGES (TIMEOUT & URL CHANGES)
+
+10 LOGS VERIFICATION DONE
+
+11 ISOLATOR UP
+
+SET ACKNOWLEDGEMENT FROM SUPPORT TEAM .
+
+FINAL ACKNOWLEDGEMENT FROM SUPPORT TEAM AFTER COMPLETE RESTART
+
+
+
+  ###############################################25 SERIES #################################
+ SERIES SET 1 :
+ 
+sh /home/scripts/RESTART_REMOTE_ALLSERVER_NEW.sh 155 156 157 173 174 73 74 55 56 57 63 64 163 164 10 11 12 110 
+111 112 41 42 43 141 142 143 31 32 134 135 192 196 197 68 69 168 169
+
+*********************************************ISOLATOR UP*******************************
+
+ for i in 155 156 157 173 174 73 74 55 56 57 63 64 163 164 10 11 12 110 
+111 112 41 42 43 141 142 143 31 32 134 135 192 196 197 68 69 168 169 ;do ssh -tqf 10.188.25.$i 
+'sudo su - -c "mqsistartmsgflow HEART_BEAT -e ISOLATOR & mqsistartmsgflow HEART_BEAT -e ISOLATOR2 & "';done
+
+-------------------------------------------------------------------------------------------------------------------
+ SERIES SET 2 :
+sh /home/scripts/RESTART_REMOTE_ALLSERVER_NEW.sh 158 159 160 175 176 75 58 59 65 66 67 165 166 13 14 113 114 
+115 44 45 144 145 146 33 34 131 132 133 190 191 194 195 70 71 170 171
+
+*********************************************ISOLATOR UP*******************************
+
+ for i in 158 159 160 175 176 75 58 59 65 66 67 165 166 13 14 113 114 
+115 44 45 144 145 146 33 34 131 132 133 190 191 194 195 70 71 170 171 ;do ssh -tqf 10.188.25.$i 
+'sudo su - -c "mqsistartmsgflow HEART_BEAT -e ISOLATOR & mqsistartmsgflow HEART_BEAT -e ISOLATOR2 & "';done
+
+
+
+
+
+###############################################24 SERIES #################################
+
+
+
+ SERIES SET 3 :
+ sh /home/scripts/RESTART_REMOTE_ALLSERVER_24_NEW.sh 158 159 160 175 176 75 58 59 65 66 67 165 166 13 14 113 
+ 114 115 44 45 144 145 146 33 34 131 132 133 190 191 194 195 70 71 170 171
+
+ *********************************************ISOLATOR UP*******************************
+ 
+ for i in 158 159 160 175 176 75 58 59 65 66 67 165 166 13 14 113 
+ 114 115 44 45 144 145 146 33 34 131 132 133 190 191 194 195 70 71 170 171 ;do ssh -tqf 10.188.24.$i 
+'sudo su - -c "mqsistartmsgflow HEART_BEAT -e ISOLATOR & mqsistartmsgflow HEART_BEAT -e ISOLATOR2 & "';done
+
+------------------------------------------------------------------------------------------------------------------
+ SERIES SET 4 :
+ 
+sh /home/scripts/RESTART_REMOTE_ALLSERVER_24_NEW.sh 155 156 157 173 174 73 74 55 56 57 63 64 163 164 10 11 12 
+110 111 112 41 42 43 141 142 143 31 32 134 135 192  196 197 68 69 168 169
+
+*********************************************ISOLATOR UP*******************************
+
+for i in 155 156 157 173 174 73 74 55 56 57 63 64 163 164 10 11 12 
+110 111 112 41 42 43 141 142 143 31 32 134 135 192 196 197 68 69 168 169;do ssh -tqf 10.188.24.$i 
+'sudo su - -c "mqsistartmsgflow HEART_BEAT -e ISOLATOR & mqsistartmsgflow HEART_BEAT -e ISOLATOR2 & "';done
+
+
+Boker Restart Sets Command 
+
+Rahul Barman
+​EISINFRA-IIBLINUX;​
+Ashish Bhatkar​
+Dear Team ,
+
+PFA 
+
+Best Regards,
+Rahul Barman​
+EISINFRA - MQ
+SBI GITC - CBD Belapur
+
+
