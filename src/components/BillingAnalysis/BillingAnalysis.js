@@ -1,3 +1,7 @@
+BillingAnalysis.js
+-rw-r----- 1 root root 13937 Oct 23 16:28 BillingAnalysis.js_231025
+-rw-r----- 1 root root 14038 Dec 11 15:33 newBillingAnalysis.js
+[root@eispr-prt1-01 BillingAnalysis]# cat BillingAnalysis.js
 import React, { useState, useMemo } from 'react';
 import './BillingAnalysis.css';
 
@@ -157,6 +161,57 @@ const BillingAnalysis = () => {
     }
   };
 
+
+// helpers
+const isEmpty = (v) => v === null || v === undefined || v === '';
+const isPlainObject = (v) => v && typeof v === 'object' && !Array.isArray(v);
+
+
+// Optional: display order & labels for known object columns like "counts"
+const LABEL_ORDER = [
+  'Total working days',
+  'Total WFO',
+  'Total WFH',
+  'Total WO',
+  'Total PL',
+  'Total Leaves',
+];
+
+const LABELS = {
+  'Total working days': 'Working Days',
+  'Total WFO': 'Work from Office',
+  'Total WFH': 'Work from Home',
+  'Total WO': 'Week Off',
+  'Total PL': 'Planned Leave',
+  'Total Leaves': 'Leaves',
+};
+
+const renderObjectKV = (obj) => {
+  if (!obj || Object.keys(obj).length === 0) return '-';
+
+  // if it's the known "counts" shape, order keys nicely; otherwise, natural order
+  const keys = LABEL_ORDER.every(k => k in obj) ? LABEL_ORDER : Object.keys(obj);
+
+  return (
+    <dl className="kv">
+      {keys.map((k) => (
+        <div className="kv-row" key={k}>
+          <dt className="kv-key">{LABELS[k] ?? k}</dt>
+          <dd className="kv-val">{String(obj[k])}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+};
+
+const formatCell = (value) => {
+  if (isEmpty(value)) return '-';
+  if (Array.isArray(value)) return value.join(', ');
+  if (isPlainObject(value)) return renderObjectKV(value);
+  return String(value)
+
+};
+
   // Upload handling for three files
   const handleUploadSubmit = async (e) => {
     e.preventDefault();
@@ -175,7 +230,7 @@ const BillingAnalysis = () => {
       if (attendance2File) formData.append('attendance_sheet_2', attendance2File);
 
       // TODO: replace with your real upload endpoint and add any auth headers required.
-      const uploadUrl = 'https://10.191.171.12:5443/EISHOME_TEST/projectRoster/api/billing/upload'; // <-- change me
+      const uploadUrl = 'https://10.191.171.12:5443/EISHOME_TEST/projectRoster/upload/'; // <-- change me
       const resp = await fetch(uploadUrl, {
         method: 'POST',
         body: formData,
@@ -206,9 +261,9 @@ const BillingAnalysis = () => {
     <div className="billing-analysis">
       <div className="header-section">
         <h2>Billing Analysis</h2>
-        <button 
-          type="button" 
-          onClick={() => setShowUploadModal(true)} 
+        <button
+          type="button"
+          onClick={() => setShowUploadModal(true)}
           className="upload-btn"
         >
           📁 Upload Roster & Attendance
@@ -258,8 +313,8 @@ const BillingAnalysis = () => {
             placeholder="🕒 Shift"
             className="form-input"
           />
-          <select 
-            value={action} 
+          <select
+            value={action}
             onChange={(e) => setAction(e.target.value)}
             className="form-select"
           >
@@ -319,10 +374,16 @@ const BillingAnalysis = () => {
                   {pagedData.map((row, rowIndex) => (
                     <tr key={rowIndex}>
                       {columns.map((col) => (
-                        <td key={col}>
-                          {/* show '-' for null/undefined */}
-                          {row[col] === null || row[col] === undefined || row[col] === '' ? '-' : String(row[col])}
-                        </td>
+                       /* <td key={col}>
+                          {/* show '-' for null/undefined }*/
+                        /*  {row[col] === null || row[col] === undefined || row[col] === '' ? '-' : String(row[col])}
+                        </td>*/
+
+
+<td key={col}>
+  {formatCell(row[col])}
+</td>
+
                       ))}
                     </tr>
                   ))}
