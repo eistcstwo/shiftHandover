@@ -1,8 +1,4 @@
-BillingAnalysis.js
--rw-r----- 1 root root 13937 Oct 23 16:28 BillingAnalysis.js_231025
--rw-r----- 1 root root 14038 Dec 11 15:33 newBillingAnalysis.js
-[root@eispr-prt1-01 BillingAnalysis]# cat BillingAnalysis.js
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import './BillingAnalysis.css';
 
 const API_BASE = 'https://10.191.171.12:5443/EISHOME_TEST/projectRoster/search/';
@@ -21,6 +17,10 @@ const BillingAnalysis = () => {
   const [billingData, setBillingData] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  
+  // New state for fetched dates and months
+  const [validDates, setValidDates] = useState([]);
+  const [availableMonths, setAvailableMonths] = useState([]);
 
   // pagination
   const [page, setPage] = useState(1);
@@ -32,6 +32,95 @@ const BillingAnalysis = () => {
   const [attendance1File, setAttendance1File] = useState(null);
   const [attendance2File, setAttendance2File] = useState(null);
   const [uploading, setUploading] = useState(false);
+
+  // Fetch valid dates when q (name) changes
+  useEffect(() => {
+    if (!q) {
+      setValidDates([]);
+      setAvailableMonths([]);
+      return;
+    }
+
+    const fetchData = async () => {
+      try {
+        // Fetch valid dates
+        const datesResponse = await fetch(
+          `${API_BASE}?q=${encodeURIComponent(q)}&action=get_valid_dates`,
+          {
+            method: 'GET',
+          }
+        );
+
+        if (datesResponse.ok) {
+          const datesData = await datesResponse.json();
+          setValidDates(Array.isArray(datesData) ? datesData : []);
+        }
+
+        // Fetch available months
+        const monthsResponse = await fetch(
+          `${API_BASE}?q=${encodeURIComponent(q)}&action=get_months`,
+          {
+            method: 'GET',
+          }
+        );
+
+        if (monthsResponse.ok) {
+          const monthsData = await monthsResponse.json();
+          setAvailableMonths(Array.isArray(monthsData) ? monthsData : []);
+        }
+      } catch (err) {
+        console.error('Failed to fetch data:', err);
+        setValidDates([]);
+        setAvailableMonths([]);
+      }
+    };
+
+    const debounceTimer = setTimeout(() => {
+      fetchData();
+    }, 500);
+
+    return () => clearTimeout(debounceTimer);
+  }, [q]);
+
+  // Function to check if a date is in the validDates array
+  const isDateValid = (dateString) => {
+    return validDates.includes(dateString);
+  };
+
+  // Helper to get min and max dates from validDates
+  const getDateRange = () => {
+    if (validDates.length === 0) return { min: '', max: '' };
+    
+    const dates = validDates.map(date => new Date(date));
+    const minDate = new Date(Math.min(...dates));
+    const maxDate = new Date(Math.max(...dates));
+    
+    return {
+      min: minDate.toISOString().split('T')[0],
+      max: maxDate.toISOString().split('T')[0]
+    };
+  };
+
+  // Custom date input handler that validates against validDates
+  const handleStartDateChange = (e) => {
+    const selectedDate = e.target.value;
+    if (!selectedDate || isDateValid(selectedDate)) {
+      setStartDate(selectedDate);
+    } else {
+      alert(`Date ${selectedDate} is not available. Please select from valid dates: ${validDates.slice(0, 5).join(', ')}${validDates.length > 5 ? '...' : ''}`);
+      e.target.value = startDate; // Reset to previous value
+    }
+  };
+
+  const handleEndDateChange = (e) => {
+    const selectedDate = e.target.value;
+    if (!selectedDate || isDateValid(selectedDate)) {
+      setEndDate(selectedDate);
+    } else {
+      alert(`Date ${selectedDate} is not available. Please select from valid dates: ${validDates.slice(0, 5).join(', ')}${validDates.length > 5 ? '...' : ''}`);
+      e.target.value = endDate; // Reset to previous value
+    }
+  };
 
   // Helper to build query string
   const buildQueryString = () => {
@@ -54,7 +143,6 @@ const BillingAnalysis = () => {
         const key = `attendance_${k}`;
         flat[key] = item.attendance[k];
       });
-      // remove original attendance object to avoid nested object rendering
       delete flat.attendance;
     }
     return flat;
@@ -71,7 +159,6 @@ const BillingAnalysis = () => {
     flattenedData.forEach((row) => {
       Object.keys(row).forEach((k) => set.add(k));
     });
-    // Ensure some predictable order: common columns first if present
     const preferred = [
       'date',
       'name',
@@ -106,18 +193,12 @@ const BillingAnalysis = () => {
 
     try {
       const qs = buildQueryString();
-      // If you have trouble with TLS in browser, use a dev proxy endpoint on your server instead of API_BASE.
       const url = qs ? `${API_BASE}?${qs}` : API_BASE;
-      // Example fetch. The backend must return JSON array of objects or an object with a list (adjust accordingly).
       const resp = await fetch(url, {
         method: 'GET',
-        // include credentials or headers if required:
-        // credentials: 'include',
-        // headers: { 'Authorization': 'Bearer ...' },
       });
 
       if (!resp.ok) {
-        // Try to extract JSON error message
         let msg = `${resp.status} ${resp.statusText}`;
         try {
           const errJson = await resp.json();
@@ -130,11 +211,6 @@ const BillingAnalysis = () => {
 
       const json = await resp.json();
 
-      // The API may return different shapes:
-      // - an array of items -> use it directly
-      // - { results: [...], count: N } -> use results
-      // - { data: [...] } -> use data
-      // - else: try to find first array in payload, or show the object as a single-row summary
       if (Array.isArray(json)) {
         setBillingData(json);
       } else if (Array.isArray(json.results)) {
@@ -146,11 +222,9 @@ const BillingAnalysis = () => {
         if (firstArray) {
           setBillingData(firstArray);
         } else {
-          // show the object as a single-row summary (useful for action=count etc)
           setBillingData([json]);
         }
       } else {
-        // unexpected shape: set empty
         setBillingData([]);
       }
     } catch (err) {
@@ -161,56 +235,51 @@ const BillingAnalysis = () => {
     }
   };
 
+  // helpers
+  const isEmpty = (v) => v === null || v === undefined || v === '';
+  const isPlainObject = (v) => v && typeof v === 'object' && !Array.isArray(v);
 
-// helpers
-const isEmpty = (v) => v === null || v === undefined || v === '';
-const isPlainObject = (v) => v && typeof v === 'object' && !Array.isArray(v);
+  const LABEL_ORDER = [
+    'Total working days',
+    'Total WFO',
+    'Total WFH',
+    'Total WO',
+    'Total PL',
+    'Total Leaves',
+  ];
 
+  const LABELS = {
+    'Total working days': 'Working Days',
+    'Total WFO': 'Work from Office',
+    'Total WFH': 'Work from Home',
+    'Total WO': 'Week Off',
+    'Total PL': 'Planned Leave',
+    'Total Leaves': 'Leaves',
+  };
 
-// Optional: display order & labels for known object columns like "counts"
-const LABEL_ORDER = [
-  'Total working days',
-  'Total WFO',
-  'Total WFH',
-  'Total WO',
-  'Total PL',
-  'Total Leaves',
-];
+  const renderObjectKV = (obj) => {
+    if (!obj || Object.keys(obj).length === 0) return '-';
 
-const LABELS = {
-  'Total working days': 'Working Days',
-  'Total WFO': 'Work from Office',
-  'Total WFH': 'Work from Home',
-  'Total WO': 'Week Off',
-  'Total PL': 'Planned Leave',
-  'Total Leaves': 'Leaves',
-};
+    const keys = LABEL_ORDER.every(k => k in obj) ? LABEL_ORDER : Object.keys(obj);
 
-const renderObjectKV = (obj) => {
-  if (!obj || Object.keys(obj).length === 0) return '-';
+    return (
+      <dl className="kv">
+        {keys.map((k) => (
+          <div className="kv-row" key={k}>
+            <dt className="kv-key">{LABELS[k] ?? k}</dt>
+            <dd className="kv-val">{String(obj[k])}</dd>
+          </div>
+        ))}
+      </dl>
+    );
+  };
 
-  // if it's the known "counts" shape, order keys nicely; otherwise, natural order
-  const keys = LABEL_ORDER.every(k => k in obj) ? LABEL_ORDER : Object.keys(obj);
-
-  return (
-    <dl className="kv">
-      {keys.map((k) => (
-        <div className="kv-row" key={k}>
-          <dt className="kv-key">{LABELS[k] ?? k}</dt>
-          <dd className="kv-val">{String(obj[k])}</dd>
-        </div>
-      ))}
-    </dl>
-  );
-};
-
-const formatCell = (value) => {
-  if (isEmpty(value)) return '-';
-  if (Array.isArray(value)) return value.join(', ');
-  if (isPlainObject(value)) return renderObjectKV(value);
-  return String(value)
-
-};
+  const formatCell = (value) => {
+    if (isEmpty(value)) return '-';
+    if (Array.isArray(value)) return value.join(', ');
+    if (isPlainObject(value)) return renderObjectKV(value);
+    return String(value);
+  };
 
   // Upload handling for three files
   const handleUploadSubmit = async (e) => {
@@ -229,8 +298,7 @@ const formatCell = (value) => {
       if (attendance1File) formData.append('attendance_sheet_1', attendance1File);
       if (attendance2File) formData.append('attendance_sheet_2', attendance2File);
 
-      // TODO: replace with your real upload endpoint and add any auth headers required.
-      const uploadUrl = 'https://10.191.171.12:5443/EISHOME_TEST/projectRoster/upload/'; // <-- change me
+      const uploadUrl = 'https://10.191.171.12:5443/EISHOME_TEST/projectRoster/upload/';
       const resp = await fetch(uploadUrl, {
         method: 'POST',
         body: formData,
@@ -243,7 +311,6 @@ const formatCell = (value) => {
 
       const result = await resp.json().catch(() => null);
       alert('Files uploaded successfully.');
-      // Optionally refresh data or close modal
       setShowUploadModal(false);
       setRosterFile(null);
       setAttendance1File(null);
@@ -256,6 +323,43 @@ const formatCell = (value) => {
       setUploading(false);
     }
   };
+
+  // Function to convert month string to date range
+  const monthToDateRange = (monthStr) => {
+    const [month, year] = monthStr.split(' ');
+    const monthIndex = new Date(`${month} 1, ${year}`).getMonth();
+    const firstDay = new Date(year, monthIndex, 1);
+    const lastDay = new Date(year, monthIndex + 1, 0);
+    
+    return {
+      first: firstDay.toISOString().split('T')[0],
+      last: lastDay.toISOString().split('T')[0]
+    };
+  };
+
+  // Handle month selection
+  const handleMonthSelect = (monthStr) => {
+    const range = monthToDateRange(monthStr);
+    
+    // Find valid dates within this month range
+    const monthValidDates = validDates.filter(date => {
+      return date >= range.first && date <= range.last;
+    });
+    
+    if (monthValidDates.length > 0) {
+      // Set the min and max dates from available valid dates in this month
+      const dates = monthValidDates.map(date => new Date(date));
+      const minDate = new Date(Math.min(...dates)).toISOString().split('T')[0];
+      const maxDate = new Date(Math.max(...dates)).toISOString().split('T')[0];
+      
+      setStartDate(minDate);
+      setEndDate(maxDate);
+    } else {
+      alert(`No valid dates available for ${monthStr}`);
+    }
+  };
+
+  const dateRange = getDateRange();
 
   return (
     <div className="billing-analysis">
@@ -287,18 +391,39 @@ const formatCell = (value) => {
             placeholder="👤 ID"
             className="form-input"
           />
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            className="form-input"
-          />
-          <input
-            type="date"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-            className="form-input"
-          />
+          
+          {/* Date inputs with validation */}
+          <div className="date-input-group">
+            <input
+              type="date"
+              value={startDate}
+              onChange={handleStartDateChange}
+              className="form-input"
+              title="Start Date"
+              min={dateRange.min}
+              max={dateRange.max}
+              list="validDatesList"
+            />
+            <datalist id="validDatesList">
+              {validDates.map(date => (
+                <option key={date} value={date} />
+              ))}
+            </datalist>
+          </div>
+          
+          <div className="date-input-group">
+            <input
+              type="date"
+              value={endDate}
+              onChange={handleEndDateChange}
+              className="form-input"
+              title="End Date"
+              min={dateRange.min}
+              max={dateRange.max}
+              list="validDatesList"
+            />
+          </div>
+          
           <input
             type="text"
             value={teamname}
@@ -313,6 +438,7 @@ const formatCell = (value) => {
             placeholder="🕒 Shift"
             className="form-input"
           />
+          
           <select
             value={action}
             onChange={(e) => setAction(e.target.value)}
@@ -322,10 +448,40 @@ const formatCell = (value) => {
             <option value="count">Count Working Days</option>
             <option value="low_hours">Low Hours Check</option>
           </select>
+          
           <button type="submit" disabled={isLoading} className="search-btn">
             {isLoading ? '⏳ Searching...' : '🚀 Search'}
           </button>
         </div>
+        
+        {/* Available months selector */}
+        {availableMonths.length > 0 && q && (
+          <div className="months-selector">
+            <label>Available Months for {q}:</label>
+            <div className="months-buttons">
+              {availableMonths.map(month => (
+                <button
+                  key={month}
+                  type="button"
+                  onClick={() => handleMonthSelect(month)}
+                  className="month-btn"
+                >
+                  {month}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        
+        {/* Valid dates info */}
+        {validDates.length > 0 && q && (
+          <div className="dates-info">
+            <small>
+              {validDates.length} valid dates available for {q}. 
+              {validDates.length > 5 ? ` First 5: ${validDates.slice(0, 5).join(', ')}...` : ` ${validDates.join(', ')}`}
+            </small>
+          </div>
+        )}
       </form>
 
       {error && <div className="error">Error: {error}</div>}
@@ -374,16 +530,9 @@ const formatCell = (value) => {
                   {pagedData.map((row, rowIndex) => (
                     <tr key={rowIndex}>
                       {columns.map((col) => (
-                       /* <td key={col}>
-                          {/* show '-' for null/undefined }*/
-                        /*  {row[col] === null || row[col] === undefined || row[col] === '' ? '-' : String(row[col])}
-                        </td>*/
-
-
-<td key={col}>
-  {formatCell(row[col])}
-</td>
-
+                        <td key={col}>
+                          {formatCell(row[col])}
+                        </td>
                       ))}
                     </tr>
                   ))}
