@@ -13,6 +13,7 @@ import HandoverReports from "./components/Reports/HandoverReports";
 import BillingAnalysis from "./components/BillingAnalysis/BillingAnalysis";
 import HistorySummary from "./components/Handovers/HistorySummary";
 import TasksBucket from "./components/Handovers/TasksBucket";
+import TasksList from './components/Handovers/TasksList';
 
 import "./App.css";
 
@@ -123,6 +124,15 @@ function App() {
       </ProtectedRoute>
     }
   />
+
+<Route
+  path="/tasks-checklist"
+  element={
+   
+      <TasksList />
+
+  }
+/>
 
                 {/* Admin & L2 Restricted Routes */}
                 <Route
