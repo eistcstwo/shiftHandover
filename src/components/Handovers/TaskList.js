@@ -1,4 +1,4 @@
-// TasksList.js
+// TasksList.js - Updated with better support acknowledgment
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
@@ -15,6 +15,12 @@ const TasksList = () => {
     authTime: null
   });
   
+  // State for support acknowledgment
+  const [supportAckPending, setSupportAckPending] = useState(false);
+  const [generatedAckCode, setGeneratedAckCode] = useState('');
+  const [supportAckInput, setSupportAckInput] = useState('');
+  const [supportAckDetails, setSupportAckDetails] = useState(null);
+  
   // State for current set
   const [currentSet, setCurrentSet] = useState(1);
   const [sets, setSets] = useState([
@@ -22,29 +28,33 @@ const TasksList = () => {
       id: 1, 
       name: '25 Series - Set 1',
       servers: '155, 156, 157, 173, 174, 73, 74, 55, 56, 57, 63, 64, 163, 164, 10, 11, 12, 110, 111, 112, 41, 42, 43, 141, 142, 143, 31, 32, 134, 135, 192, 196, 197, 68, 69, 168, 169',
-      status: 'pending', // pending, in-progress, waiting-ack, completed
-      supportAck: null
+      status: 'pending',
+      supportAck: null,
+      ackCode: ''
     },
     { 
       id: 2, 
       name: '25 Series - Set 2',
       servers: '158, 159, 160, 175, 176, 75, 58, 59, 65, 66, 67, 165, 166, 13, 14, 113, 114, 115, 44, 45, 144, 145, 146, 33, 34, 131, 132, 133, 190, 191, 194, 195, 70, 71, 170, 171',
       status: 'pending',
-      supportAck: null
+      supportAck: null,
+      ackCode: ''
     },
     { 
       id: 3, 
       name: '24 Series - Set 3',
       servers: '158, 159, 160, 175, 176, 75, 58, 59, 65, 66, 67, 165, 166, 13, 14, 113, 114, 115, 44, 45, 144, 145, 146, 33, 34, 131, 132, 133, 190, 191, 194, 195, 70, 71, 170, 171',
       status: 'pending',
-      supportAck: null
+      supportAck: null,
+      ackCode: ''
     },
     { 
       id: 4, 
       name: '24 Series - Set 4',
       servers: '155, 156, 157, 173, 174, 73, 74, 55, 56, 57, 63, 64, 163, 164, 10, 11, 12, 110, 111, 112, 41, 42, 43, 141, 142, 143, 31, 32, 134, 135, 192, 196, 197, 68, 69, 168, 169',
       status: 'pending',
-      supportAck: null
+      supportAck: null,
+      ackCode: ''
     }
   ]);
   
@@ -67,8 +77,10 @@ const TasksList = () => {
       completedTime: null,
       completedBy: null,
       requiresAck: true,
+      ackCode: '',
       ackBy: null,
-      ackTime: null
+      ackTime: null,
+      ackMethod: 'support' // 'support' or 'operator'
     },
     {
       id: 3,
@@ -154,12 +166,6 @@ const TasksList = () => {
   ]);
   
   const [currentStep, setCurrentStep] = useState(1);
-  const [supportAck, setSupportAck] = useState({
-    name: '',
-    id: '',
-    completed: false,
-    ackTime: null
-  });
   const [timer, setTimer] = useState(null);
   const [timeElapsed, setTimeElapsed] = useState(0);
 
@@ -192,9 +198,131 @@ const TasksList = () => {
     setTimer(newTimer);
   };
 
-  // Complete a checklist step
+  // Generate acknowledgment code
+  const generateAckCode = () => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let code = '';
+    for (let i = 0; i < 6; i++) {
+      code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return `ACK-${code}`;
+  };
+
+  // Complete step 1 and initiate support notification
+  const completeStep1 = () => {
+    if (currentStep !== 1) return;
+    
+    const updatedSteps = [...checklistSteps];
+    updatedSteps[0] = {
+      ...updatedSteps[0],
+      completed: true,
+      completedTime: new Date(),
+      completedBy: userAuth.name
+    };
+    
+    setChecklistSteps(updatedSteps);
+    
+    // Generate acknowledgment code for support team
+    const ackCode = generateAckCode();
+    setGeneratedAckCode(ackCode);
+    
+    // Update step 2 with acknowledgment code
+    updatedSteps[1].ackCode = ackCode;
+    setChecklistSteps(updatedSteps);
+    
+    // Update current set with acknowledgment code
+    const updatedSets = [...sets];
+    updatedSets[currentSet - 1].ackCode = ackCode;
+    updatedSets[currentSet - 1].status = 'waiting-ack';
+    setSets(updatedSets);
+    
+    // Set support acknowledgment as pending
+    setSupportAckPending(true);
+    
+    // Show notification to inform support team
+    console.log('INFORM SUPPORT TEAM:', {
+      message: `Night Broker Restart Activity Started for ${sets[currentSet - 1].name}`,
+      ackCode: ackCode,
+      operator: userAuth.name,
+      operatorId: userAuth.id,
+      time: format(new Date(), 'MMM d, yyyy h:mm:ss a'),
+      servers: sets[currentSet - 1].servers
+    });
+    
+    alert(`✅ Step 1 completed!\n\n📞 Please inform support team with this code:\n\n🔑 ${ackCode}\n\nSupport team should acknowledge using this code to proceed.`);
+    
+    // Stay on step 2 (waiting for support acknowledgment)
+    setCurrentStep(2);
+    setTimeElapsed(0);
+    startTimer();
+  };
+
+  // Complete step 2 (when support acknowledges)
+  const completeStep2 = () => {
+    if (currentStep !== 2) return;
+    
+    // In real implementation, this would be called by support team
+    // For simulation, we'll show a modal for support acknowledgment
+    
+    setSupportAckPending(true);
+  };
+
+  // Simulate support team acknowledgment (for demo purposes)
+  const simulateSupportAck = () => {
+    const supportName = `Support-${Math.floor(Math.random() * 1000)}`;
+    const supportId = `SID${Math.floor(Math.random() * 10000)}`;
+    const ackTime = new Date();
+    
+    const ackDetails = {
+      name: supportName,
+      id: supportId,
+      ackTime,
+      code: generatedAckCode,
+      set: sets[currentSet - 1].name
+    };
+    
+    setSupportAckDetails(ackDetails);
+    
+    // Update checklist steps
+    const updatedSteps = [...checklistSteps];
+    updatedSteps[1] = {
+      ...updatedSteps[1],
+      completed: true,
+      completedTime: ackTime,
+      completedBy: userAuth.name,
+      ackBy: supportName,
+      ackTime
+    };
+    setChecklistSteps(updatedSteps);
+    
+    // Update current set
+    const updatedSets = [...sets];
+    updatedSets[currentSet - 1] = {
+      ...updatedSets[currentSet - 1],
+      status: 'in-progress',
+      supportAck: ackDetails
+    };
+    setSets(updatedSets);
+    
+    // Reset support acknowledgment state
+    setSupportAckPending(false);
+    setGeneratedAckCode('');
+    setSupportAckInput('');
+    
+    // Log support acknowledgment
+    console.log('SUPPORT TEAM ACKNOWLEDGMENT:', ackDetails);
+    
+    // Move to next step
+    setTimeout(() => {
+      setCurrentStep(3);
+      setTimeElapsed(0);
+      startTimer();
+    }, 2000);
+  };
+
+  // Complete a checklist step (for steps other than 1 and 2)
   const completeStep = (stepId) => {
-    if (stepId !== currentStep) return;
+    if (stepId !== currentStep || stepId <= 2) return;
     
     const updatedSteps = [...checklistSteps];
     const stepIndex = stepId - 1;
@@ -208,74 +336,16 @@ const TasksList = () => {
     
     setChecklistSteps(updatedSteps);
     
-    // If step requires support acknowledgment
-    if (updatedSteps[stepIndex].requiresAck) {
-      setCurrentSet(prev => {
-        const updatedSets = [...sets];
-        updatedSets[prev - 1].status = 'waiting-ack';
-        setSets(updatedSets);
-        return prev;
-      });
-    } else {
-      // Move to next step after a delay
-      setTimeout(() => {
-        if (currentStep < checklistSteps.length) {
-          setCurrentStep(currentStep + 1);
-          setTimeElapsed(0);
-          startTimer();
-        } else {
-          // All steps completed for current set
-          completeCurrentSet();
-        }
-      }, 2000);
-    }
-  };
-
-  // Handle support team acknowledgment
-  const handleSupportAck = (e) => {
-    e.preventDefault();
-    const ackTime = new Date();
-    setSupportAck({
-      ...supportAck,
-      completed: true,
-      ackTime
-    });
-    
-    console.log('Support Team Acknowledgment:', {
-      name: supportAck.name,
-      id: supportAck.id,
-      ackTime: format(ackTime, 'MMM d, yyyy h:mm:ss a')
-    });
-    
-    // Update the step with acknowledgment
-    const updatedSteps = [...checklistSteps];
-    const stepIndex = 1; // Step 2 (0-indexed)
-    updatedSteps[stepIndex] = {
-      ...updatedSteps[stepIndex],
-      ackBy: supportAck.name,
-      ackTime
-    };
-    setChecklistSteps(updatedSteps);
-    
-    // Update current set
-    const updatedSets = [...sets];
-    updatedSets[currentSet - 1] = {
-      ...updatedSets[currentSet - 1],
-      status: 'in-progress',
-      supportAck: {
-        name: supportAck.name,
-        id: supportAck.id,
-        time: ackTime
-      }
-    };
-    setSets(updatedSets);
-    
-    // Move to next step
+    // Move to next step after a delay
     setTimeout(() => {
-      setCurrentStep(3);
-      setTimeElapsed(0);
-      startTimer();
-      setSupportAck({ name: '', id: '', completed: false, ackTime: null });
+      if (currentStep < checklistSteps.length) {
+        setCurrentStep(currentStep + 1);
+        setTimeElapsed(0);
+        startTimer();
+      } else {
+        // All steps completed for current set
+        completeCurrentSet();
+      }
     }, 2000);
   };
 
@@ -298,11 +368,24 @@ const TasksList = () => {
           completedTime: null,
           completedBy: null,
           ackBy: null,
-          ackTime: null
+          ackTime: null,
+          ackCode: ''
         })));
+        setSupportAckDetails(null);
         setTimeElapsed(0);
         startTimer();
       }, 5000);
+    }
+  };
+
+  // Handle support acknowledgment code input
+  const handleSupportAckSubmit = (e) => {
+    e.preventDefault();
+    
+    if (supportAckInput === generatedAckCode) {
+      simulateSupportAck();
+    } else {
+      alert('❌ Invalid acknowledgment code. Please check with support team.');
     }
   };
 
@@ -387,7 +470,7 @@ const TasksList = () => {
               <ul>
                 <li>Enter your name and ID to start the task</li>
                 <li>Complete steps in sequential order</li>
-                <li>Wait for support team acknowledgment when required</li>
+                <li>Step 2 requires support team acknowledgment</li>
                 <li>Do not skip any steps</li>
               </ul>
             </div>
@@ -398,7 +481,7 @@ const TasksList = () => {
           {/* User Info Banner */}
           <div className="user-info-banner">
             <div className="user-info-content">
-              <span className="user-label">👤 Current User:</span>
+              <span className="user-label">👤 Current Operator:</span>
               <span className="user-name">{userAuth.name}</span>
               <span className="user-id">(ID: {userAuth.id})</span>
               <span className="user-time">
@@ -429,11 +512,18 @@ const TasksList = () => {
                   <div className="set-servers">
                     <strong>Servers:</strong> {set.servers}
                   </div>
+                  {set.ackCode && (
+                    <div className="ack-code-display">
+                      <strong>🔑 Acknowledgment Code:</strong>
+                      <div className="ack-code">{set.ackCode}</div>
+                      <small>Share this code with support team</small>
+                    </div>
+                  )}
                   {set.supportAck && (
                     <div className="set-ack-info">
-                      <strong>Support Acknowledged by:</strong> {set.supportAck.name}
-                      <br />
-                      <small>{format(new Date(set.supportAck.time), 'MMM d, h:mm a')}</small>
+                      <strong>✅ Acknowledged by Support:</strong>
+                      <div>{set.supportAck.name} (ID: {set.supportAck.id})</div>
+                      <small>{format(new Date(set.supportAck.ackTime), 'MMM d, h:mm:ss a')}</small>
                     </div>
                   )}
                 </div>
@@ -441,48 +531,67 @@ const TasksList = () => {
             </div>
             <div className="current-set-info">
               <h3>Currently Working On: <span className="set-highlight">{sets[currentSet - 1].name}</span></h3>
+              {sets[currentSet - 1].ackCode && !sets[currentSet - 1].supportAck && (
+                <div className="ack-pending-alert">
+                  ⚠️ Waiting for support team acknowledgment
+                  <div className="ack-code-large">{sets[currentSet - 1].ackCode}</div>
+                </div>
+              )}
             </div>
           </section>
 
           {/* Support Acknowledgment Modal */}
-          {sets[currentSet - 1]?.status === 'waiting-ack' && !supportAck.completed && (
+          {supportAckPending && (
             <div className="modal-overlay">
               <div className="modal-container">
                 <div className="modal-header">
                   <h2>🛡️ Support Team Acknowledgment Required</h2>
-                  <p>Step 2 requires support team acknowledgment before proceeding</p>
+                  <p>Support team must acknowledge before proceeding to step 3</p>
                 </div>
-                <form onSubmit={handleSupportAck} className="modal-form">
-                  <div className="form-group">
-                    <label htmlFor="supportName">Support Team Member Name</label>
-                    <input
-                      type="text"
-                      id="supportName"
-                      value={supportAck.name}
-                      onChange={(e) => setSupportAck({...supportAck, name: e.target.value})}
-                      placeholder="Enter support team member name"
-                      required
-                      className="form-input"
-                    />
+                
+                <div className="support-instructions">
+                  <h3>📞 How to get support acknowledgment:</h3>
+                  <ol>
+                    <li>Contact support team via phone/chat</li>
+                    <li>Provide them with the acknowledgment code</li>
+                    <li>Support team will acknowledge using their system</li>
+                    <li>Once acknowledged, enter the code below</li>
+                  </ol>
+                  
+                  <div className="ack-code-display-modal">
+                    <strong>Acknowledgment Code:</strong>
+                    <div className="ack-code-modal">{generatedAckCode}</div>
+                    <small>Share this code with support team</small>
                   </div>
+                </div>
+                
+                <form onSubmit={handleSupportAckSubmit} className="modal-form">
                   <div className="form-group">
-                    <label htmlFor="supportId">Support Team Member ID</label>
+                    <label htmlFor="ackCode">Enter Acknowledgment Code from Support</label>
                     <input
                       type="text"
-                      id="supportId"
-                      value={supportAck.id}
-                      onChange={(e) => setSupportAck({...supportAck, id: e.target.value})}
-                      placeholder="Enter support team member ID"
+                      id="ackCode"
+                      value={supportAckInput}
+                      onChange={(e) => setSupportAckInput(e.target.value.toUpperCase())}
+                      placeholder="Enter ACK-XXXXXX code"
                       required
                       className="form-input"
+                      style={{ textAlign: 'center', letterSpacing: '2px', fontSize: '1.1rem' }}
                     />
                   </div>
                   <div className="modal-actions">
+                    <button type="button" onClick={() => setSupportAckPending(false)} className="btn-secondary">
+                      Cancel
+                    </button>
                     <button type="submit" className="btn-primary">
-                      Acknowledge & Continue
+                      Verify & Continue
                     </button>
                   </div>
                 </form>
+                
+                <div className="simulation-note">
+                  <small>💡 For simulation: Support team would acknowledge separately. Here you can enter the code above.</small>
+                </div>
               </div>
             </div>
           )}
@@ -517,6 +626,17 @@ const TasksList = () => {
                     </div>
                     <p className="step-description">{step.description}</p>
                     
+                    {/* Special content for step 2 */}
+                    {step.id === 2 && step.ackCode && !step.completed && (
+                      <div className="step-ack-required">
+                        <div className="ack-waiting">
+                          <strong>🛡️ Support Acknowledgment Required</strong>
+                          <div className="ack-code-step">{step.ackCode}</div>
+                          <small>Share this code with support team for acknowledgment</small>
+                        </div>
+                      </div>
+                    )}
+                    
                     {step.completed && (
                       <div className="step-details">
                         <div className="detail-item">
@@ -527,27 +647,42 @@ const TasksList = () => {
                         </div>
                         {step.requiresAck && step.ackBy && (
                           <div className="detail-item ack-info">
-                            <strong>Support Acknowledgment:</strong> {step.ackBy}
+                            <strong>✅ Support Acknowledgment:</strong> {step.ackBy}
                             <br />
-                            <small>{format(new Date(step.ackTime), 'MMM d, h:mm a')}</small>
+                            <small>{format(new Date(step.ackTime), 'MMM d, h:mm:ss a')}</small>
                           </div>
                         )}
                       </div>
                     )}
                     
+                    {/* Step Actions */}
                     {currentStep === step.id && !step.completed && (
                       <div className="step-actions">
-                        <button
-                          onClick={() => completeStep(step.id)}
-                          className="complete-btn"
-                          disabled={step.requiresAck && step.id === 2 && !supportAck.completed}
-                        >
-                          {step.requiresAck && step.id === 2 ? 
-                            'Waiting for Support Acknowledgment' : 
-                            'Mark as Complete'
-                          }
-                        </button>
-                        {step.requiresAck && step.id === 2 && (
+                        {step.id === 1 ? (
+                          <button
+                            onClick={completeStep1}
+                            className="complete-btn"
+                          >
+                            Mark as Complete & Generate Support Code
+                          </button>
+                        ) : step.id === 2 ? (
+                          <button
+                            onClick={() => setSupportAckPending(true)}
+                            className="complete-btn"
+                            disabled={!step.ackCode}
+                          >
+                            {step.ackCode ? 'Enter Support Acknowledgment' : 'Waiting for code generation...'}
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => completeStep(step.id)}
+                            className="complete-btn"
+                          >
+                            Mark as Complete
+                          </button>
+                        )}
+                        
+                        {step.id === 2 && step.ackCode && (
                           <div className="ack-required-note">
                             ⚠️ Requires support team acknowledgment before proceeding
                           </div>
@@ -579,9 +714,9 @@ const TasksList = () => {
                 <span className="stat-value">{formatTime(timeElapsed)}</span>
               </div>
               <div className="progress-stat">
-                <span className="stat-label">Overall Status</span>
-                <span className="stat-value" style={{ color: getStatusColor(sets[currentSet - 1].status) }}>
-                  {sets[currentSet - 1].status.toUpperCase()}
+                <span className="stat-label">Support Status</span>
+                <span className="stat-value" style={{ color: sets[currentSet - 1].supportAck ? '#00b894' : '#fdcb6e' }}>
+                  {sets[currentSet - 1].supportAck ? 'Acknowledged' : 'Pending'}
                 </span>
               </div>
             </div>
