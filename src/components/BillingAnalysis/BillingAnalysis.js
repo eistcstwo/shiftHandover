@@ -18,9 +18,11 @@ const BillingAnalysis = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   
-  // New state for fetched dates and months
+  // New state for fetched data
   const [validDates, setValidDates] = useState([]);
   const [availableMonths, setAvailableMonths] = useState([]);
+  const [availableTeams, setAvailableTeams] = useState([]);
+  const [availableShifts, setAvailableShifts] = useState([]);
 
   // pagination
   const [page, setPage] = useState(1);
@@ -33,50 +35,63 @@ const BillingAnalysis = () => {
   const [attendance2File, setAttendance2File] = useState(null);
   const [uploading, setUploading] = useState(false);
 
-  // Fetch valid dates when q (name) changes
+  // Fetch all data when q (name) changes
   useEffect(() => {
     if (!q) {
       setValidDates([]);
       setAvailableMonths([]);
+      setAvailableTeams([]);
+      setAvailableShifts([]);
       return;
     }
 
-    const fetchData = async () => {
+    const fetchAllData = async () => {
       try {
-        // Fetch valid dates
-        const datesResponse = await fetch(
-          `${API_BASE}?q=${encodeURIComponent(q)}&action=get_valid_dates`,
-          {
-            method: 'GET',
-          }
-        );
+        // Array of API calls
+        const apiCalls = [
+          fetch(`${API_BASE}?q=${encodeURIComponent(q)}&action=get_valid_dates`),
+          fetch(`${API_BASE}?q=${encodeURIComponent(q)}&action=get_months`),
+          fetch(`${API_BASE}?q=${encodeURIComponent(q)}&action=get_team`),
+          fetch(`${API_BASE}?q=${encodeURIComponent(q)}&action=get_shift`)
+        ];
 
-        if (datesResponse.ok) {
-          const datesData = await datesResponse.json();
+        const responses = await Promise.all(apiCalls);
+        
+        // Process valid dates
+        if (responses[0].ok) {
+          const datesData = await responses[0].json();
           setValidDates(Array.isArray(datesData) ? datesData : []);
         }
-
-        // Fetch available months
-        const monthsResponse = await fetch(
-          `${API_BASE}?q=${encodeURIComponent(q)}&action=get_months`,
-          {
-            method: 'GET',
-          }
-        );
-
-        if (monthsResponse.ok) {
-          const monthsData = await monthsResponse.json();
+        
+        // Process months
+        if (responses[1].ok) {
+          const monthsData = await responses[1].json();
           setAvailableMonths(Array.isArray(monthsData) ? monthsData : []);
         }
+        
+        // Process teams
+        if (responses[2].ok) {
+          const teamsData = await responses[2].json();
+          setAvailableTeams(Array.isArray(teamsData) ? teamsData : []);
+        }
+        
+        // Process shifts
+        if (responses[3].ok) {
+          const shiftsData = await responses[3].json();
+          setAvailableShifts(Array.isArray(shiftsData) ? shiftsData : []);
+        }
+        
       } catch (err) {
         console.error('Failed to fetch data:', err);
         setValidDates([]);
         setAvailableMonths([]);
+        setAvailableTeams([]);
+        setAvailableShifts([]);
       }
     };
 
     const debounceTimer = setTimeout(() => {
-      fetchData();
+      fetchAllData();
     }, 500);
 
     return () => clearTimeout(debounceTimer);
@@ -359,19 +374,52 @@ const BillingAnalysis = () => {
     }
   };
 
+  // Handle team selection from dropdown
+  const handleTeamSelect = (e) => {
+    const selectedTeam = e.target.value;
+    setTeamname(selectedTeam);
+  };
+
+  // Handle shift selection from dropdown
+  const handleShiftSelect = (e) => {
+    const selectedShift = e.target.value;
+    setShift(selectedShift);
+  };
+
+  // Clear all filters
+  const handleClearFilters = () => {
+    setQ('');
+    setId('');
+    setStartDate('');
+    setEndDate('');
+    setTeamname('');
+    setShift('');
+    setAction('');
+    setBillingData([]);
+  };
+
   const dateRange = getDateRange();
 
   return (
     <div className="billing-analysis">
       <div className="header-section">
         <h2>Billing Analysis</h2>
-        <button
-          type="button"
-          onClick={() => setShowUploadModal(true)}
-          className="upload-btn"
-        >
-          📁 Upload Roster & Attendance
-        </button>
+        <div className="header-buttons">
+          <button
+            type="button"
+            onClick={() => setShowUploadModal(true)}
+            className="upload-btn"
+          >
+            📁 Upload Roster & Attendance
+          </button>
+          <button
+            type="button"
+            onClick={handleClearFilters}
+            className="clear-btn"
+          >
+            🗑️ Clear Filters
+          </button>
+        </div>
       </div>
 
       {/* Search / filter form */}
@@ -424,20 +472,43 @@ const BillingAnalysis = () => {
             />
           </div>
           
-          <input
-            type="text"
-            value={teamname}
-            onChange={(e) => setTeamname(e.target.value)}
-            placeholder="👥 Team"
-            className="form-input"
-          />
-          <input
-            type="text"
-            value={shift}
-            onChange={(e) => setShift(e.target.value)}
-            placeholder="🕒 Shift"
-            className="form-input"
-          />
+          {/* Team dropdown */}
+          <div className="select-group">
+            <select
+              value={teamname}
+              onChange={handleTeamSelect}
+              className="form-select"
+            >
+              <option value="">👥 All Teams</option>
+              {availableTeams.map(team => (
+                <option key={team} value={team}>
+                  {team}
+                </option>
+              ))}
+            </select>
+            {availableTeams.length > 0 && (
+              <div className="select-info">{availableTeams.length} teams</div>
+            )}
+          </div>
+          
+          {/* Shift dropdown */}
+          <div className="select-group">
+            <select
+              value={shift}
+              onChange={handleShiftSelect}
+              className="form-select"
+            >
+              <option value="">🕒 All Shifts</option>
+              {availableShifts.map(sh => (
+                <option key={sh} value={sh}>
+                  {sh}
+                </option>
+              ))}
+            </select>
+            {availableShifts.length > 0 && (
+              <div className="select-info">{availableShifts.length} shifts</div>
+            )}
+          </div>
           
           <select
             value={action}
@@ -473,13 +544,24 @@ const BillingAnalysis = () => {
           </div>
         )}
         
-        {/* Valid dates info */}
-        {validDates.length > 0 && q && (
-          <div className="dates-info">
-            <small>
-              {validDates.length} valid dates available for {q}. 
-              {validDates.length > 5 ? ` First 5: ${validDates.slice(0, 5).join(', ')}...` : ` ${validDates.join(', ')}`}
-            </small>
+        {/* Information summary */}
+        {q && (
+          <div className="info-summary">
+            {validDates.length > 0 && (
+              <span className="info-item">
+                📅 {validDates.length} valid dates
+              </span>
+            )}
+            {availableTeams.length > 0 && (
+              <span className="info-item">
+                👥 {availableTeams.length} teams
+              </span>
+            )}
+            {availableShifts.length > 0 && (
+              <span className="info-item">
+                🕒 {availableShifts.length} shifts
+              </span>
+            )}
           </div>
         )}
       </form>
@@ -489,7 +571,9 @@ const BillingAnalysis = () => {
       {/* Dynamic results table */}
       <div className="results-area">
         {flattenedData.length === 0 ? (
-          <div className="no-results">No results to display.</div>
+          <div className="no-results">
+            {q ? 'No results found for your search criteria.' : 'Enter a name to search and see available filters.'}
+          </div>
         ) : (
           <>
             <div className="table-controls">
