@@ -308,13 +308,13 @@
 }
 
 @keyframes slideUp {
-  from { 
-    transform: translateY(40px) scale(0.96); 
-    opacity: 0; 
+  from {
+    transform: translateY(40px) scale(0.96);
+    opacity: 0;
   }
-  to { 
-    transform: translateY(0) scale(1); 
-    opacity: 1; 
+  to {
+    transform: translateY(0) scale(1);
+    opacity: 1;
   }
 }
 
@@ -585,37 +585,60 @@
     height: 34px;
     font-size: 1.5rem;
   }
-}/* Add these styles to your existing BillingAnalysis.css */
+}
+
+
+.kv {
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+}
+.kv-row { display: contents; }
+.kv-key {
+  margin: 0;
+  font-weight: 600;
+  color: #e6eef8b8;
+}
+.kv-val {
+  margin: 0;
+  color: #e6eef8b8;
+}
 
 .months-selector {
   margin-top: 10px;
   padding: 10px;
-  background-color: #f5f5f5;
   border-radius: 5px;
 }
 
 .months-selector label {
-  display: block;
-  margin-bottom: 5px;
-  font-weight: bold;
-  color: #333;
+    color: #ffffff;
+    display: block;
+    font-weight: 700;
+    margin-bottom: 5px;
 }
 
 .months-buttons {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+      gap: 25px;
+    margin-top: 20px;
 }
 
 .month-btn {
   padding: 6px 12px;
-  background-color: #4a90e2;
+
+  transition: background-color .2s;
+    background: linear-gradient(90deg, #3498db4d, #2980b933);
+    box-shadow: 0 4px 12px #3498db33;
+    transform: translateY(-2px);
   color: white;
   border: none;
   border-radius: 4px;
   cursor: pointer;
   font-size: 14px;
-  transition: background-color 0.2s;
+
 }
 
 .month-btn:hover {
@@ -623,12 +646,13 @@
 }
 
 .dates-info {
-  margin-top: 5px;
-  padding: 8px;
-  background-color: #e8f4ff;
-  border-radius: 4px;
-  color: #0066cc;
+    background-color: #e8f4ff;
+    border-radius: 4px;
+    color: #06c;
+    margin-top: 5px;
+    padding: 8px;
 }
+
 
 .date-input-group {
   position: relative;
@@ -659,163 +683,3 @@
 .kv-val {
   color: #333;
 }
-/* Add these styles to your existing BillingAnalysis.css */
-
-.select-group {
-  position: relative;
-}
-
-.select-info {
-  position: absolute;
-  top: -8px;
-  right: 10px;
-  background: #4a90e2;
-  color: white;
-  font-size: 10px;
-  padding: 1px 5px;
-  border-radius: 10px;
-  z-index: 1;
-}
-
-.months-selector {
-  margin-top: 10px;
-  padding: 10px;
-  background-color: #f5f5f5;
-  border-radius: 5px;
-}
-
-.months-selector label {
-  display: block;
-  margin-bottom: 5px;
-  font-weight: bold;
-  color: #333;
-}
-
-.months-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.month-btn {
-  padding: 6px 12px;
-  background-color: #4a90e2;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 14px;
-  transition: background-color 0.2s;
-}
-
-.month-btn:hover {
-  background-color: #357ae8;
-}
-
-.info-summary {
-  margin-top: 10px;
-  padding: 8px;
-  background-color: #f8f9fa;
-  border-radius: 4px;
-  display: flex;
-  gap: 15px;
-  flex-wrap: wrap;
-}
-
-.info-item {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 14px;
-  color: #666;
-}
-
-.header-buttons {
-  display: flex;
-  gap: 10px;
-}
-
-.clear-btn {
-  padding: 8px 16px;
-  background-color: #ff4444;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 14px;
-  transition: background-color 0.2s;
-}
-
-.clear-btn:hover {
-  background-color: #cc0000;
-}
-
-.date-input-group input:invalid {
-  border-color: #ff4444;
-  background-color: #fff8f8;
-}
-
-/* Form inputs styling */
-.form-input,
-.form-select {
-  padding: 8px 12px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 14px;
-}
-
-.form-select {
-  width: 100%;
-  background-color: white;
-}
-
-.search-btn {
-  padding: 8px 20px;
-  background-color: #28a745;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 14px;
-  transition: background-color 0.2s;
-}
-
-.search-btn:hover:not(:disabled) {
-  background-color: #218838;
-}
-
-.search-btn:disabled {
-  background-color: #6c757d;
-  cursor: not-allowed;
-}
-
-/* Table styling */
-.results-table {
-  overflow-x: auto;
-  margin-top: 20px;
-}
-
-.results-table table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.results-table th,
-.results-table td {
-  padding: 8px 12px;
-  border: 1px solid #ddd;
-  text-align: left;
-}
-
-.results-table th {
-  background-color: #f8f9fa;
-  font-weight: bold;
-}
-
-.results-table tr:nth-child(even) {
-  background-color: #f9f9f9;
-}
-
-.results-table tr:hover {
-  background-color: #f5f5f5;
-  } ye
