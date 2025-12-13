@@ -683,3 +683,69 @@
 .kv-val {
   color: #333;
 }
+/* Dropdown styles for teams and shifts */
+.dropdown-field {
+  position: relative;
+}
+
+.dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  max-height: 200px;
+  overflow-y: auto;
+  background: linear-gradient(180deg, rgba(30, 30, 50, 0.98) 0%, rgba(20, 20, 35, 0.98) 100%);
+  border: 1px solid rgba(46, 213, 255, 0.3);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(2, 6, 23, 0.4);
+  z-index: 1000;
+  margin-top: 4px;
+  backdrop-filter: blur(12px);
+}
+
+.dropdown-item {
+  padding: 10px 12px;
+  color: rgba(230, 238, 248, 0.9);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.dropdown-item:last-child {
+  border-bottom: none;
+}
+
+.dropdown-item:hover {
+  background: linear-gradient(90deg, rgba(46, 213, 255, 0.15), rgba(138, 43, 226, 0.1));
+  color: #2ed5ff;
+}
+
+/* Custom scrollbar for dropdown */
+.dropdown-menu::-webkit-scrollbar {
+  width: 6px;
+}
+
+.dropdown-menu::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 10px;
+}
+
+.dropdown-menu::-webkit-scrollbar-thumb {
+  background: linear-gradient(135deg, rgba(46, 213, 255, 0.3) 0%, rgba(138, 43, 226, 0.3) 100%);
+  border-radius: 10px;
+}
+
+.dropdown-menu::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(135deg, rgba(46, 213, 255, 0.5) 0%, rgba(138, 43, 226, 0.5) 100%);
+}
+
+/* Close dropdown when clicking outside */
+.dropdown-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 999;
+}
