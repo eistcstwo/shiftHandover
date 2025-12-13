@@ -1,5 +1,3 @@
-
-
 import React, { useState, useMemo, useEffect } from 'react';
 import './BillingAnalysis.css';
 
@@ -23,6 +21,12 @@ const BillingAnalysis = () => {
   // New state for fetched dates and months
   const [validDates, setValidDates] = useState([]);
   const [availableMonths, setAvailableMonths] = useState([]);
+  
+  // New state for teams and shifts
+  const [teams, setTeams] = useState([]);
+  const [shifts, setShifts] = useState([]);
+  const [showTeamDropdown, setShowTeamDropdown] = useState(false);
+  const [showShiftDropdown, setShowShiftDropdown] = useState(false);
 
   // pagination
   const [page, setPage] = useState(1);
@@ -34,6 +38,44 @@ const BillingAnalysis = () => {
   const [attendance1File, setAttendance1File] = useState(null);
   const [attendance2File, setAttendance2File] = useState(null);
   const [uploading, setUploading] = useState(false);
+
+  // Fetch teams on component mount
+  useEffect(() => {
+    const fetchTeams = async () => {
+      try {
+        const response = await fetch(`${API_BASE}?action=get_teams`, {
+          method: 'GET',
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          setTeams(Array.isArray(data) ? data : []);
+        }
+      } catch (err) {
+        console.error('Failed to fetch teams:', err);
+        setTeams([]);
+      }
+    };
+
+    const fetchShifts = async () => {
+      try {
+        const response = await fetch(`${API_BASE}?action=get_shifts`, {
+          method: 'GET',
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          setShifts(Array.isArray(data) ? data : []);
+        }
+      } catch (err) {
+        console.error('Failed to fetch shifts:', err);
+        setShifts([]);
+      }
+    };
+
+    fetchTeams();
+    fetchShifts();
+  }, []);
 
   // Fetch valid dates when q (name) changes
   useEffect(() => {
@@ -122,6 +164,18 @@ const BillingAnalysis = () => {
       alert(`Date ${selectedDate} is not available. Please select from valid dates: ${validDates.slice(0, 5).join(', ')}${validDates.length > 5 ? '...' : ''}`);
       e.target.value = endDate; // Reset to previous value
     }
+  };
+
+  // Handle team selection
+  const handleTeamSelect = (team) => {
+    setTeamname(team);
+    setShowTeamDropdown(false);
+  };
+
+  // Handle shift selection
+  const handleShiftSelect = (shiftValue) => {
+    setShift(shiftValue);
+    setShowShiftDropdown(false);
   };
 
   // Helper to build query string
@@ -426,20 +480,55 @@ const BillingAnalysis = () => {
             />
           </div>
           
-          <input
-            type="text"
-            value={teamname}
-            onChange={(e) => setTeamname(e.target.value)}
-            placeholder="👥 Team"
-            className="form-input"
-          />
-          <input
-            type="text"
-            value={shift}
-            onChange={(e) => setShift(e.target.value)}
-            placeholder="🕒 Shift"
-            className="form-input"
-          />
+          {/* Team dropdown */}
+          <div className="form-field dropdown-field">
+            <input
+              type="text"
+              value={teamname}
+              onChange={(e) => setTeamname(e.target.value)}
+              onFocus={() => setShowTeamDropdown(true)}
+              placeholder="👥 Team"
+              className="form-input"
+            />
+            {showTeamDropdown && teams.length > 0 && (
+              <div className="dropdown-menu">
+                {teams.map((team) => (
+                  <div
+                    key={team}
+                    className="dropdown-item"
+                    onClick={() => handleTeamSelect(team)}
+                  >
+                    {team}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          
+          {/* Shift dropdown */}
+          <div className="form-field dropdown-field">
+            <input
+              type="text"
+              value={shift}
+              onChange={(e) => setShift(e.target.value)}
+              onFocus={() => setShowShiftDropdown(true)}
+              placeholder="🕒 Shift"
+              className="form-input"
+            />
+            {showShiftDropdown && shifts.length > 0 && (
+              <div className="dropdown-menu">
+                {shifts.map((shiftItem) => (
+                  <div
+                    key={shiftItem}
+                    className="dropdown-item"
+                    onClick={() => handleShiftSelect(shiftItem)}
+                  >
+                    {shiftItem}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
           
           <select
             value={action}
