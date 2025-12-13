@@ -1,3 +1,6 @@
+https://10.191.171.12:5443/EISHOME_TEST/projectRoster/search/?action=get_teams
+https://10.191.171.12:5443/EISHOME_TEST/projectRoster/search/?action=get_shifts
+
 import React, { useState, useMemo, useEffect } from 'react';
 import './BillingAnalysis.css';
 
