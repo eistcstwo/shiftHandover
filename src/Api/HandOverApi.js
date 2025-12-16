@@ -84,7 +84,7 @@ export const createTask = async (taskData) => {
   }
 };
 
-// Update existing task
+// In src/Api/HandOverApi.js
 export const updateTask = async (taskData) => {
   try {
     const uid = localStorage.getItem('uidd');
@@ -106,14 +106,20 @@ export const updateTask = async (taskData) => {
       ackDesc: taskData.ackDesc || ''
     };
 
+    console.log('Update task payload:', payload);
+
     const response = await api.post('/saveNew_task/', payload, {
       timeout: 30000,
       headers: {
         'Content-Type': 'application/json',
       }
     });
+    
+    console.log('Update task response:', response.data);
+    
     return response.data;
   } catch (error) {
+    console.error('Update task error:', error.response || error);
     throw error;
   }
 };
@@ -150,3 +156,4 @@ export const getHistoryHandovers = async () => {
     throw error;
   }
 };
+
