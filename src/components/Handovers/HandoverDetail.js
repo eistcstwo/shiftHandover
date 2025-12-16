@@ -169,33 +169,42 @@ const HandoverDetail = () => {
     setError('');
   };
 
-  const handleAcknowledgeSubmit = async () => {
-    if (!ackDescription.trim()) {
-      setError('Description is required.');
-      return;
+const handleAcknowledgeSubmit = async () => {
+  if (!ackDescription.trim()) {
+    setError('Description is required.');
+    return;
+  }
+
+  // Clear any previous errors
+  setError('');
+
+  const payload = {
+    task_id: selectedTask.Taskid,
+    taskTitle: selectedTask.taskTitle || '',
+    taskDesc: selectedTask.taskDesc || '',
+    status: ackStatus,
+    priority: selectedTask.priority || 'Medium',
+    acknowledgeStatus: 'Acknowledged',
+    ackDesc: ackDescription
+  };
+
+  // Add handover_id_id only if a team is selected for reassignment
+  if (reassignTeam) {
+    const selectedTeamData = TEAMS_DATA.find(team => team.rid === parseInt(reassignTeam));
+    if (selectedTeamData) {
+      payload.handover_id_id = selectedTeamData.handover_id_id;
     }
+  }
 
-    const payload = {
-      task_id: selectedTask.Taskid,
-      taskTitle: selectedTask.taskTitle || '',
-      taskDesc: selectedTask.taskDesc || '',
-      status: ackStatus,
-      priority: selectedTask.priority || 'Medium',
-      acknowledgeStatus: 'Acknowledged',
-      ackDesc: ackDescription
-    };
+  try {
+    console.log('Submitting acknowledgment with payload:', payload);
+    
+    const response = await updateTask(payload);
+    
+    console.log('Acknowledgment response:', response);
 
-    // Add handover_id_id only if a team is selected for reassignment
-    if (reassignTeam) {
-      const selectedTeamData = TEAMS_DATA.find(team => team.rid === parseInt(reassignTeam));
-      if (selectedTeamData) {
-        payload.handover_id_id = selectedTeamData.handover_id_id;
-      }
-    }
-
-    try {
-      await updateTask(payload);
-
+    // Only update state and reload if the API call was successful
+    if (response) {
       const updatedTasks = backendData.Tasksdata.map(t =>
         t.Taskid === selectedTask.Taskid
           ? {
@@ -205,7 +214,9 @@ const HandoverDetail = () => {
               ackDesc: ackDescription,
               acknowledgeTime: new Date().toISOString(),
               statusUpdateTime: new Date().toISOString(),
-              ...(reassignTeam && { handover_id_id: TEAMS_DATA.find(team => team.rid === parseInt(reassignTeam))?.handover_id_id })
+              ...(reassignTeam && { 
+                handover_id_id: TEAMS_DATA.find(team => team.rid === parseInt(reassignTeam))?.handover_id_id 
+              })
             }
           : t
       );
@@ -215,6 +226,7 @@ const HandoverDetail = () => {
         Tasksdata: updatedTasks
       });
 
+      // Close modal and reset form
       setModalOpen(false);
       setSelectedTask(null);
       setAckDescription('');
@@ -222,11 +234,25 @@ const HandoverDetail = () => {
       setReassignTeam('');
       setError('');
 
+      // Show success message before reload
+      alert('Task acknowledged successfully!');
+      
+      // Reload to get fresh data from server
       window.location.reload();
-    } catch (err) {
-      setError('Failed to update task on server!');
+    } else {
+      throw new Error('No response received from server');
     }
-  };
+  } catch (err) {
+    console.error('Acknowledgment submission error:', err);
+    
+    // Show specific error message to user
+    const errorMessage = err.response?.data?.message || err.message || 'Failed to update task on server!';
+    setError(errorMessage);
+    
+    // Also alert the user
+    alert(`Error: ${errorMessage}`);
+  }
+};
 
   const handleCreateTask = () => {
     setShowCreateTaskModal(true);
