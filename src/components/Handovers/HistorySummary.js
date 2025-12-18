@@ -176,27 +176,44 @@ const HistorySummary = () => {
 
   // Function to fetch history data from API
   const handleFetchHistory = async () => {
-    setLoading(true);
-    setError('');
+  setLoading(true);
+  setError('');
 
-    try {
-      console.log('Fetching history data from API...');
-      const data = await getHistoryHandovers();
-      console.log('API Response:', data);
+  try {
+    console.log('Fetching history data from API...');
+    const data = await getHistoryHandovers();
+    console.log('API Response:', data);
 
-      if (data && data.TeamHandoverDetails && data.Tasksdata) {
-        setHistoryData(data);
-      } else {
-        throw new Error('Invalid history data structure - missing TeamHandoverDetails or Tasksdata');
-      }
-    } catch (err) {
-      console.error('Error fetching history:', err);
-      setError(err.message || 'Failed to load history data');
-      setHistoryData(null);
-    } finally {
-      setLoading(false);
+    // Check if the response has the expected structure
+    if (!data) {
+      throw new Error('No data received from API');
     }
-  };
+
+    // Handle case where TeamHandoverDetails or Tasksdata might be missing or empty
+    const teamHandoverDetails = data.TeamHandoverDetails || [];
+    const tasksData = data.Tasksdata || [];
+
+    // If both are empty, show appropriate message
+    if (teamHandoverDetails.length === 0 && tasksData.length === 0) {
+      setHistoryData({
+        TeamHandoverDetails: [],
+        Tasksdata: []
+      });
+      setError('No history data available');
+    } else {
+      setHistoryData({
+        TeamHandoverDetails: teamHandoverDetails,
+        Tasksdata: tasksData
+      });
+    }
+  } catch (err) {
+    console.error('Error fetching history:', err);
+    setError(err.message || 'Failed to load history data');
+    setHistoryData(null);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleBackClick = () => {
     // If we have a handover ID, navigate directly to that handover
@@ -209,56 +226,56 @@ const HistorySummary = () => {
   };
 
   const calculateSummary = (data) => {
-    if (!data || !data.TeamHandoverDetails || !data.Tasksdata) {
-      return {
-        totalTasks: 0,
-        acknowledgedTasks: 0,
-        pendingTasks: 0,
-        totalAcknowledgment: 0,
-        teams: [],
-        teamCount: 0,
-        tasksBreakdown: []
-      };
-    }
-
-    const tasks = data.Tasksdata || [];
-    const teamHandovers = data.TeamHandoverDetails || [];
-
-    const totalTasks = tasks.length;
-    const acknowledgedTasks = tasks.filter(task =>
-      task.acknowledgeDetails && task.acknowledgeDetails.length > 0
-    ).length;
-    const pendingTasks = totalTasks - acknowledgedTasks;
-
-    const totalAcknowledgment = tasks.reduce((sum, task) => {
-      return sum + (task.acknowledgeDetails?.length || 0);
-    }, 0);
-
-    const teams = [...new Set(teamHandovers.map(item => item.role).filter(Boolean))];
-
-    const tasksBreakdown = tasks.map(task => ({
-      taskId: task.historyTaskId || task.Taskid,
-      taskDesc: task.task || task.taskDesc,
-      ackCount: task.acknowledgeDetails?.length || 0,
-      latestAck: task.acknowledgeDetails && task.acknowledgeDetails.length > 0
-        ? task.acknowledgeDetails[task.acknowledgeDetails.length - 1]
-        : null,
-      acknowledgeDetails: task.acknowledgeDetails || [],
-      status: task.status || 'unknown',
-      priority: task.priority || 'Medium'
-    }))
-      .sort((a, b) => b.ackCount - a.ackCount);
-
+  if (!data || !data.Tasksdata) {
     return {
-      totalTasks,
-      acknowledgedTasks,
-      pendingTasks,
-      totalAcknowledgment,
-      teams: teams.slice(0, 5),
-      teamCount: teams.length,
-      tasksBreakdown
+      totalTasks: 0,
+      acknowledgedTasks: 0,
+      pendingTasks: 0,
+      totalAcknowledgment: 0,
+      teams: [],
+      teamCount: 0,
+      tasksBreakdown: []
     };
+  }
+
+  const tasks = data.Tasksdata || [];
+  const teamHandovers = data.TeamHandoverDetails || [];
+
+  const totalTasks = tasks.length;
+  const acknowledgedTasks = tasks.filter(task =>
+    task.acknowledgeDetails && task.acknowledgeDetails.length > 0
+  ).length;
+  const pendingTasks = totalTasks - acknowledgedTasks;
+
+  const totalAcknowledgment = tasks.reduce((sum, task) => {
+    return sum + (task.acknowledgeDetails?.length || 0);
+  }, 0);
+
+  const teams = [...new Set(teamHandovers.map(item => item.role).filter(Boolean))];
+
+  const tasksBreakdown = tasks.map(task => ({
+    taskId: task.historyTaskId || task.Taskid,
+    taskDesc: task.task || task.taskDesc || 'No description',
+    ackCount: task.acknowledgeDetails?.length || 0,
+    latestAck: task.acknowledgeDetails && task.acknowledgeDetails.length > 0
+      ? task.acknowledgeDetails[task.acknowledgeDetails.length - 1]
+      : null,
+    acknowledgeDetails: task.acknowledgeDetails || [],
+    status: task.status || 'unknown',
+    priority: task.priority || 'Medium'
+  }))
+    .sort((a, b) => b.ackCount - a.ackCount);
+
+  return {
+    totalTasks,
+    acknowledgedTasks,
+    pendingTasks,
+    totalAcknowledgment,
+    teams: teams.slice(0, 5),
+    teamCount: teams.length,
+    tasksBreakdown
   };
+};
 
   const summary = calculateSummary(historyData);
 
