@@ -1,3 +1,9 @@
+BillingAnalysis.js
+-rw-r----- 1 root root 13937 Oct 23 16:28 BillingAnalysis.js_231025
+-rw-r----- 1 root root 14038 Dec 11 15:33 newBillingAnalysis.js
+[root@eispr-prt1-01 BillingAnalysis]# cat BillingAnalysis.js
+
+
 import React, { useState, useMemo, useEffect } from 'react';
 import './BillingAnalysis.css';
 
@@ -17,16 +23,10 @@ const BillingAnalysis = () => {
   const [billingData, setBillingData] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
-  
+
   // New state for fetched dates and months
   const [validDates, setValidDates] = useState([]);
   const [availableMonths, setAvailableMonths] = useState([]);
-  
-  // New state for teams and shifts
-  const [teams, setTeams] = useState([]);
-  const [shifts, setShifts] = useState([]);
-  const [showTeamDropdown, setShowTeamDropdown] = useState(false);
-  const [showShiftDropdown, setShowShiftDropdown] = useState(false);
 
   // pagination
   const [page, setPage] = useState(1);
@@ -38,44 +38,6 @@ const BillingAnalysis = () => {
   const [attendance1File, setAttendance1File] = useState(null);
   const [attendance2File, setAttendance2File] = useState(null);
   const [uploading, setUploading] = useState(false);
-
-  // Fetch teams on component mount
-  useEffect(() => {
-    const fetchTeams = async () => {
-      try {
-        const response = await fetch(`${API_BASE}?action=get_teams`, {
-          method: 'GET',
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          setTeams(Array.isArray(data) ? data : []);
-        }
-      } catch (err) {
-        console.error('Failed to fetch teams:', err);
-        setTeams([]);
-      }
-    };
-
-    const fetchShifts = async () => {
-      try {
-        const response = await fetch(`${API_BASE}?action=get_shifts`, {
-          method: 'GET',
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          setShifts(Array.isArray(data) ? data : []);
-        }
-      } catch (err) {
-        console.error('Failed to fetch shifts:', err);
-        setShifts([]);
-      }
-    };
-
-    fetchTeams();
-    fetchShifts();
-  }, []);
 
   // Fetch valid dates when q (name) changes
   useEffect(() => {
@@ -134,11 +96,11 @@ const BillingAnalysis = () => {
   // Helper to get min and max dates from validDates
   const getDateRange = () => {
     if (validDates.length === 0) return { min: '', max: '' };
-    
+
     const dates = validDates.map(date => new Date(date));
     const minDate = new Date(Math.min(...dates));
     const maxDate = new Date(Math.max(...dates));
-    
+
     return {
       min: minDate.toISOString().split('T')[0],
       max: maxDate.toISOString().split('T')[0]
@@ -164,18 +126,6 @@ const BillingAnalysis = () => {
       alert(`Date ${selectedDate} is not available. Please select from valid dates: ${validDates.slice(0, 5).join(', ')}${validDates.length > 5 ? '...' : ''}`);
       e.target.value = endDate; // Reset to previous value
     }
-  };
-
-  // Handle team selection
-  const handleTeamSelect = (team) => {
-    setTeamname(team);
-    setShowTeamDropdown(false);
-  };
-
-  // Handle shift selection
-  const handleShiftSelect = (shiftValue) => {
-    setShift(shiftValue);
-    setShowShiftDropdown(false);
   };
 
   // Helper to build query string
@@ -323,7 +273,6 @@ const BillingAnalysis = () => {
         {keys.map((k) => (
           <div className="kv-row" key={k}>
             <dt className="kv-key">{LABELS[k] ?? k}</dt>
-            <dd className="kv-val">{String(obj[k])}</dd>
           </div>
         ))}
       </dl>
@@ -386,7 +335,7 @@ const BillingAnalysis = () => {
     const monthIndex = new Date(`${month} 1, ${year}`).getMonth();
     const firstDay = new Date(year, monthIndex, 1);
     const lastDay = new Date(year, monthIndex + 1, 0);
-    
+
     return {
       first: firstDay.toISOString().split('T')[0],
       last: lastDay.toISOString().split('T')[0]
@@ -396,18 +345,18 @@ const BillingAnalysis = () => {
   // Handle month selection
   const handleMonthSelect = (monthStr) => {
     const range = monthToDateRange(monthStr);
-    
+
     // Find valid dates within this month range
     const monthValidDates = validDates.filter(date => {
       return date >= range.first && date <= range.last;
     });
-    
+
     if (monthValidDates.length > 0) {
       // Set the min and max dates from available valid dates in this month
       const dates = monthValidDates.map(date => new Date(date));
       const minDate = new Date(Math.min(...dates)).toISOString().split('T')[0];
       const maxDate = new Date(Math.max(...dates)).toISOString().split('T')[0];
-      
+
       setStartDate(minDate);
       setEndDate(maxDate);
     } else {
@@ -447,7 +396,7 @@ const BillingAnalysis = () => {
             placeholder="👤 ID"
             className="form-input"
           />
-          
+
           {/* Date inputs with validation */}
           <div className="date-input-group">
             <input
@@ -466,7 +415,7 @@ const BillingAnalysis = () => {
               ))}
             </datalist>
           </div>
-          
+
           <div className="date-input-group">
             <input
               type="date"
@@ -479,57 +428,22 @@ const BillingAnalysis = () => {
               list="validDatesList"
             />
           </div>
-          
-          {/* Team dropdown */}
-          <div className="form-field dropdown-field">
-            <input
-              type="text"
-              value={teamname}
-              onChange={(e) => setTeamname(e.target.value)}
-              onFocus={() => setShowTeamDropdown(true)}
-              placeholder="👥 Team"
-              className="form-input"
-            />
-            {showTeamDropdown && teams.length > 0 && (
-              <div className="dropdown-menu">
-                {teams.map((team) => (
-                  <div
-                    key={team}
-                    className="dropdown-item"
-                    onClick={() => handleTeamSelect(team)}
-                  >
-                    {team}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-          
-          {/* Shift dropdown */}
-          <div className="form-field dropdown-field">
-            <input
-              type="text"
-              value={shift}
-              onChange={(e) => setShift(e.target.value)}
-              onFocus={() => setShowShiftDropdown(true)}
-              placeholder="🕒 Shift"
-              className="form-input"
-            />
-            {showShiftDropdown && shifts.length > 0 && (
-              <div className="dropdown-menu">
-                {shifts.map((shiftItem) => (
-                  <div
-                    key={shiftItem}
-                    className="dropdown-item"
-                    onClick={() => handleShiftSelect(shiftItem)}
-                  >
-                    {shiftItem}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-          
+
+          <input
+            type="text"
+            value={teamname}
+            onChange={(e) => setTeamname(e.target.value)}
+            placeholder="👥 Team"
+            className="form-input"
+          />
+          <input
+            type="text"
+            value={shift}
+            onChange={(e) => setShift(e.target.value)}
+            placeholder="🕒 Shift"
+            className="form-input"
+          />
+
           <select
             value={action}
             onChange={(e) => setAction(e.target.value)}
@@ -539,12 +453,12 @@ const BillingAnalysis = () => {
             <option value="count">Count Working Days</option>
             <option value="low_hours">Low Hours Check</option>
           </select>
-          
+
           <button type="submit" disabled={isLoading} className="search-btn">
             {isLoading ? '⏳ Searching...' : '🚀 Search'}
           </button>
         </div>
-        
+
         {/* Available months selector */}
         {availableMonths.length > 0 && q && (
           <div className="months-selector">
@@ -563,16 +477,17 @@ const BillingAnalysis = () => {
             </div>
           </div>
         )}
-        
-        {/* Valid dates info */}
+
+         {/* Valid dates info
         {validDates.length > 0 && q && (
           <div className="dates-info">
             <small>
-              {validDates.length} valid dates available for {q}. 
+              {validDates.length} valid dates available for {q}.
               {validDates.length > 5 ? ` First 5: ${validDates.slice(0, 5).join(', ')}...` : ` ${validDates.join(', ')}`}
             </small>
           </div>
         )}
+        */}
       </form>
 
       {error && <div className="error">Error: {error}</div>}
