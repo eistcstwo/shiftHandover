@@ -1,8 +1,4 @@
-BillingAnalysis.js
--rw-r----- 1 root root 13937 Oct 23 16:28 BillingAnalysis.js_231025
--rw-r----- 1 root root 14038 Dec 11 15:33 newBillingAnalysis.js
-[root@eispr-prt1-01 BillingAnalysis]# cat BillingAnalysis.js
-
+curl -kX POST https://10.191.171.12:5443/EISHOME_TEST/projectRoster/update_annotation/  -H "Content-Type: application/json"  -d '{"roster_id": 45429, "comment": "OK", "status": "True"}'
 
 import React, { useState, useMemo, useEffect } from 'react';
 import './BillingAnalysis.css';
