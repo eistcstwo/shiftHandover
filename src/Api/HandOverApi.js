@@ -1,3 +1,7 @@
+HandOverApi.js
+-rwxrwxrwx 1 root root 1691 Oct  8 18:20 HandOverApi.js_131025
+-rwxr-x--- 1 root root 1083 Oct 22 13:20 HandOverApi.js_bkp
+[root@eispr-prt1-01 Api]# cat HandOverApi.js
 import axios from 'axios';
 
 // Create axios instance with custom configuration
@@ -8,6 +12,31 @@ const api = axios.create({
     'Content-Type': 'application/json',
   }
 });
+
+
+// === AXIOS REQUEST INTERCEPTOR ===
+// Add a request interceptor to attach the Authorization header automatically
+api.interceptors.request.use(
+  (config) => {
+    // Get the session ID from localStorage just before the request is made
+    const sessionId = localStorage.getItem('sessionid');
+
+    // If a sessionId exists, attach the Authorization header
+    if (sessionId) {
+      config.headers.Authorization = `Bearer ${sessionId}`;
+    }
+
+    return config;
+  },
+  (error) => {
+    // Do something with request error
+    return Promise.reject(error);
+  }
+);
+// === END INTERCEPTOR ===
+
+
+
 
 export const getHandovers = async () => {
   try {
@@ -23,6 +52,7 @@ export const getHandovers = async () => {
         'Content-Type': 'application/json',
       }
     });
+    console.log(response)
     return response.data;
   } catch (error) {
     throw error;
@@ -61,7 +91,7 @@ export const createTask = async (taskData) => {
     }
 
     const payload = {
-      uid: parseInt(uid),
+      uid: uid,
       password: password,
       taskDesc: taskData.taskDesc || '',
       status: taskData.status || 'open',
@@ -84,7 +114,7 @@ export const createTask = async (taskData) => {
   }
 };
 
-// In src/Api/HandOverApi.js
+// Update existing task
 export const updateTask = async (taskData) => {
   try {
     const uid = localStorage.getItem('uidd');
@@ -95,7 +125,7 @@ export const updateTask = async (taskData) => {
     }
 
     const payload = {
-      uid: parseInt(uid),
+      uid: uid,
       password: password,
       task_id: taskData.task_id,
       taskDesc: taskData.taskDesc || '',
@@ -106,20 +136,14 @@ export const updateTask = async (taskData) => {
       ackDesc: taskData.ackDesc || ''
     };
 
-    console.log('Update task payload:', payload);
-
     const response = await api.post('/saveNew_task/', payload, {
       timeout: 30000,
       headers: {
         'Content-Type': 'application/json',
       }
     });
-    
-    console.log('Update task response:', response.data);
-    
     return response.data;
   } catch (error) {
-    console.error('Update task error:', error.response || error);
     throw error;
   }
 };
@@ -156,4 +180,3 @@ export const getHistoryHandovers = async () => {
     throw error;
   }
 };
-
