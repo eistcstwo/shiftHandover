@@ -39,28 +39,40 @@ const HandoverList = ({ onHandoversUpdate }) => {
   }, [backendData, loading, onHandoversUpdate]);
 
   const fetchHandovers = async () => {
-    setLoading(true);
-    setError(null);
+  setLoading(true);
+  setError(null);
 
-    try {
-      console.log('Fetching handovers from API...');
-      const data = await getHandovers();
+  try {
+    console.log('Fetching handovers from API...');
+    const data = await getHandovers();
 
-      console.log('API Response:', data);
+    console.log('API Response:', data);
 
-      // Ensure the data has the expected structure
-      if (data && data.TeamHandoverDetails && data.Tasksdata) {
-        setBackendData(data);
-      } else {
-        throw new Error('Invalid data structure from API');
-      }
-    } catch (err) {
-      setError(`Failed to fetch handovers: ${err.message}`);
-      console.error('Error fetching handovers:', err);
-    } finally {
-      setLoading(false);
+    // Ensure the data has the expected structure
+    if (!data) {
+      throw new Error('No data received from API');
     }
-  };
+
+    // Handle case where fields might be missing
+    const teamHandoverDetails = data.TeamHandoverDetails || [];
+    const tasksData = data.Tasksdata || [];
+
+    setBackendData({
+      TeamHandoverDetails: teamHandoverDetails,
+      Tasksdata: tasksData
+    });
+
+    if (teamHandoverDetails.length === 0) {
+      setError('No handover data available for your team');
+    }
+  } catch (err) {
+    setError(`Failed to fetch handovers: ${err.message}`);
+    console.error('Error fetching handovers:', err);
+    setBackendData({ TeamHandoverDetails: [], Tasksdata: [] });
+  } finally {
+    setLoading(false);
+  }
+};
 
   const { TeamHandoverDetails = [], Tasksdata = [] } = backendData;
 
