@@ -1,19 +1,3 @@
- {
-        "id": 45400,
-        "name": "Aryan purohit",
-        "team": "Portal",
-        "date": "2025-11-02",
-        "schedule": "WO",
-        "comment": "",
-        "attendance": {
-            "first_in": null,
-            "last_out": null,
-            "net_office_time": null,
-            "status": "✅"
-        }
-    },
-
-
 import React, { useState, useMemo, useEffect } from 'react';
 import './BillingAnalysis.css';
 
@@ -60,9 +44,18 @@ const BillingAnalysis = () => {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' }
       });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch teams: ${response.status}`);
+      }
+      
       const data = await response.json();
+      console.log('Teams data:', data);
+      
       if (data.teams && Array.isArray(data.teams)) {
         setAvailableTeams(data.teams);
+      } else if (Array.isArray(data)) {
+        setAvailableTeams(data);
       }
     } catch (err) {
       console.error('Error fetching teams:', err);
@@ -76,9 +69,18 @@ const BillingAnalysis = () => {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' }
       });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch shifts: ${response.status}`);
+      }
+      
       const data = await response.json();
+      console.log('Shifts data:', data);
+      
       if (data.shifts && Array.isArray(data.shifts)) {
         setAvailableShifts(data.shifts);
+      } else if (Array.isArray(data)) {
+        setAvailableShifts(data);
       }
     } catch (err) {
       console.error('Error fetching shifts:', err);
@@ -86,28 +88,47 @@ const BillingAnalysis = () => {
   };
 
   // Fetch months based on any provided field
-  const fetchMonths = async () => {
+  const fetchMonths = async (fieldName, fieldValue) => {
+    if (!fieldValue) return;
+    
     try {
       const params = new URLSearchParams({ action: 'get_months' });
-      
-      // Add any non-empty filter to the request
-      if (teamname) params.append('teamname', teamname);
-      else if (shift) params.append('shift', shift);
-      else if (q) params.append('q', q);
-      else if (id) params.append('id', id);
+      params.append(fieldName, fieldValue);
 
       const response = await fetch(`${API_BASE}?${params.toString()}`, {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' }
       });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch months: ${response.status}`);
+      }
+      
       const data = await response.json();
+      console.log('Months data:', data);
+      
       if (data.months && Array.isArray(data.months)) {
         setAvailableMonths(data.months);
+      } else if (Array.isArray(data)) {
+        setAvailableMonths(data);
       }
     } catch (err) {
       console.error('Error fetching months:', err);
     }
   };
+
+  // Fetch valid dates when any field changes
+  useEffect(() => {
+    if (q) {
+      fetchMonths('q', q);
+    } else if (id) {
+      fetchMonths('id', id);
+    } else if (teamname) {
+      fetchMonths('teamname', teamname);
+    } else if (shift) {
+      fetchMonths('shift', shift);
+    }
+  }, [q, id, teamname, shift]);
 
   // Handle search
   const handleSearch = async (e) => {
@@ -135,14 +156,17 @@ const BillingAnalysis = () => {
       }
 
       const data = await response.json();
+      console.log('Search results:', data);
+      
       setBillingData(Array.isArray(data) ? data : []);
       setCurrentPage(1);
       
       // Initialize annotations state for each row
       const initialAnnotations = {};
       (Array.isArray(data) ? data : []).forEach(item => {
-        initialAnnotations[item.roster_id || item.id] = {
-          comment: '',
+        const rosterId = item.id || item.roster_id;
+        initialAnnotations[rosterId] = {
+          comment: item.comment || '',
           status: 'True'
         };
       });
@@ -181,6 +205,7 @@ const BillingAnalysis = () => {
       }
 
       const result = await response.json();
+      console.log('Annotation result:', result);
       alert('Annotation submitted successfully!');
       
       // Clear the annotation for this row
@@ -227,12 +252,12 @@ const BillingAnalysis = () => {
       <div className="search-form">
         <div className="horizontal-form-grid">
           <div className="form-field">
-            <label>Search Query</label>
+            <label>Search Query (Name)</label>
             <input
               type="text"
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Enter search term"
+              placeholder="Enter name"
             />
           </div>
 
@@ -264,82 +289,83 @@ const BillingAnalysis = () => {
             />
           </div>
 
-          <div className="form-field dropdown-field">
+          <div className="form-field dropdown-field" style={{ position: 'relative' }}>
             <label>Team Name</label>
             <input
               type="text"
               value={teamname}
               onChange={(e) => {
                 setTeamname(e.target.value);
-                setShowTeamDropdown(false);
+                if (!e.target.value) {
+                  setShowTeamDropdown(false);
+                }
               }}
               onFocus={() => {
                 fetchTeams();
                 setShowTeamDropdown(true);
               }}
+              onBlur={() => {
+                // Delay to allow click on dropdown item
+                setTimeout(() => setShowTeamDropdown(false), 200);
+              }}
               placeholder="Enter or select team"
             />
             {showTeamDropdown && availableTeams.length > 0 && (
-              <>
-                <div 
-                  className="dropdown-overlay" 
-                  onClick={() => setShowTeamDropdown(false)}
-                />
-                <div className="dropdown-menu">
-                  {availableTeams.map((team, idx) => (
-                    <div
-                      key={idx}
-                      className="dropdown-item"
-                      onClick={() => {
-                        setTeamname(team);
-                        setShowTeamDropdown(false);
-                        fetchMonths();
-                      }}
-                    >
-                      {team}
-                    </div>
-                  ))}
-                </div>
-              </>
+              <div className="dropdown-menu">
+                {availableTeams.map((team, idx) => (
+                  <div
+                    key={idx}
+                    className="dropdown-item"
+                    onMouseDown={(e) => {
+                      e.preventDefault(); // Prevent blur
+                      setTeamname(team);
+                      setShowTeamDropdown(false);
+                    }}
+                  >
+                    {team}
+                  </div>
+                ))}
+              </div>
             )}
           </div>
 
-          <div className="form-field dropdown-field">
+          <div className="form-field dropdown-field" style={{ position: 'relative' }}>
             <label>Shift</label>
             <input
               type="text"
               value={shift}
               onChange={(e) => {
                 setShift(e.target.value);
-                setShowShiftDropdown(false);
+                if (!e.target.value) {
+                  setShowShiftDropdown(false);
+                }
               }}
               onFocus={() => {
                 fetchShifts();
                 setShowShiftDropdown(true);
               }}
+              onBlur={() => {
+                // Delay to allow click on dropdown item
+                setTimeout(() => setShowShiftDropdown(false), 200);
+              }}
               placeholder="Enter or select shift"
             />
             {showShiftDropdown && availableShifts.length > 0 && (
-              <>
-                <div 
-                  className="dropdown-overlay" 
-                  onClick={() => setShowShiftDropdown(false)}
-                />
-                <div className="dropdown-menu">
-                  {availableShifts.map((shiftItem, idx) => (
-                    <div
-                      key={idx}
-                      className="dropdown-item"
-                      onClick={() => {
-                        setShift(shiftItem);
-                        setShowShiftDropdown(false);
-                      }}
-                    >
-                      {shiftItem}
-                    </div>
-                  ))}
-                </div>
-              </>
+              <div className="dropdown-menu">
+                {availableShifts.map((shiftItem, idx) => (
+                  <div
+                    key={idx}
+                    className="dropdown-item"
+                    onMouseDown={(e) => {
+                      e.preventDefault(); // Prevent blur
+                      setShift(shiftItem);
+                      setShowShiftDropdown(false);
+                    }}
+                  >
+                    {shiftItem}
+                  </div>
+                ))}
+              </div>
             )}
           </div>
 
@@ -441,12 +467,15 @@ const BillingAnalysis = () => {
             <table>
               <thead>
                 <tr>
-                  <th>Roster ID</th>
+                  <th>ID</th>
                   <th>Name</th>
                   <th>Team</th>
-                  <th>Shift</th>
                   <th>Date</th>
-                  <th>Hours</th>
+                  <th>Schedule</th>
+                  <th>First In</th>
+                  <th>Last Out</th>
+                  <th>Net Office Time</th>
+                  <th>Status</th>
                   <th>Comment</th>
                   <th>Attendance Status</th>
                   <th>Action</th>
@@ -454,18 +483,22 @@ const BillingAnalysis = () => {
               </thead>
               <tbody>
                 {currentItems.map((item) => {
-                  const rosterId = item.roster_id || item.id;
-                  const annotation = annotations[rosterId] || { comment: '', status: 'True' };
+                  const rosterId = item.id || item.roster_id;
+                  const annotation = annotations[rosterId] || { comment: item.comment || '', status: 'True' };
                   const isSubmitting = submittingAnnotations[rosterId];
+                  const attendance = item.attendance || {};
 
                   return (
                     <tr key={rosterId}>
                       <td>{rosterId}</td>
                       <td>{item.name || item.employee_name || '-'}</td>
                       <td>{item.team || item.teamname || '-'}</td>
-                      <td>{item.shift || '-'}</td>
                       <td>{item.date || '-'}</td>
-                      <td>{item.hours || item.total_hours || '-'}</td>
+                      <td>{item.schedule || '-'}</td>
+                      <td>{attendance.first_in || '-'}</td>
+                      <td>{attendance.last_out || '-'}</td>
+                      <td>{attendance.net_office_time || '-'}</td>
+                      <td>{attendance.status || '-'}</td>
                       <td>
                         <input
                           type="text"
