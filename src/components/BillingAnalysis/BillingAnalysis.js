@@ -1,6 +1,4 @@
-https://10.191.171.12:5443/EISHOME_TEST/projectRoster/search/?action=get_shifts
-https://10.191.171.12:5443/EISHOME_TEST/projectRoster/search/?teamname=portal&action=get_months
-https://10.191.171.12:5443/EISHOME_TEST/projectRoster/search/?action=get_teams
+
 import React, { useState, useMemo, useEffect } from 'react';
 import './BillingAnalysis.css';
 
