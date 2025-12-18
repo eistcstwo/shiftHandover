@@ -1,3 +1,23 @@
+HandoverDetail.js
+-rwxrwxrwx 1 root root 19263 Nov 27 18:20 HandoverDetail.js_02122025
+-rwxrwxrwx 1 root root 27422 Nov  7 13:39 HandoverDetail.js_081125
+-rwxrwxrwx 1 root root 20214 Nov 22 12:03 HandoverDetail.js_22112025
+-rwxrwxrwx 1 root root 16283 Oct 23 12:43 HandoverDetail.js_231025
+-rwxrwxrwx 1 root root 18972 Nov 27 17:50 HandoverDetail.js_27112025
+-rwxrwxrwx 1 root root 17840 Oct 28 18:54 HandoverDetail.js_291025
+-rwxrwxrwx 1 root root  3266 Sep 25 14:29 HandoverItem.css
+-rwxrwxrwx 1 root root  3989 Oct  8 14:07 HandoverItem.js
+-rwxrwxrwx 1 root root  8410 Oct 23 16:24 HandoverList.css
+-rwxrwxrwx 1 root root 13817 Oct 27 18:10 HandoverList.js
+-rwxrwxrwx 1 root root  5267 Oct  3 18:28 HandoverList.js_081025
+-rwxrwxrwx 1 root root 13143 Oct  8 19:10 HandoverList.js_231025
+-rwxrwxrwx 1 root root 14850 Nov 22 20:41 HistorySummary.css
+-rwxrwxrwx 1 root root 13048 Dec 17 20:37 HistorySummary.js
+-rwxrwxrwx 1 root root 15501 Dec  2 15:43 TasksBucket.css
+-rwxrwxrwx 1 root root 13151 Dec  3 12:28 TasksBucket.js
+-rwxrwxrwx 1 root root 17410 Dec 12 16:35 TasksList.css
+-rwxrwxrwx 1 root root 28629 Dec 12 16:36 TasksList.js
+[root@eispr-prt1-01 Handovers]# cat HandoverDetail.js
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
@@ -114,10 +134,10 @@ const HandoverDetail = () => {
 
   // Check if user has admin access - ONLY for ADMIN, NOT L2
   const hasAdminAccess = userLevel === 'ADMIN';
-  
+
   // L2 users can access dashboard and tasks but not admin features
   const canAccessDashboard = userLevel === 'ADMIN' || userLevel === 'L2' || userLevel === 'L1';
-  
+
   // Debug log
   console.log('Current userLevel:', userLevel, 'hasAdminAccess:', hasAdminAccess, 'canAccessDashboard:', canAccessDashboard);
 
@@ -169,42 +189,33 @@ const HandoverDetail = () => {
     setError('');
   };
 
-const handleAcknowledgeSubmit = async () => {
-  if (!ackDescription.trim()) {
-    setError('Description is required.');
-    return;
-  }
-
-  // Clear any previous errors
-  setError('');
-
-  const payload = {
-    task_id: selectedTask.Taskid,
-    taskTitle: selectedTask.taskTitle || '',
-    taskDesc: selectedTask.taskDesc || '',
-    status: ackStatus,
-    priority: selectedTask.priority || 'Medium',
-    acknowledgeStatus: 'Acknowledged',
-    ackDesc: ackDescription
-  };
-
-  // Add handover_id_id only if a team is selected for reassignment
-  if (reassignTeam) {
-    const selectedTeamData = TEAMS_DATA.find(team => team.rid === parseInt(reassignTeam));
-    if (selectedTeamData) {
-      payload.handover_id_id = selectedTeamData.handover_id_id;
+  const handleAcknowledgeSubmit = async () => {
+    if (!ackDescription.trim()) {
+      setError('Description is required.');
+      return;
     }
-  }
 
-  try {
-    console.log('Submitting acknowledgment with payload:', payload);
-    
-    const response = await updateTask(payload);
-    
-    console.log('Acknowledgment response:', response);
+    const payload = {
+      task_id: selectedTask.Taskid,
+      taskTitle: selectedTask.taskTitle || '',
+      taskDesc: selectedTask.taskDesc || '',
+      status: ackStatus,
+      priority: selectedTask.priority || 'Medium',
+      acknowledgeStatus: 'Acknowledged',
+      ackDesc: ackDescription
+    };
 
-    // Only update state and reload if the API call was successful
-    if (response) {
+    // Add handover_id_id only if a team is selected for reassignment
+    if (reassignTeam) {
+      const selectedTeamData = TEAMS_DATA.find(team => team.rid === parseInt(reassignTeam));
+      if (selectedTeamData) {
+        payload.handover_id_id = selectedTeamData.handover_id_id;
+      }
+    }
+
+    try {
+      await updateTask(payload);
+
       const updatedTasks = backendData.Tasksdata.map(t =>
         t.Taskid === selectedTask.Taskid
           ? {
@@ -214,9 +225,7 @@ const handleAcknowledgeSubmit = async () => {
               ackDesc: ackDescription,
               acknowledgeTime: new Date().toISOString(),
               statusUpdateTime: new Date().toISOString(),
-              ...(reassignTeam && { 
-                handover_id_id: TEAMS_DATA.find(team => team.rid === parseInt(reassignTeam))?.handover_id_id 
-              })
+              ...(reassignTeam && { handover_id_id: TEAMS_DATA.find(team => team.rid === parseInt(reassignTeam))?.handover_id_id })
             }
           : t
       );
@@ -226,7 +235,6 @@ const handleAcknowledgeSubmit = async () => {
         Tasksdata: updatedTasks
       });
 
-      // Close modal and reset form
       setModalOpen(false);
       setSelectedTask(null);
       setAckDescription('');
@@ -234,25 +242,11 @@ const handleAcknowledgeSubmit = async () => {
       setReassignTeam('');
       setError('');
 
-      // Show success message before reload
-      alert('Task acknowledged successfully!');
-      
-      // Reload to get fresh data from server
       window.location.reload();
-    } else {
-      throw new Error('No response received from server');
+    } catch (err) {
+      setError('Failed to update task on server!');
     }
-  } catch (err) {
-    console.error('Acknowledgment submission error:', err);
-    
-    // Show specific error message to user
-    const errorMessage = err.response?.data?.message || err.message || 'Failed to update task on server!';
-    setError(errorMessage);
-    
-    // Also alert the user
-    alert(`Error: ${errorMessage}`);
-  }
-};
+  };
 
   const handleCreateTask = () => {
     setShowCreateTaskModal(true);
