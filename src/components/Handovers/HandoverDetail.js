@@ -1,23 +1,3 @@
-HandoverDetail.js
--rwxrwxrwx 1 root root 19263 Nov 27 18:20 HandoverDetail.js_02122025
--rwxrwxrwx 1 root root 27422 Nov  7 13:39 HandoverDetail.js_081125
--rwxrwxrwx 1 root root 20214 Nov 22 12:03 HandoverDetail.js_22112025
--rwxrwxrwx 1 root root 16283 Oct 23 12:43 HandoverDetail.js_231025
--rwxrwxrwx 1 root root 18972 Nov 27 17:50 HandoverDetail.js_27112025
--rwxrwxrwx 1 root root 17840 Oct 28 18:54 HandoverDetail.js_291025
--rwxrwxrwx 1 root root  3266 Sep 25 14:29 HandoverItem.css
--rwxrwxrwx 1 root root  3989 Oct  8 14:07 HandoverItem.js
--rwxrwxrwx 1 root root  8410 Oct 23 16:24 HandoverList.css
--rwxrwxrwx 1 root root 13817 Oct 27 18:10 HandoverList.js
--rwxrwxrwx 1 root root  5267 Oct  3 18:28 HandoverList.js_081025
--rwxrwxrwx 1 root root 13143 Oct  8 19:10 HandoverList.js_231025
--rwxrwxrwx 1 root root 14850 Nov 22 20:41 HistorySummary.css
--rwxrwxrwx 1 root root 13048 Dec 17 20:37 HistorySummary.js
--rwxrwxrwx 1 root root 15501 Dec  2 15:43 TasksBucket.css
--rwxrwxrwx 1 root root 13151 Dec  3 12:28 TasksBucket.js
--rwxrwxrwx 1 root root 17410 Dec 12 16:35 TasksList.css
--rwxrwxrwx 1 root root 28629 Dec 12 16:36 TasksList.js
-[root@eispr-prt1-01 Handovers]# cat HandoverDetail.js
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
