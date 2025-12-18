@@ -169,64 +169,71 @@ const HandoverDetail = () => {
     setError('');
   };
 
-  const handleAcknowledgeSubmit = async () => {
-    if (!ackDescription.trim()) {
-      setError('Description is required.');
-      return;
-    }
+const handleAcknowledgeSubmit = async () => {
+  if (!ackDescription.trim()) {
+    setError('Description is required.');
+    return;
+  }
 
-    const payload = {
-      task_id: selectedTask.Taskid,
-      taskTitle: selectedTask.taskTitle || '',
-      taskDesc: selectedTask.taskDesc || '',
-      status: ackStatus,
-      priority: selectedTask.priority || 'Medium',
-      acknowledgeStatus: 'Acknowledged',
-      ackDesc: ackDescription
-    };
-
-    // Add handover_id_id only if a team is selected for reassignment
-    if (reassignTeam) {
-      const selectedTeamData = TEAMS_DATA.find(team => team.rid === parseInt(reassignTeam));
-      if (selectedTeamData) {
-        payload.handover_id_id = selectedTeamData.handover_id_id;
-      }
-    }
-
-    try {
-      await updateTask(payload);
-
-      const updatedTasks = backendData.Tasksdata.map(t =>
-        t.Taskid === selectedTask.Taskid
-          ? {
-              ...t,
-              status: ackStatus,
-              acknowledgeStatus: 'Acknowledged',
-              ackDesc: ackDescription,
-              acknowledgeTime: new Date().toISOString(),
-              statusUpdateTime: new Date().toISOString(),
-              ...(reassignTeam && { handover_id_id: TEAMS_DATA.find(team => team.rid === parseInt(reassignTeam))?.handover_id_id })
-            }
-          : t
-      );
-
-      setBackendData({
-        ...backendData,
-        Tasksdata: updatedTasks
-      });
-
-      setModalOpen(false);
-      setSelectedTask(null);
-      setAckDescription('');
-      setAckStatus('in progress');
-      setReassignTeam('');
-      setError('');
-
-      window.location.reload();
-    } catch (err) {
-      setError('Failed to update task on server!');
-    }
+  const payload = {
+    task_id: selectedTask.Taskid,
+    taskTitle: selectedTask.taskTitle || '',
+    taskDesc: selectedTask.taskDesc || '',
+    status: ackStatus,
+    priority: selectedTask.priority || 'Medium',
+    acknowledgeStatus: 'Acknowledged', // Make sure it's capitalized
+    ackDesc: ackDescription
   };
+
+  // Add handover_id_id only if a team is selected for reassignment
+  if (reassignTeam) {
+    const selectedTeamData = TEAMS_DATA.find(team => team.rid === parseInt(reassignTeam));
+    if (selectedTeamData) {
+      payload.handover_id_id = selectedTeamData.handover_id_id; // Changed from handover_id
+    }
+  }
+
+  console.log('Acknowledge payload:', payload); // Add logging
+
+  try {
+    const response = await updateTask(payload);
+    console.log('Acknowledge response:', response); // Add logging
+
+    const updatedTasks = backendData.Tasksdata.map(t =>
+      t.Taskid === selectedTask.Taskid
+        ? {
+            ...t,
+            status: ackStatus,
+            acknowledgeStatus: 'Acknowledged',
+            ackDesc: ackDescription,
+            acknowledgeTime: new Date().toISOString(),
+            statusUpdateTime: new Date().toISOString(),
+            ...(reassignTeam && { 
+              handover_id_id: TEAMS_DATA.find(team => team.rid === parseInt(reassignTeam))?.handover_id_id 
+            })
+          }
+        : t
+    );
+
+    setBackendData({
+      ...backendData,
+      Tasksdata: updatedTasks
+    });
+
+    setModalOpen(false);
+    setSelectedTask(null);
+    setAckDescription('');
+    setAckStatus('in progress');
+    setReassignTeam('');
+    setError('');
+
+    // Reload the page to get fresh data from backend
+    window.location.reload();
+  } catch (err) {
+    console.error('Acknowledge error:', err);
+    setError(`Failed to update task: ${err.message}`);
+  }
+};
 
   const handleCreateTask = () => {
     setShowCreateTaskModal(true);
@@ -240,31 +247,36 @@ const HandoverDetail = () => {
   };
 
   const handleCreateTaskSubmit = async (e) => {
-    e.preventDefault();
-    if (!newTask.taskTitle.trim() && !newTask.taskDesc.trim()) {
-      setError('Please provide at least a title or description');
-      return;
-    }
+  e.preventDefault();
+  if (!newTask.taskTitle.trim() && !newTask.taskDesc.trim()) {
+    setError('Please provide at least a title or description');
+    return;
+  }
 
-    const payload = {
-      taskTitle: newTask.taskTitle,
-      taskDesc: newTask.taskDesc,
-      status: 'open',
-      priority: newTask.priority,
-      acknowledgeStatus: 'Pending',
-      ackDesc: '',
-      handover_id_id: parseInt(id)
-    };
-
-    try {
-      await createTask(payload);
-      await fetchHandoverData();
-      setShowCreateTaskModal(false);
-      setError('');
-    } catch (err) {
-      setError('Failed to create task on server!');
-    }
+  const payload = {
+    taskTitle: newTask.taskTitle,
+    taskDesc: newTask.taskDesc,
+    status: 'open',
+    priority: newTask.priority,
+    acknowledgeStatus: 'Pending',
+    ackDesc: '',
+    handover_id_id: parseInt(id) // Changed from handover_id and ensure it's an integer
   };
+
+  console.log('Create task payload:', payload); // Add logging
+
+  try {
+    const response = await createTask(payload);
+    console.log('Create task response:', response); // Add logging
+    
+    await fetchHandoverData();
+    setShowCreateTaskModal(false);
+    setError('');
+  } catch (err) {
+    console.error('Create task error:', err);
+    setError(`Failed to create task: ${err.message}`);
+  }
+};
 
   const getTaskStats = (tasks) => {
     return {
