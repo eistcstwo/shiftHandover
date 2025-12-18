@@ -1,0 +1,561 @@
+views.py
+[root@eispr-prt1-01 shiftHandover]# cat views.py
+from django.shortcuts import render
+from .models import *
+from BrokerEgApi.models import Usermaster
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+import math
+from datetime import date,timedelta,datetime
+from django.db.models import Q
+import json
+from django.contrib.auth import authenticate, login,logout
+from cryptography.fernet import Fernet
+from cryptography.hazmat.primitives.ciphers import Cipher,algorithms,modes
+from cryptography.hazmat.primitives import padding
+from cryptography.hazmat.backends import default_backend
+import os
+from datetime import datetime
+from django.db import IntegrityError
+# Create your views here.
+from django.conf import settings
+from django.utils import timezone
+from awthenticationService.views import *
+#for decrypting user details
+def decryptor(encryptedPass):
+     try:
+        print(encryptedPass)
+        encryptedData=bytes.fromhex(encryptedPass)
+        key = b'Sixteen byte key'
+        iv = b'Sixteen byte ivv'
+        cipher=Cipher(algorithms.AES(key),modes.CBC(iv),backend=default_backend())
+        decryptor = cipher.decryptor()
+        decrypted_padded = decryptor.update(encryptedData) + decryptor.finalize()
+        unpadder = padding.PKCS7(128).unpadder()
+        decrypted_data = unpadder.update(decrypted_padded) + unpadder.finalize()
+        decrypted_text = decrypted_data.decode('utf-8')
+        return str(decrypted_text)
+     except Exception as e:
+        return str(e)
+
+
+#for api authentication
+def authenticate(uid,password):
+    try:
+       decryptedPassword=decryptor(password)
+    except Exception as e:
+       return False
+    if uid and decryptedPassword:
+       try:
+          print(uid,decryptedPassword)
+          user = Usermaster.objects.get(uid = uid, pwd = decryptedPassword)
+          print(user)
+       except Exception as e:
+          print("Exception occured",e)
+          user = None
+       if user:
+          return user.superlevel
+       else:
+          return False
+    else:
+       return False
+    return False
+
+
+
+
+def task_update_safe(task_id=None, **kwargs):
+    """
+    Creates or updates a Tasks record based on the provided task_id.
+
+    Args:
+        task_id (int, optional): The ID of the task to update. If not provided,
+                                 a new task will be created.
+        **kwargs: Additional fields to update or create the record,
+                  including foreign key objects or their primary keys.
+
+    Returns:
+        tuple: A tuple containing the created/updated object and a boolean
+               indicating whether the object was created (True) or updated (False).
+               Returns (None, False) if an error occurs.
+    """
+    try:
+        defaults = kwargs.copy()
+        print("Entered the function")
+
+        # Handle Usermaster foreign keys
+        if 'userCreated' in defaults and not isinstance(defaults['userCreated'], Usermaster):
+            defaults['userCreated'] = Usermaster.objects.get(pk=defaults['userCreated'])
+        if 'userAccepted' in defaults and not isinstance(defaults['userAccepted'], Usermaster):
+            defaults['userAccepted'] = Usermaster.objects.get(pk=defaults['userAccepted'])
+
+        # Handle Handover foreign key
+        if 'handover_id' in defaults and not isinstance(defaults['handover_id'], Handover):
+            handover_id_val = defaults.pop('handover_id')
+            if handover_id_val is not None:
+                try:
+                    defaults['handover_id'] = Handover.objects.get(pk=handover_id_val)
+                except Handover.DoesNotExist:
+                    print(f"Handover record with id {handover_id_val} not found.")
+                    return None, False
+
+        # Remove irrelevant keys
+        defaults.pop('uidd', None)
+        defaults.pop('password', None)
+
+        if task_id:
+            try:
+                task = Tasks.objects.get(Taskid=task_id)
+                created = False
+                print("Task id found", task_id)
+
+                for key, value in defaults.items():
+                    setattr(task, key, value)
+
+                # Check if acknowledgment is needed for an existing task
+                if defaults.get('acknowledgeStatus') == 'acknowledged' and not task.acknowledgeTime:
+                    task.acknowledgeTime = timezone.localtime(timezone.now()).strftime("%Y-%m-%d %H:%M:%S")
+
+                # If the status is 'acknowledged', also update or create the Acknowledge record
+                if defaults.get('acknowledgeStatus') == 'acknowledged':
+                    # Create or update the Acknowledge record for this task
+                    ack_record, _ = Acknowledge.objects.get_or_create(
+                        ackTask_id=task,
+                        defaults={
+                            'userAcknowleged': task.userAccepted,
+                            'acknowledgeTime': task.acknowledgeTime,
+                        }
+                    )
+                    # The acknowledgeDesc in Tasks is updated from the kwargs
+                    task.acknowledgeDesc = defaults.get('acknowledgeDesc')
+
+                task.save()
+                return task, created
+
+            except Tasks.DoesNotExist:
+                print(f"Task with id {task_id} not found. Creating a new task.")
+
+        # Create a new task if no task_id was provided or found
+        if defaults.get('acknowledgeStatus') == 'acknowledged':
+            # Create a new task first, as Acknowledge needs a Task to reference
+            defaults['creationTime'] = timezone.localtime(timezone.now()).strftime("%Y-%m-%d %H:%M:%S")
+            if defaults.get('acknowledgeStatus') == 'acknowledged':
+               defaults['acknowledgeTime'] = timezone.localtime(timezone.now()).strftime("%Y-%m-%d %H:%M:%S")
+            else:
+               defaults['acknowledgeTime'] = '' # Set to an empty string
+            task = Tasks.objects.create(**defaults)
+            created = True
+
+            # Then, create the related Acknowledge object
+            Acknowledge.objects.create(
+                ackTask_id=task,
+                userAcknowleged=task.userAccepted,
+                acknowledgeTime=task.acknowledgeTime,
+            )
+        else:
+            defaults['creationTime'] = timezone.localtime(timezone.now()).strftime("%Y-%m-%d %H:%M:%S")
+            if defaults.get('acknowledgeStatus') == 'acknowledged':
+               defaults['acknowledgeTime'] = timezone.localtime(timezone.now()).strftime("%Y-%m-%d %H:%M:%S")
+            else:
+               defaults['acknowledgeTime'] = '' # Set to an empty string
+            task = Tasks.objects.create(**defaults)
+            created = True
+
+        return task, created
+
+    except (IntegrityError, Usermaster.DoesNotExist, Handover.DoesNotExist) as e:
+        return None, False
+
+
+
+
+
+
+
+def task_update_safe1(task_id=None, **kwargs):
+    """
+    Creates or updates a Tasks record based on the provided task_id.
+
+    Args:
+        task_id (int, optional): The ID of the task to update. If not provided,
+                                 a new task will be created.
+        **kwargs: Additional fields to update or create the record,
+                  including foreign key objects or their primary keys.
+
+    Returns:
+        tuple: A tuple containing the created/updated object and a boolean
+               indicating whether the object was created (True) or updated (False).
+               Returns (None, False) if an error occurs.
+    """
+    try:
+        # Separate lookup fields from defaults. The 'defaults' are fields
+        # that should be set during creation or updated on an existing object.
+        defaults = kwargs.copy()
+        # Step 1: Check for an existing task using the provided ID
+        if task_id:
+            try:
+                task = Tasks.objects.get(Taskid=task_id)
+                created = False
+                # Step 2: Handle foreign key lookups if necessary
+                '''if 'priority' in defaults and not isinstance(defaults['priority'], Priority):
+                    defaults['priority'] = Priority.objects.get(pk=defaults['priority'])'''
+                if 'userCreated' in defaults and not isinstance(defaults['userCreated'], Usermaster):
+                    defaults['userCreated'] = Usermaster.objects.get(pk=defaults['userCreated'])
+                if 'userAccepted' in defaults and not isinstance(defaults['userAccepted'], Usermaster):
+                    defaults['userAccepted'] = Usermaster.objects.get(pk=defaults['userAccepted'])
+
+                if 'ackDesc' in defaults:
+                    Acknowledge.objects.create(ackDesc=defaults['ackDesc'],userAcknowleged=defaults['userAccepted'],acknowledgeTime=timezone.localtime(timezone.now()).strftime("%Y-%m-%d %H:%M:%S"),ackTask_id=task)
+                del defaults['ackDesc']
+                # Step 3: Update the existing task's fields
+                for key, value in defaults.items():
+                    setattr(task, key, value)
+                # Optional: Update acknowledgeTime if status is acknowledged
+
+                task.save()
+                return task, created
+
+            except Tasks.DoesNotExist:
+                return JsonResponse({"error":e},safe=False)
+                # If the task with the given ID doesn't exist, proceed to create a new one
+        # Step 4: If no task_id or an invalid id was provided, create a new task
+        if 'userCreated' in defaults and not isinstance(defaults['userCreated'], Usermaster):
+            defaults['userCreated'] = Usermaster.objects.get(pk=defaults['userCreated'])
+        if 'userAccepted' in defaults and not isinstance(defaults['userAccepted'], Usermaster):
+            defaults['userAccepted'] = Usermaster.objects.get(pk=defaults['userAccepted'])
+        # Set creationTime and acknowledgeTime if applicable for the new task
+        if 'acknowledgeStatus' in defaults and defaults['acknowledgeStatus'] == 'acknowledged':
+            defaults['acknowledgeTime'] = timezone.now()
+        del defaults['uidd']
+        del defaults['ackDesc']
+        ''' if defaults.get('acknowledgeStatus') == 'acknowledged':
+            defaults['acknowledgeTime'] = timezone.now().strftime("%Y-%m-%d %H:%M:%S")
+        else:
+            defaults['acknowledgeTime'] = '''
+
+        task = Tasks.objects.create(**defaults)
+        created = True
+        return task, created
+
+    except (IntegrityError, Priority.DoesNotExist, Usermaster.DoesNotExist) as e:
+        print(e)
+        return None, False
+
+
+
+
+def create_or_update_handover(lookup_fields, **kwargs):
+    """
+    Creates or updates a Handover record, handling foreign keys.
+
+    Args:
+        lookup_fields (dict): A dictionary of fields used to look up the object.
+                              Example: {'task': task_instance} or {'task_id': task_pk}
+        **kwargs: Additional fields to update or create the record,
+                  including foreign key objects or their primary keys.
+
+    Returns:
+        tuple: A tuple containing the created/updated object and a boolean
+               indicating whether the object was created (True) or updated (False).
+    """
+    try:
+        # Resolve foreign key relationships from the input
+        if 'task' in kwargs and not isinstance(kwargs['task'], Tasks):
+            kwargs['task'] = Tasks.objects.get(pk=kwargs['task'])
+        if 'currentShift' in kwargs and not isinstance(kwargs['currentShift'], Shift):
+            kwargs['currentShift'] = Shift.objects.get(pk=kwargs['currentShift'])
+        if 'nextShift' in kwargs and not isinstance(kwargs['nextShift'], Shift):
+            kwargs['nextShift'] = Shift.objects.get(pk=kwargs['nextShift'])
+
+        # Resolve foreign keys for lookup fields if passed as PK
+        if 'task' in lookup_fields and not isinstance(lookup_fields['task'], Tasks):
+            lookup_fields['task'] = Tasks.objects.get(pk=lookup_fields['task'])
+
+        # Create or update the handover record
+        handover, created = Handover.objects.update_or_create(
+            defaults=kwargs,
+            **lookup_fields
+        )
+        return handover, created
+    except (IntegrityError, Tasks.DoesNotExist, Shift.DoesNotExist) as e:
+        # Handle cases where foreign key objects are not found or other integrity issues
+        print(f"Error during update_or_create for Handover: {e}")
+        return None, False
+
+
+@csrf_exempt
+def getHandover(request):
+    if request.method == 'POST':
+       data_json = json.loads(request.body.decode('utf-8'))
+       uid = data_json.get("uid")
+       password = data_json.get("password")
+       '''
+       if not authenticate(uid,password):
+           return JsonResponse({"msg":"An error occured while fetching the data"},status=200,safe=False)
+       '''
+       token = request.headers.get("Authorization")
+       if not token:
+          return JsonResponse({"message": "Session unautherize"}, status=401, safe=False)
+       try:
+          sessionStatus=decode_jwt_token_api(token)
+          if not sessionStatus:
+             return JsonResponse({"message": "Session unautherize"}, status=401, safe=False)
+       except Exception as e:
+          print(e)
+          return JsonResponse({"message": "user unauthorized"}, status=401, safe=False)
+
+
+
+       try:
+          user=None
+          if Usermaster.objects.filter(AdId=uid).exists():
+             user = list(Usermaster.objects.filter(AdId = uid).values())
+          TeamHandoverDetails = list(Team_Role.objects.filter(rid = user[0]['Rid_id']).values())
+          handoverId=TeamHandoverDetails[0]["handover_id_id"]
+          TasksDetails=""
+          if TeamHandoverDetails:
+             TasksDetails = list(Tasks.objects.filter(handover_id=handoverId).values())
+             if TasksDetails:
+                for k in TasksDetails:
+                    ackDetails = list(Acknowledge.objects.filter(ackTask_id=k["Taskid"]).values())
+                    ackDict={}
+                    k["acknowledgeDetails"]=ackDetails
+
+             return  JsonResponse({"TeamHandoverDetails":TeamHandoverDetails,"Tasksdata":TasksDetails},status=200,safe=False)
+          #return JsonResponse("data":handoverDetais,safe=False)
+       except Exception as e:
+          return JsonResponse({"msg":str(e)},safe=False)
+       return JsonResponse({"msg":"403 bad request"},safe=False)
+
+
+
+
+@csrf_exempt
+def getHandoverAll(request):
+    if request.method == 'POST':
+       '''
+       if not authenticate(uid,password):
+           return JsonResponse({"msg":"An error occured while fetching the data"},status=200,safe=False)
+       '''
+       token = request.headers.get("Authorization")
+       if not token:
+          return JsonResponse({"message": "Session unautherize"}, status=401, safe=False)
+       try:
+          sessionStatus=decode_jwt_token_api(token)
+          if not sessionStatus:
+             return JsonResponse({"message": "Session unautherize"}, status=401, safe=False)
+       except Exception as e:
+          print(e)
+          return JsonResponse({"message": "user unauthorized"}, status=401, safe=False)
+
+
+
+       try:
+          TeamHandoverDetailsAll = list(Team_Role.objects.all().values())
+          AllTeamHandoverDetails=list()
+          print("hello")
+          for TeamHandoverDetails in TeamHandoverDetailsAll:
+             print("there")
+             print(TeamHandoverDetails)
+             handoverId=TeamHandoverDetails["handover_id_id"]
+             print("found",handoverId)
+             TasksDetails=""
+             if TeamHandoverDetails:
+                TasksDetails = list(Tasks.objects.filter(handover_id=handoverId).values())
+                if TasksDetails:
+                   for k in TasksDetails:
+                       ackDetails = list(Acknowledge.objects.filter(ackTask_id=k["Taskid"]).values())
+                       ackDict={}
+                       k["acknowledgeDetails"]=ackDetails
+                       k["teamName"]=TeamHandoverDetails["role"]
+             AllTeamHandoverDetails.append(TasksDetails)
+          return  JsonResponse({"TeamHandoverDetailsTask":AllTeamHandoverDetails},status=200,safe=False)
+          #return JsonResponse("data":handoverDetais,safe=False)
+       except Exception as e:
+          print(e)
+          return JsonResponse({"msg":str(e)},safe=False)
+       return JsonResponse({"msg":"403 bad request"},safe=False)
+
+
+
+
+
+
+#for getting
+@csrf_exempt
+def saveTask(request):
+    if request.method == 'POST':
+      # return JsonResponse({"msg":"this is the error"},status=200,safe=False)
+       data_json = json.loads(request.body.decode('utf-8'))
+       uid = data_json.get("uidd")
+       password = data_json.get("password")
+       '''if not authenticate(uid,password):
+           print("this was the error")
+           return JsonResponse({"msg":"An error occured while fetching the data"},status=200,safe=False)'''
+       #return JsonResponse({"msg":"this is the error"},status=200,safe=False)
+       token = request.headers.get("Authorization")
+       if not token:
+          return JsonResponse({"message": "Session unautherize"}, status=401, safe=False)
+       try:
+          sessionStatus=decode_jwt_token_api(token)
+          if not sessionStatus:
+             return JsonResponse({"message": "Session unautherize"}, status=401, safe=False)
+       except Exception as e:
+          print(e)
+          return JsonResponse({"message": "user unauthorized"}, status=401, safe=False)
+       try:
+         print("ffffffffffffffffffffffff")
+         user = Usermaster.objects.get(AdId = uid)
+         creationTime = str(datetime.now())
+         acknowledgeStatus = data_json.get("acknowledgeStatus")
+         acknowledgeDesc = data_json.get("acknowledgeDesc")
+         print(data_json.get("handover_id"))
+         data_json["userAccepted"]=user
+         print("ddddddddddddddddddddddddddddddd")
+         print(data_json["userAccepted"])
+         acknowledgeTime = str(datetime.now())
+         statusUpdateTime=str(datetime.now())
+         data_json['creationTime']=str(datetime.now())
+         if "handover_id" in data_json:
+             print("htrbsterrrrrrr")
+             data_json["handover_id"]=Handover.objects.get(handoverId=data_json.get("handover_id"))
+         JsonResponse({"msg":"this is"},status=200,safe=False)
+       except Exception as e:
+           return JsonResponse({"msg":"this is the error","error":str(e)},status=200,safe=False)
+       task_update_safe1(**data_json)
+       return  JsonResponse({"msg":"data safed succesfully"},status=200,safe=False)
+
+
+
+broker_restart_status_flow=[
+"request_started_infra",
+"cache_hit_done",
+"request_approved_support",
+"sets_ready_for_restart",
+"isolator_down",
+"BROKER_STOPPED",
+"HEARTBEAT_CACHE_STARTED",
+"ALL_BROKER_STARTED",
+"CACHE_WORKLOAD_DONE",
+"UDP_CHANGES",
+"LOGS_VERIFICATION_DONE",
+"isolator_up",
+"request_end_started_Infra",
+"request_approved_suppport"
+        ]
+#for parent broker daily restart task
+@csrf_exempt
+def startBrokerRestart(request):
+    if request.method == 'POST':
+        #data_json = json.loads(request.body.decode('utf-8'))
+        try:
+            data_json = json.loads(request.body.decode('utf-8'))
+            if 'restartId' in data_json:
+                print("got")
+                subSets.objects.create(status="started",startTime=startTiming,endTime="Present",supportTime="Pending",supportid="pending",brokerRestartId=int(data_json.get('restartId')))
+                brokerRestartCurr=brokerRestart.objects.order_by('brokerRestartId').values().last()
+
+            startTiming=str(datetime.now())
+            subSets.objects.create(status="started",startTime=startTiming,endTime="Present",supportTime="Pending",supportid="pending")
+            brokerRestart.objects.create(startTiming=startTiming,currentSet=1,endTiming="Present")
+            brokerRestartCurr=brokerRestart.objects.order_by('brokerRestartId').values().last()
+            return JsonResponse({"brokerRestartId":brokerRestartCurr['brokerRestartId'],"startTiming":brokerRestartCurr["startTiming"]},status=200,safe=False)
+        except Exception as e:
+            return JsonResponse({"msg":"this is the error","error":str(e)},status=200,safe=False)
+
+
+
+    return JsonResponse({"msg":"Bad Request"},status=403,safe=False)
+
+
+
+
+
+
+
+'''
+
+@csrf_exempt
+def getHandover(request):
+    if request.method == 'POST':
+       data_json = json.loads(request.body.decode('utf-8'))
+       uid = data_json.get("uid")
+       password = data_json.get("password")
+       if not authenticate(uid,password):
+           print("this was the error")
+           return JsonResponse({"msg":"An error occured while fetching the data"},status=500,safe=False)
+'''
+
+
+@csrf_exempt
+def levelAuthorizer(uid):
+    try:
+
+        if not uid:
+            return JsonResponse({"Response":"AdId is required","status":400},status=400,safe=False)
+        try:
+            #print("hii",password)
+            #print(Usermaster.objects.get(uid = uid, pwd = password))
+            user=None
+            print("got it")
+            if user is None:
+                print("ldapbasedlogin")
+                withLdap=True
+                try:
+                    if Usermaster.objects.filter(AdId=str(uid)).exists():
+                        print("The user was found in our db")
+                        user = Usermaster.objects.get(AdId = str(uid))
+                        withLdap = False
+                        return user.superlevel
+                    return "Not Authorized"
+                except Exception as e:
+                        print("error occured",e)
+        except Exception as e:
+            print("an Error occured",e)
+    except Exception as p:
+        return 'Not Authorized'
+
+
+
+
+
+@csrf_exempt
+def getHistoryHandover(request):
+    if request.method == 'POST':
+       data_json = json.loads(request.body.decode('utf-8'))
+       uid = data_json.get("uidd")
+       '''if not authenticate(uid,password):
+           return JsonResponse({"msg":"An error occured while fetching the data"},status=200,safe=False)'''
+       token = request.headers.get("Authorization")
+       if not token:
+          return JsonResponse({"message": "Session unautherize"}, status=401, safe=False)
+       try:
+          sessionStatus=decode_jwt_token_api(token)
+          if not sessionStatus:
+             return JsonResponse({"message": "Session unautherize"}, status=401, safe=False)
+       except Exception as e:
+          print(e)
+          return JsonResponse({"message": "user unauthorized"}, status=401, safe=False)
+       if levelAuthorizer(uid) not in ['ADMIN','L2']:
+          return JsonResponse({"msg":"User found not authorized  while fetching the data"},status=200,safe=False)
+       try:
+          user=None
+          if Usermaster.objects.filter(AdId=str(uid)).exists():
+             user = list(Usermaster.objects.filter(AdId = str(uid)).values())
+          TeamHandoverDetails = list(Team_Role.objects.filter(rid = user[0]['Rid_id']).values())
+          handoverId=TeamHandoverDetails[0]["handover_id_id"]
+          TasksDetails=""
+          if TeamHandoverDetails:
+             TasksDetails = list(historyCompleted.objects.filter(handover_id=handoverId).values())
+             if TasksDetails == "":
+                return JsonResponse({"TeamHandoverDetails":TeamHandoverDetails,"Tasksdata":TasksDetails},status=200,safe=False)
+             if TasksDetails:
+                for k in TasksDetails:
+                    ackDetails = list(historyAcknowledge.objects.filter(ackTask_id=k["historyTaskId"]).values())
+                    ackDict={}
+                    k["acknowledgeDetails"]=ackDetails
+          return  JsonResponse({"TeamHandoverDetails":TeamHandoverDetails,"Tasksdata":TasksDetails},status=200,safe=False)
+          #return JsonResponse("data":handoverDetais,safe=False)
+       except Exception as e:
+          return JsonResponse({"msg":str(e)},safe=False)
+       return JsonResponse({"msg":"403 bad request"},safe=False)
