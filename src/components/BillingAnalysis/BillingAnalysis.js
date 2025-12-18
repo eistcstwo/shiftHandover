@@ -1,3 +1,19 @@
+ {
+        "id": 45400,
+        "name": "Aryan purohit",
+        "team": "Portal",
+        "date": "2025-11-02",
+        "schedule": "WO",
+        "comment": "",
+        "attendance": {
+            "first_in": null,
+            "last_out": null,
+            "net_office_time": null,
+            "status": "✅"
+        }
+    },
+
+
 import React, { useState, useMemo, useEffect } from 'react';
 import './BillingAnalysis.css';
 
