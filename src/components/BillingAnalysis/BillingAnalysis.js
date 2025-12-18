@@ -1,4 +1,3 @@
-curl -kX POST https://10.191.171.12:5443/EISHOME_TEST/projectRoster/update_annotation/  -H "Content-Type: application/json"  -d '{"roster_id": 45429, "comment": "OK", "status": "True"}'
 
 import React, { useState, useMemo, useEffect } from 'react';
 import './BillingAnalysis.css';
