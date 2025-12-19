@@ -1,3 +1,106 @@
+when i select date from the available months button dates it goes like this
+q
+aryan
+start_date
+November+2025-undefined-01
+end_date
+November+2025-undefined-NaN
+which is wrong
+it should go like this format 
+q
+aryan
+start_date
+2025-11-01
+end_date
+2025-11-07
+
+
+when i hit this https://10.191.171.12:5443/EISHOME_TEST/projectRoster/search/?q=arun&start_date=2025-11-01&end_date=2025-11-07&action=count i get response like this
+[
+    {
+        "employee": "Arun Dharpalli",
+        "employee_id": "V1018968",
+        "period_start": "2025-11-01",
+        "period_end": "2025-11-07",
+        "counts": {
+            "Total WFO": 5,
+            "Total WFH": 0,
+            "Total WO": 2,
+            "Total PL": 0,
+            "Total working days": 5,
+            "Total Leaves": 2
+        }
+    }
+]
+
+diplay it in a table properly it is not displaying anything
+
+same with this https://10.191.171.12:5443/EISHOME_TEST/projectRoster/search/?q=arun&start_date=2025-08-01&end_date=2025-11-29&action=low_hours
+{
+    "count": 6,
+    "employees_with_low_hours": [
+        {
+            "name": "Arun Dharpalli",
+            "employee_id": "V1018968",
+            "team": "IRT",
+            "date": "2025-08-08",
+            "shift": "WFO-S",
+            "net_office_time": "00:14:00",
+            "status": "❌"
+        },
+        {
+            "name": "Arun Dharpalli",
+            "employee_id": "V1018968",
+            "team": "IRT",
+            "date": "2025-08-12",
+            "shift": "WFO-S",
+            "net_office_time": "07:59:00",
+            "status": "❌"
+        },
+        {
+            "name": "Arun Dharpalli",
+            "employee_id": "V1018968",
+            "team": "IRT",
+            "date": "2025-08-19",
+            "shift": "WFO-S",
+            "net_office_time": "00:00:00",
+            "status": "❌"
+        },
+        {
+            "name": "Arun Dharpalli",
+            "employee_id": "V1018968",
+            "team": "IRT",
+            "date": "2025-08-20",
+            "shift": "WFO-S",
+            "net_office_time": "00:00:00",
+            "status": "❌"
+        },
+        {
+            "name": "Arun Dharpalli",
+            "employee_id": "V1018968",
+            "team": "IRT",
+            "date": "2025-08-21",
+            "shift": "WFO-S",
+            "net_office_time": "00:52:00",
+            "status": "❌"
+        },
+        {
+            "name": "Arun Dharpalli",
+            "employee_id": "V1018968",
+            "team": "IRT",
+            "date": "2025-11-07",
+            "shift": "WFO-S",
+            "net_office_time": "07:59:00",
+            "status": "❌"
+        }
+    ]
+}
+
+also give user option to select dates which are available dont allow them to select other dates in start date and end date form input
+
+and in status if it comes false from backend display a cross in frontend dont display true or false  only display check and cross
+
+
 import React, { useState, useMemo, useEffect } from 'react';
 import './BillingAnalysis.css';
 
