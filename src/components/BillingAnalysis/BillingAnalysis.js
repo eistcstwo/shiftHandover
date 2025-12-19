@@ -37,6 +37,17 @@ const BillingAnalysis = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
+  // Min and max dates for date inputs
+  const minDate = useMemo(() => {
+    if (validDates.length === 0) return '';
+    return validDates[0];
+  }, [validDates]);
+
+  const maxDate = useMemo(() => {
+    if (validDates.length === 0) return '';
+    return validDates[validDates.length - 1];
+  }, [validDates]);
+
   // Fetch teams when team input is focused
   const fetchTeams = async () => {
     try {
@@ -109,12 +120,31 @@ const BillingAnalysis = () => {
       
       if (data.months && Array.isArray(data.months)) {
         setAvailableMonths(data.months);
+        // Extract valid dates from months
+        extractValidDatesFromMonths(data.months);
       } else if (Array.isArray(data)) {
         setAvailableMonths(data);
+        extractValidDatesFromMonths(data);
       }
     } catch (err) {
       console.error('Error fetching months:', err);
     }
+  };
+
+  // Extract valid dates from months array
+  const extractValidDatesFromMonths = (months) => {
+    const dates = [];
+    months.forEach(monthStr => {
+      // monthStr is in format "YYYY-MM"
+      const [year, month] = monthStr.split('-');
+      const daysInMonth = new Date(year, month, 0).getDate();
+      
+      for (let day = 1; day <= daysInMonth; day++) {
+        const dateStr = `${year}-${month}-${String(day).padStart(2, '0')}`;
+        dates.push(dateStr);
+      }
+    });
+    setValidDates(dates.sort());
   };
 
   // Fetch valid dates when any field changes
@@ -158,19 +188,33 @@ const BillingAnalysis = () => {
       const data = await response.json();
       console.log('Search results:', data);
       
-      setBillingData(Array.isArray(data) ? data : []);
-      setCurrentPage(1);
+      // Handle different response structures based on action
+      let processedData = [];
       
-      // Initialize annotations state for each row
-      const initialAnnotations = {};
-      (Array.isArray(data) ? data : []).forEach(item => {
-        const rosterId = item.id || item.roster_id;
-        initialAnnotations[rosterId] = {
-          comment: item.comment || '',
-          status: 'True'
-        };
-      });
-      setAnnotations(initialAnnotations);
+      if (action === 'count' && Array.isArray(data)) {
+        // Count action returns array with counts object
+        processedData = data;
+      } else if (action === 'low_hours' && data.employees_with_low_hours) {
+        // Low hours action returns object with employees_with_low_hours array
+        processedData = data.employees_with_low_hours;
+      } else if (Array.isArray(data)) {
+        // Default roster data
+        processedData = data;
+        
+        // Initialize annotations state for roster data
+        const initialAnnotations = {};
+        data.forEach(item => {
+          const rosterId = item.id || item.roster_id;
+          initialAnnotations[rosterId] = {
+            comment: item.comment || '',
+            status: 'True'
+          };
+        });
+        setAnnotations(initialAnnotations);
+      }
+      
+      setBillingData(processedData);
+      setCurrentPage(1);
     } catch (err) {
       setError(err.message);
       setBillingData([]);
@@ -236,6 +280,19 @@ const BillingAnalysis = () => {
     }));
   };
 
+  // Handle month button click - FIXED
+  const handleMonthClick = (monthStr) => {
+    // monthStr is in format "YYYY-MM"
+    const [year, month] = monthStr.split('-');
+    const daysInMonth = new Date(year, month, 0).getDate();
+    
+    const startOfMonth = `${year}-${month}-01`;
+    const endOfMonth = `${year}-${month}-${String(daysInMonth).padStart(2, '0')}`;
+    
+    setStartDate(startOfMonth);
+    setEndDate(endOfMonth);
+  };
+
   // Pagination calculations
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
@@ -243,6 +300,171 @@ const BillingAnalysis = () => {
   const totalPages = Math.ceil(billingData.length / itemsPerPage);
 
   const paginate = (pageNumber) => setCurrentPage(pageNumber);
+
+  // Render table based on action type
+  const renderTable = () => {
+    if (action === 'count') {
+      return (
+        <div className="results-table">
+          <table>
+            <thead>
+              <tr>
+                <th>Employee</th>
+                <th>Employee ID</th>
+                <th>Period Start</th>
+                <th>Period End</th>
+                <th>Total WFO</th>
+                <th>Total WFH</th>
+                <th>Total WO</th>
+                <th>Total PL</th>
+                <th>Total Working Days</th>
+                <th>Total Leaves</th>
+              </tr>
+            </thead>
+            <tbody>
+              {currentItems.map((item, idx) => {
+                const counts = item.counts || {};
+                return (
+                  <tr key={idx}>
+                    <td>{item.employee || '-'}</td>
+                    <td>{item.employee_id || '-'}</td>
+                    <td>{item.period_start || '-'}</td>
+                    <td>{item.period_end || '-'}</td>
+                    <td>{counts['Total WFO'] || 0}</td>
+                    <td>{counts['Total WFH'] || 0}</td>
+                    <td>{counts['Total WO'] || 0}</td>
+                    <td>{counts['Total PL'] || 0}</td>
+                    <td>{counts['Total working days'] || 0}</td>
+                    <td>{counts['Total Leaves'] || 0}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      );
+    } else if (action === 'low_hours') {
+      return (
+        <div className="results-table">
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Employee ID</th>
+                <th>Team</th>
+                <th>Date</th>
+                <th>Shift</th>
+                <th>Net Office Time</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {currentItems.map((item, idx) => (
+                <tr key={idx}>
+                  <td>{item.name || '-'}</td>
+                  <td>{item.employee_id || '-'}</td>
+                  <td>{item.team || '-'}</td>
+                  <td>{item.date || '-'}</td>
+                  <td>{item.shift || '-'}</td>
+                  <td>{item.net_office_time || '-'}</td>
+                  <td>
+                    {item.status === '❌' || item.status === 'False' || item.status === false ? (
+                      <span style={{ color: '#ffc4c4', fontSize: '1.2rem' }}>✗</span>
+                    ) : (
+                      item.status || '-'
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+    } else {
+      // Default roster view with annotations
+      return (
+        <div className="results-table">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Team</th>
+                <th>Date</th>
+                <th>Schedule</th>
+                <th>First In</th>
+                <th>Last Out</th>
+                <th>Net Office Time</th>
+                <th>Status</th>
+                <th>Comment</th>
+                <th>Attendance Status</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {currentItems.map((item) => {
+                const rosterId = item.id || item.roster_id;
+                const annotation = annotations[rosterId] || { comment: item.comment || '', status: 'True' };
+                const isSubmitting = submittingAnnotations[rosterId];
+                const attendance = item.attendance || {};
+
+                return (
+                  <tr key={rosterId}>
+                    <td>{rosterId}</td>
+                    <td>{item.name || item.employee_name || '-'}</td>
+                    <td>{item.team || item.teamname || '-'}</td>
+                    <td>{item.date || '-'}</td>
+                    <td>{item.schedule || '-'}</td>
+                    <td>{attendance.first_in || '-'}</td>
+                    <td>{attendance.last_out || '-'}</td>
+                    <td>{attendance.net_office_time || '-'}</td>
+                    <td>
+                      {attendance.status === 'False' || attendance.status === false ? (
+                        <span style={{ color: '#ffc4c4', fontSize: '1.2rem' }}>✗</span>
+                      ) : (
+                        attendance.status || '-'
+                      )}
+                    </td>
+                    <td>
+                      <input
+                        type="text"
+                        className="form-input"
+                        value={annotation.comment}
+                        onChange={(e) => updateAnnotationComment(rosterId, e.target.value)}
+                        placeholder="Enter comment"
+                        style={{ width: '200px' }}
+                      />
+                    </td>
+                    <td>
+                      <select
+                        className="form-select"
+                        value={annotation.status}
+                        onChange={(e) => updateAnnotationStatus(rosterId, e.target.value)}
+                        style={{ width: '120px' }}
+                      >
+                        <option value="True">✓ Present</option>
+                        <option value="False">✗ Absent</option>
+                      </select>
+                    </td>
+                    <td>
+                      <button
+                        className="search-btn"
+                        onClick={() => handleAnnotationSubmit(rosterId)}
+                        disabled={isSubmitting || !annotation.comment.trim()}
+                        style={{ padding: '6px 12px', fontSize: '0.9rem' }}
+                      >
+                        {isSubmitting ? 'Submitting...' : 'Submit'}
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      );
+    }
+  };
 
   return (
     <div className="billing-analysis">
@@ -277,7 +499,15 @@ const BillingAnalysis = () => {
               type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
+              min={minDate}
+              max={maxDate}
+              disabled={validDates.length === 0}
             />
+            {validDates.length === 0 && (
+              <small style={{ color: 'rgba(230,238,248,0.5)', fontSize: '0.8rem', marginTop: '4px' }}>
+                Enter search criteria to see available dates
+              </small>
+            )}
           </div>
 
           <div className="form-field">
@@ -286,6 +516,9 @@ const BillingAnalysis = () => {
               type="date"
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
+              min={minDate}
+              max={maxDate}
+              disabled={validDates.length === 0}
             />
           </div>
 
@@ -305,7 +538,6 @@ const BillingAnalysis = () => {
                 setShowTeamDropdown(true);
               }}
               onBlur={() => {
-                // Delay to allow click on dropdown item
                 setTimeout(() => setShowTeamDropdown(false), 200);
               }}
               placeholder="Enter or select team"
@@ -317,7 +549,7 @@ const BillingAnalysis = () => {
                     key={idx}
                     className="dropdown-item"
                     onMouseDown={(e) => {
-                      e.preventDefault(); // Prevent blur
+                      e.preventDefault();
                       setTeamname(team);
                       setShowTeamDropdown(false);
                     }}
@@ -345,7 +577,6 @@ const BillingAnalysis = () => {
                 setShowShiftDropdown(true);
               }}
               onBlur={() => {
-                // Delay to allow click on dropdown item
                 setTimeout(() => setShowShiftDropdown(false), 200);
               }}
               placeholder="Enter or select shift"
@@ -357,7 +588,7 @@ const BillingAnalysis = () => {
                     key={idx}
                     className="dropdown-item"
                     onMouseDown={(e) => {
-                      e.preventDefault(); // Prevent blur
+                      e.preventDefault();
                       setShift(shiftItem);
                       setShowShiftDropdown(false);
                     }}
@@ -396,27 +627,24 @@ const BillingAnalysis = () => {
         {/* Months selector */}
         {availableMonths.length > 0 && (
           <div className="months-selector">
-            <label>Available Months:</label>
+            <label>Available Months (click to select dates):</label>
             <div className="months-buttons">
               {availableMonths.map((month, idx) => (
                 <button
                   key={idx}
                   type="button"
                   className="month-btn"
-                  onClick={() => {
-                    // Parse month and set start/end dates
-                    const [year, monthNum] = month.split('-');
-                    const startOfMonth = `${year}-${monthNum}-01`;
-                    const endOfMonth = new Date(year, monthNum, 0).getDate();
-                    const endOfMonthStr = `${year}-${monthNum}-${String(endOfMonth).padStart(2, '0')}`;
-                    setStartDate(startOfMonth);
-                    setEndDate(endOfMonthStr);
-                  }}
+                  onClick={() => handleMonthClick(month)}
                 >
                   {month}
                 </button>
               ))}
             </div>
+            {startDate && endDate && (
+              <div className="dates-info">
+                Selected: {startDate} to {endDate}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -463,79 +691,7 @@ const BillingAnalysis = () => {
             </div>
           </div>
 
-          <div className="results-table">
-            <table>
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Name</th>
-                  <th>Team</th>
-                  <th>Date</th>
-                  <th>Schedule</th>
-                  <th>First In</th>
-                  <th>Last Out</th>
-                  <th>Net Office Time</th>
-                  <th>Status</th>
-                  <th>Comment</th>
-                  <th>Attendance Status</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {currentItems.map((item) => {
-                  const rosterId = item.id || item.roster_id;
-                  const annotation = annotations[rosterId] || { comment: item.comment || '', status: 'True' };
-                  const isSubmitting = submittingAnnotations[rosterId];
-                  const attendance = item.attendance || {};
-
-                  return (
-                    <tr key={rosterId}>
-                      <td>{rosterId}</td>
-                      <td>{item.name || item.employee_name || '-'}</td>
-                      <td>{item.team || item.teamname || '-'}</td>
-                      <td>{item.date || '-'}</td>
-                      <td>{item.schedule || '-'}</td>
-                      <td>{attendance.first_in || '-'}</td>
-                      <td>{attendance.last_out || '-'}</td>
-                      <td>{attendance.net_office_time || '-'}</td>
-                      <td>{attendance.status || '-'}</td>
-                      <td>
-                        <input
-                          type="text"
-                          className="form-input"
-                          value={annotation.comment}
-                          onChange={(e) => updateAnnotationComment(rosterId, e.target.value)}
-                          placeholder="Enter comment"
-                          style={{ width: '200px' }}
-                        />
-                      </td>
-                      <td>
-                        <select
-                          className="form-select"
-                          value={annotation.status}
-                          onChange={(e) => updateAnnotationStatus(rosterId, e.target.value)}
-                          style={{ width: '120px' }}
-                        >
-                          <option value="True">✓ Present</option>
-                          <option value="False">✗ Absent</option>
-                        </select>
-                      </td>
-                      <td>
-                        <button
-                          className="search-btn"
-                          onClick={() => handleAnnotationSubmit(rosterId)}
-                          disabled={isSubmitting || !annotation.comment.trim()}
-                          style={{ padding: '6px 12px', fontSize: '0.9rem' }}
-                        >
-                          {isSubmitting ? 'Submitting...' : 'Submit'}
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          {renderTable()}
         </div>
       )}
 
