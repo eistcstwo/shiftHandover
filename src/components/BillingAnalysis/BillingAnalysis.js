@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import './BillingAnalysis.css';
 import axios from 'axios';
@@ -6,7 +7,14 @@ import axios from 'axios';
 const API_BASE = 'https://10.191.171.12:5443/EISHOME_TEST/projectRoster/search/';
 const ANNOTATION_API = 'https://10.191.171.12:5443/EISHOME_TEST/projectRoster/update_annotation/';
 
-
+// Helper function to get authorization headers
+const getAuthHeaders = () => {
+  const sessionId = localStorage.getItem('sessionId'); // Adjust key name if different
+  return {
+    'Content-Type': 'application/json',
+    ...(sessionId && { 'Authorization': `Bearer ${sessionId}` })
+  };
+};
 
 const BillingAnalysis = () => {
   // Search / filters
@@ -41,7 +49,7 @@ const BillingAnalysis = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
- // Min and max dates for date inputs
+  // Min and max dates for date inputs
   const minDate = useMemo(() => {
     if (validDates.length === 0) return '';
     return validDates[0];
@@ -52,13 +60,12 @@ const BillingAnalysis = () => {
     return validDates[validDates.length - 1];
   }, [validDates]);
 
-
   // Fetch teams when team input is focused
   const fetchTeams = async () => {
     try {
       const response = await fetch(`${API_BASE}?action=get_teams`, {
         method: 'GET',
-        headers: { 'Content-Type': 'application/json' }
+        headers: getAuthHeaders()
       });
 
       if (!response.ok) {
@@ -83,7 +90,7 @@ const BillingAnalysis = () => {
     try {
       const response = await fetch(`${API_BASE}?action=get_shifts`, {
         method: 'GET',
-        headers: { 'Content-Type': 'application/json' }
+        headers: getAuthHeaders()
       });
 
       if (!response.ok) {
@@ -113,7 +120,7 @@ const BillingAnalysis = () => {
 
       const response = await fetch(`${API_BASE}?${params.toString()}`, {
         method: 'GET',
-        headers: { 'Content-Type': 'application/json' }
+        headers: getAuthHeaders()
       });
 
       if (!response.ok) {
@@ -132,7 +139,6 @@ const BillingAnalysis = () => {
       console.error('Error fetching months:', err);
     }
   };
-
 
   // Extract valid dates from months array
   const extractValidDatesFromMonths = (months) => {
@@ -163,7 +169,7 @@ const BillingAnalysis = () => {
     }
   }, [q, id, teamname, shift]);
 
-   // Handle search
+  // Handle search
   const handleSearch = async (e) => {
     if (e) e.preventDefault();
     setIsLoading(true);
@@ -181,7 +187,7 @@ const BillingAnalysis = () => {
 
       const response = await fetch(`${API_BASE}?${params.toString()}`, {
         method: 'GET',
-        headers: { 'Content-Type': 'application/json' }
+        headers: getAuthHeaders()
       });
 
       if (!response.ok) {
@@ -239,7 +245,7 @@ const BillingAnalysis = () => {
     try {
       const response = await fetch(ANNOTATION_API, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           roster_id: rosterId,
           comment: annotation.comment,
@@ -283,95 +289,80 @@ const BillingAnalysis = () => {
     }));
   };
 
-
   const handleMonthClick = (monthStr) => {
-  if (typeof monthStr !== 'string') {
-    console.error('Invalid monthStr type. Expected string. Received:', monthStr);
-    return;
-  }
+    if (typeof monthStr !== 'string') {
+      console.error('Invalid monthStr type. Expected string. Received:', monthStr);
+      return;
+    }
 
-  let year, month1; // month1 = 1..12
+    let year, month1; // month1 = 1..12
 
-  // Case A: "YYYY-MM"
-  const yymm = monthStr.match(/^(\d{4})-(\d{1,2})$/);
-  if (yymm) {
-    year = Number(yymm[1]);
-    month1 = Number(yymm[2]);
-  } else {
-    // Case B: "Month+YYYY-zeroBasedMonth" e.g., "November+2025-10"
-    // Normalize and parse
-    const normalized = monthStr.trim();
+    // Case A: "YYYY-MM"
+    const yymm = monthStr.match(/^(\d{4})-(\d{1,2})$/);
+    if (yymm) {
+      year = Number(yymm[1]);
+      month1 = Number(yymm[2]);
+    } else {
+      // Case B: "Month+YYYY-zeroBasedMonth" e.g., "November+2025-10"
+      // Normalize and parse
+      const normalized = monthStr.trim();
 
-    // Split "Month+YYYY-zeroBased"
-    const parts = normalized.split('+');
-    if (parts.length === 2) {
-      const [monthNamePart, rest] = parts;
-      const restParts = rest.split('-'); // ["2025","10"]
-      if (restParts.length >= 1) {
-        const yearStr = restParts[0];
-        const zeroBasedStr = restParts[1];
+      // Split "Month+YYYY-zeroBased"
+      const parts = normalized.split('+');
+      if (parts.length === 2) {
+        const [monthNamePart, rest] = parts;
+        const restParts = rest.split('-'); // ["2025","10"]
+        if (restParts.length >= 1) {
+          const yearStr = restParts[0];
+          const zeroBasedStr = restParts[1];
 
-        year = Number(yearStr);
+          year = Number(yearStr);
 
-        // Map month name to number
-        const MONTH_NAMES = [
-          'January','February','March','April','May','June',
-          'July','August','September','October','November','December'
-        ];
-        const nameLower = monthNamePart.toLowerCase();
-        const index = MONTH_NAMES.findIndex(
-          m => m.toLowerCase() === nameLower || m.slice(0,3).toLowerCase() === nameLower
-        );
+          // Map month name to number
+          const MONTH_NAMES = [
+            'January','February','March','April','May','June',
+            'July','August','September','October','November','December'
+          ];
+          const nameLower = monthNamePart.toLowerCase();
+          const index = MONTH_NAMES.findIndex(
+            m => m.toLowerCase() === nameLower || m.slice(0,3).toLowerCase() === nameLower
+          );
 
-        if (index !== -1) {
-
-                const month0FromName = index; // 0..11
-          // If zeroBased part is present, prefer it if valid; else fall back to name
-          if (typeof zeroBasedStr !== 'undefined' && zeroBasedStr !== '') {
-            const month0 = Number(zeroBasedStr);
-            if (Number.isInteger(month0) && month0 >= 0 && month0 <= 11) {
-              month1 = month0 + 1;
+          if (index !== -1) {
+            const month0FromName = index; // 0..11
+            // If zeroBased part is present, prefer it if valid; else fall back to name
+            if (typeof zeroBasedStr !== 'undefined' && zeroBasedStr !== '') {
+              const month0 = Number(zeroBasedStr);
+              if (Number.isInteger(month0) && month0 >= 0 && month0 <= 11) {
+                month1 = month0 + 1;
+              } else {
+                month1 = month0FromName + 1;
+              }
             } else {
               month1 = month0FromName + 1;
             }
-          } else {
-            month1 = month0FromName + 1;
           }
         }
       }
     }
-  }
 
-  // Validate parsed values
-  if (!Number.isInteger(year) || !Number.isInteger(month1) || month1 < 1 || month1 > 12) {
-    console.error('Invalid monthStr format or values. Expected "YYYY-MM" or "Month+YYYY-zeroBasedMonth". Received:', monthStr);
-    return;
-  }
+    // Validate parsed values
+    if (!Number.isInteger(year) || !Number.isInteger(month1) || month1 < 1 || month1 > 12) {
+      console.error('Invalid monthStr format or values. Expected "YYYY-MM" or "Month+YYYY-zeroBasedMonth". Received:', monthStr);
+      return;
+    }
 
-  // Days in month: pass next month (1..12) with day 0 → last day of target month
-  const daysInMonth = new Date(year, month1, 0).getDate();
+    // Days in month: pass next month (1..12) with day 0 → last day of target month
+    const daysInMonth = new Date(year, month1, 0).getDate();
 
-  // Build YYYY-MM-DD strings
-  const mm = String(month1).padStart(2, '0');
-  const startOfMonth = `${year}-${mm}-01`;
-  const endOfMonth = `${year}-${mm}-${String(daysInMonth).padStart(2, '0')}`;
-
-  setStartDate(startOfMonth);
-  setEndDate(endOfMonth);
-};
-
-/*   // Handle month button click - FIXED
-  const handleMonthClick = (monthStr) => {
-    // monthStr is in format "YYYY-MM"
-    const [year, month] = monthStr.split('-');
-    const daysInMonth = new Date(year, month, 0).getDate();
-
-    const startOfMonth = `${year}-${month}-01`;
-    const endOfMonth = `${year}-${month}-${String(daysInMonth).padStart(2, '0')}`;
+    // Build YYYY-MM-DD strings
+    const mm = String(month1).padStart(2, '0');
+    const startOfMonth = `${year}-${mm}-01`;
+    const endOfMonth = `${year}-${mm}-${String(daysInMonth).padStart(2, '0')}`;
 
     setStartDate(startOfMonth);
     setEndDate(endOfMonth);
-  };*/
+  };
 
   // Pagination calculations
   const indexOfLastItem = currentPage * itemsPerPage;
@@ -380,7 +371,6 @@ const BillingAnalysis = () => {
   const totalPages = Math.ceil(billingData.length / itemsPerPage);
 
   const paginate = (pageNumber) => setCurrentPage(pageNumber);
-
 
   // Render table based on action type
   const renderTable = () => {
@@ -448,7 +438,7 @@ const BillingAnalysis = () => {
                   <td>{item.date || '-'}</td>
                   <td>{item.shift || '-'}</td>
                   <td>{item.net_office_time || '-'}</td>
-                   <td>
+                  <td>
                     {item.status === '❌' || item.status === 'False' || item.status === false ? (
                       <span style={{ color: '#ffc4c4', fontSize: '1.2rem' }}>❌</span>
                     ) : (
@@ -506,7 +496,7 @@ const BillingAnalysis = () => {
                         attendance.status || '-'
                       )}
                     </td>
-                        <td>
+                    <td>
                       <input
                         type="text"
                         className="form-input"
@@ -523,8 +513,8 @@ const BillingAnalysis = () => {
                         onChange={(e) => updateAnnotationStatus(rosterId, e.target.value)}
                         style={{ width: '120px' }}
                       >
-                        <option value="True">✅  Present</option>
-                        <option value="False">}}❌ Absent</option>
+                        <option value="True">✅ Present</option>
+                        <option value="False">❌ Absent</option>
                       </select>
                     </td>
                     <td>
@@ -574,7 +564,7 @@ const BillingAnalysis = () => {
             />
           </div>
 
-           <div className="form-field">
+          <div className="form-field">
             <label>Start Date</label>
             <input
               type="date"
