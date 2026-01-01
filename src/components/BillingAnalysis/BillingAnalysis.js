@@ -288,7 +288,8 @@ const BillingAnalysis = () => {
       [rosterId]: { ...prev[rosterId], status }
     }));
   };
-const handleMonthClick = (monthStr) => {
+
+  const handleMonthClick = (monthStr) => {
   if (typeof monthStr !== 'string') {
     console.error('Invalid monthStr type. Expected string. Received:', monthStr);
     return;
@@ -339,7 +340,29 @@ const handleMonthClick = (monthStr) => {
       }
     }
   }
-  // Case C: Just month name like "November" - use current year
+  // Case C: "Month YYYY" like "November 2025"
+  else if (monthStr.includes(' ')) {
+    const parts = monthStr.trim().split(' ');
+    if (parts.length === 2) {
+      const monthNamePart = parts[0];
+      const yearPart = parts[1];
+      
+      const MONTH_NAMES = [
+        'January','February','March','April','May','June',
+        'July','August','September','October','November','December'
+      ];
+      const nameLower = monthNamePart.toLowerCase();
+      const index = MONTH_NAMES.findIndex(
+        m => m.toLowerCase() === nameLower || m.slice(0,3).toLowerCase() === nameLower
+      );
+      
+      if (index !== -1) {
+        month1 = index + 1;
+        year = Number(yearPart);
+      }
+    }
+  }
+  // Case D: Just month name like "November" - use current year
   else {
     const MONTH_NAMES = [
       'January','February','March','April','May','June',
@@ -352,13 +375,13 @@ const handleMonthClick = (monthStr) => {
     
     if (index !== -1) {
       month1 = index + 1;
-      year = new Date().getFullYear(); // Use current year
+      year = new Date().getFullYear();
     }
   }
 
   // Validate parsed values
   if (!Number.isInteger(year) || !Number.isInteger(month1) || month1 < 1 || month1 > 12) {
-    console.error('Invalid monthStr format or values. Expected "YYYY-MM", "Month+YYYY-zeroBasedMonth", or month name. Received:', monthStr);
+    console.error('Invalid monthStr format or values. Expected "YYYY-MM", "Month+YYYY-zeroBasedMonth", "Month YYYY", or month name. Received:', monthStr);
     return;
   }
 
