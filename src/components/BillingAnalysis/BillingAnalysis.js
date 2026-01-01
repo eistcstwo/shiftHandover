@@ -288,81 +288,92 @@ const BillingAnalysis = () => {
       [rosterId]: { ...prev[rosterId], status }
     }));
   };
+const handleMonthClick = (monthStr) => {
+  if (typeof monthStr !== 'string') {
+    console.error('Invalid monthStr type. Expected string. Received:', monthStr);
+    return;
+  }
 
-  const handleMonthClick = (monthStr) => {
-    if (typeof monthStr !== 'string') {
-      console.error('Invalid monthStr type. Expected string. Received:', monthStr);
-      return;
-    }
+  let year, month1; // month1 = 1..12
 
-    let year, month1; // month1 = 1..12
+  // Case A: "YYYY-MM"
+  const yymm = monthStr.match(/^(\d{4})-(\d{1,2})$/);
+  if (yymm) {
+    year = Number(yymm[1]);
+    month1 = Number(yymm[2]);
+  } 
+  // Case B: "Month+YYYY-zeroBasedMonth" e.g., "November+2025-10"
+  else if (monthStr.includes('+')) {
+    const parts = monthStr.split('+');
+    if (parts.length === 2) {
+      const [monthNamePart, rest] = parts;
+      const restParts = rest.split('-');
+      if (restParts.length >= 1) {
+        const yearStr = restParts[0];
+        const zeroBasedStr = restParts[1];
 
-    // Case A: "YYYY-MM"
-    const yymm = monthStr.match(/^(\d{4})-(\d{1,2})$/);
-    if (yymm) {
-      year = Number(yymm[1]);
-      month1 = Number(yymm[2]);
-    } else {
-      // Case B: "Month+YYYY-zeroBasedMonth" e.g., "November+2025-10"
-      // Normalize and parse
-      const normalized = monthStr.trim();
+        year = Number(yearStr);
 
-      // Split "Month+YYYY-zeroBased"
-      const parts = normalized.split('+');
-      if (parts.length === 2) {
-        const [monthNamePart, rest] = parts;
-        const restParts = rest.split('-'); // ["2025","10"]
-        if (restParts.length >= 1) {
-          const yearStr = restParts[0];
-          const zeroBasedStr = restParts[1];
+        const MONTH_NAMES = [
+          'January','February','March','April','May','June',
+          'July','August','September','October','November','December'
+        ];
+        const nameLower = monthNamePart.toLowerCase();
+        const index = MONTH_NAMES.findIndex(
+          m => m.toLowerCase() === nameLower || m.slice(0,3).toLowerCase() === nameLower
+        );
 
-          year = Number(yearStr);
-
-          // Map month name to number
-          const MONTH_NAMES = [
-            'January','February','March','April','May','June',
-            'July','August','September','October','November','December'
-          ];
-          const nameLower = monthNamePart.toLowerCase();
-          const index = MONTH_NAMES.findIndex(
-            m => m.toLowerCase() === nameLower || m.slice(0,3).toLowerCase() === nameLower
-          );
-
-          if (index !== -1) {
-            const month0FromName = index; // 0..11
-            // If zeroBased part is present, prefer it if valid; else fall back to name
-            if (typeof zeroBasedStr !== 'undefined' && zeroBasedStr !== '') {
-              const month0 = Number(zeroBasedStr);
-              if (Number.isInteger(month0) && month0 >= 0 && month0 <= 11) {
-                month1 = month0 + 1;
-              } else {
-                month1 = month0FromName + 1;
-              }
+        if (index !== -1) {
+          const month0FromName = index;
+          if (typeof zeroBasedStr !== 'undefined' && zeroBasedStr !== '') {
+            const month0 = Number(zeroBasedStr);
+            if (Number.isInteger(month0) && month0 >= 0 && month0 <= 11) {
+              month1 = month0 + 1;
             } else {
               month1 = month0FromName + 1;
             }
+          } else {
+            month1 = month0FromName + 1;
           }
         }
       }
     }
-
-    // Validate parsed values
-    if (!Number.isInteger(year) || !Number.isInteger(month1) || month1 < 1 || month1 > 12) {
-      console.error('Invalid monthStr format or values. Expected "YYYY-MM" or "Month+YYYY-zeroBasedMonth". Received:', monthStr);
-      return;
+  }
+  // Case C: Just month name like "November" - use current year
+  else {
+    const MONTH_NAMES = [
+      'January','February','March','April','May','June',
+      'July','August','September','October','November','December'
+    ];
+    const nameLower = monthStr.trim().toLowerCase();
+    const index = MONTH_NAMES.findIndex(
+      m => m.toLowerCase() === nameLower || m.slice(0,3).toLowerCase() === nameLower
+    );
+    
+    if (index !== -1) {
+      month1 = index + 1;
+      year = new Date().getFullYear(); // Use current year
     }
+  }
 
-    // Days in month: pass next month (1..12) with day 0 → last day of target month
-    const daysInMonth = new Date(year, month1, 0).getDate();
+  // Validate parsed values
+  if (!Number.isInteger(year) || !Number.isInteger(month1) || month1 < 1 || month1 > 12) {
+    console.error('Invalid monthStr format or values. Expected "YYYY-MM", "Month+YYYY-zeroBasedMonth", or month name. Received:', monthStr);
+    return;
+  }
 
-    // Build YYYY-MM-DD strings
-    const mm = String(month1).padStart(2, '0');
-    const startOfMonth = `${year}-${mm}-01`;
-    const endOfMonth = `${year}-${mm}-${String(daysInMonth).padStart(2, '0')}`;
+  // Days in month
+  const daysInMonth = new Date(year, month1, 0).getDate();
 
-    setStartDate(startOfMonth);
-    setEndDate(endOfMonth);
-  };
+  // Build YYYY-MM-DD strings
+  const mm = String(month1).padStart(2, '0');
+  const startOfMonth = `${year}-${mm}-01`;
+  const endOfMonth = `${year}-${mm}-${String(daysInMonth).padStart(2, '0')}`;
+
+  setStartDate(startOfMonth);
+  setEndDate(endOfMonth);
+};
+  
 
   // Pagination calculations
   const indexOfLastItem = currentPage * itemsPerPage;
