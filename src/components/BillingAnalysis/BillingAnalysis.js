@@ -9,7 +9,7 @@ const ANNOTATION_API = 'https://10.191.171.12:5443/EISHOME_TEST/projectRoster/up
 
 // Helper function to get authorization headers
 const getAuthHeaders = () => {
-  const sessionId = localStorage.getItem('sessionId'); // Adjust key name if different
+  const sessionId = localStorage.getItem('sessionid'); // Adjust key name if different
   return {
     'Content-Type': 'application/json',
     ...(sessionId && { 'Authorization': `Bearer ${sessionId}` })
