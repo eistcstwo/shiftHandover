@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import './BillingAnalysis.css';
 import axios from 'axios';
@@ -302,7 +301,7 @@ const BillingAnalysis = () => {
   if (yymm) {
     year = Number(yymm[1]);
     month1 = Number(yymm[2]);
-  } 
+  }
   // Case B: "Month+YYYY-zeroBasedMonth" e.g., "November+2025-10"
   else if (monthStr.includes('+')) {
     const parts = monthStr.split('+');
@@ -346,7 +345,7 @@ const BillingAnalysis = () => {
     if (parts.length === 2) {
       const monthNamePart = parts[0];
       const yearPart = parts[1];
-      
+
       const MONTH_NAMES = [
         'January','February','March','April','May','June',
         'July','August','September','October','November','December'
@@ -355,7 +354,7 @@ const BillingAnalysis = () => {
       const index = MONTH_NAMES.findIndex(
         m => m.toLowerCase() === nameLower || m.slice(0,3).toLowerCase() === nameLower
       );
-      
+
       if (index !== -1) {
         month1 = index + 1;
         year = Number(yearPart);
@@ -372,7 +371,7 @@ const BillingAnalysis = () => {
     const index = MONTH_NAMES.findIndex(
       m => m.toLowerCase() === nameLower || m.slice(0,3).toLowerCase() === nameLower
     );
-    
+
     if (index !== -1) {
       month1 = index + 1;
       year = new Date().getFullYear();
@@ -396,7 +395,7 @@ const BillingAnalysis = () => {
   setStartDate(startOfMonth);
   setEndDate(endOfMonth);
 };
-  
+
 
   // Pagination calculations
   const indexOfLastItem = currentPage * itemsPerPage;
