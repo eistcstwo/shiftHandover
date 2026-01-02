@@ -43,6 +43,7 @@ const BillingAnalysis = () => {
   // State for annotations (comments and status)
   const [annotations, setAnnotations] = useState({});
   const [submittingAnnotations, setSubmittingAnnotations] = useState({});
+  const [editingRows, setEditingRows] = useState({});
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -255,16 +256,22 @@ const BillingAnalysis = () => {
       console.log('Annotation result:', result);
       alert('Annotation submitted successfully!');
 
-      // Clear the annotation for this row
+      // Clear the annotation for this row and exit edit mode
       setAnnotations(prev => ({
         ...prev,
         [rosterId]: { comment: '', status: true }
       }));
+      setEditingRows(prev => ({ ...prev, [rosterId]: false }));
     } catch (err) {
       alert(`Error submitting annotation: ${err.message}`);
     } finally {
       setSubmittingAnnotations(prev => ({ ...prev, [rosterId]: false }));
     }
+  };
+
+  // Toggle edit mode for a row
+  const toggleEditMode = (rosterId) => {
+    setEditingRows(prev => ({ ...prev, [rosterId]: !prev[rosterId] }));
   };
 
   // Update annotation comment
@@ -515,43 +522,64 @@ const BillingAnalysis = () => {
                       )}
                     </td>
                     <td>
-                      <div style={{ 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        gap: '8px',
-                        padding: '4px'
-                      }}>
-                        <input
-                          type="text"
-                          className="form-input"
-                          value={annotation.comment}
-                          onChange={(e) => updateAnnotationComment(rosterId, e.target.value)}
-                          placeholder="Enter comment"
-                          style={{ flex: 1, minWidth: '150px' }}
-                        />
-                        <input
-                          type="checkbox"
-                          checked={annotation.status}
-                          onChange={(e) => updateAnnotationStatus(rosterId, e.target.checked)}
-                          style={{ 
-                            width: '18px', 
-                            height: '18px',
-                            cursor: 'pointer'
+                      {editingRows[rosterId] ? (
+                        <div style={{ 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          gap: '8px',
+                          padding: '4px'
+                        }}>
+                          <input
+                            type="text"
+                            className="form-input"
+                            value={annotation.comment}
+                            onChange={(e) => updateAnnotationComment(rosterId, e.target.value)}
+                            placeholder="Enter comment"
+                            style={{ flex: 1, minWidth: '150px' }}
+                          />
+                          <input
+                            type="checkbox"
+                            checked={annotation.status}
+                            onChange={(e) => updateAnnotationStatus(rosterId, e.target.checked)}
+                            style={{ 
+                              width: '18px', 
+                              height: '18px',
+                              cursor: 'pointer'
+                            }}
+                          />
+                          <button
+                            className="search-btn"
+                            onClick={() => handleAnnotationSubmit(rosterId)}
+                            disabled={isSubmitting || !annotation.comment.trim()}
+                            style={{ 
+                              padding: '6px 12px', 
+                              fontSize: '0.9rem',
+                              whiteSpace: 'nowrap'
+                            }}
+                          >
+                            {isSubmitting ? 'Submitting...' : 'Submit'}
+                          </button>
+                        </div>
+                      ) : (
+                        <a
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            toggleEditMode(rosterId);
                           }}
-                        />
-                        <button
-                          className="search-btn"
-                          onClick={() => handleAnnotationSubmit(rosterId)}
-                          disabled={isSubmitting || !annotation.comment.trim()}
-                          style={{ 
-                            padding: '6px 12px', 
-                            fontSize: '0.9rem',
-                            whiteSpace: 'nowrap'
+                          style={{
+                            color: '#007bff',
+                            textDecoration: 'none',
+                            cursor: 'pointer',
+                            padding: '6px 12px',
+                            display: 'inline-block'
                           }}
+                          onMouseOver={(e) => e.target.style.textDecoration = 'underline'}
+                          onMouseOut={(e) => e.target.style.textDecoration = 'none'}
                         >
-                          {isSubmitting ? 'Submitting...' : 'Submit'}
-                        </button>
-                      </div>
+                          Edit
+                        </a>
+                      )}
                     </td>
                   </tr>
                 );
