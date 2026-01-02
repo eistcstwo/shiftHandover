@@ -487,7 +487,7 @@ const BillingAnalysis = () => {
                 <th>Last Out</th>
                 <th>Net Office Time</th>
                 <th>Status</th>
-                <th>Annotation</th>
+                                    <th>Change Status</th>
               </tr>
             </thead>
             <tbody>
@@ -517,10 +517,9 @@ const BillingAnalysis = () => {
                     <td>
                       <div style={{ 
                         display: 'flex', 
-                        flexDirection: 'column', 
-                        gap: '8px', 
-                        alignItems: 'flex-start',
-                        padding: '8px'
+                        alignItems: 'center', 
+                        gap: '8px',
+                        padding: '4px'
                       }}>
                         <input
                           type="text"
@@ -528,47 +527,30 @@ const BillingAnalysis = () => {
                           value={annotation.comment}
                           onChange={(e) => updateAnnotationComment(rosterId, e.target.value)}
                           placeholder="Enter comment"
-                          style={{ width: '100%', minWidth: '200px' }}
+                          style={{ flex: 1, minWidth: '150px' }}
                         />
-                        <div style={{ 
-                          display: 'flex', 
-                          alignItems: 'center', 
-                          gap: '8px',
-                          width: '100%',
-                          justifyContent: 'space-between'
-                        }}>
-                          <label style={{ 
-                            display: 'flex', 
-                            alignItems: 'center', 
-                            gap: '6px',
-                            cursor: 'pointer',
-                            fontSize: '0.9rem'
-                          }}>
-                            <input
-                              type="checkbox"
-                              checked={annotation.status}
-                              onChange={(e) => updateAnnotationStatus(rosterId, e.target.checked)}
-                              style={{ 
-                                width: '18px', 
-                                height: '18px',
-                                cursor: 'pointer'
-                              }}
-                            />
-                            <span>Present</span>
-                          </label>
-                          <button
-                            className="search-btn"
-                            onClick={() => handleAnnotationSubmit(rosterId)}
-                            disabled={isSubmitting || !annotation.comment.trim()}
-                            style={{ 
-                              padding: '6px 12px', 
-                              fontSize: '0.9rem',
-                              minWidth: '80px'
-                            }}
-                          >
-                            {isSubmitting ? 'Submitting...' : 'Submit'}
-                          </button>
-                        </div>
+                        <input
+                          type="checkbox"
+                          checked={annotation.status}
+                          onChange={(e) => updateAnnotationStatus(rosterId, e.target.checked)}
+                          style={{ 
+                            width: '18px', 
+                            height: '18px',
+                            cursor: 'pointer'
+                          }}
+                        />
+                        <button
+                          className="search-btn"
+                          onClick={() => handleAnnotationSubmit(rosterId)}
+                          disabled={isSubmitting || !annotation.comment.trim()}
+                          style={{ 
+                            padding: '6px 12px', 
+                            fontSize: '0.9rem',
+                            whiteSpace: 'nowrap'
+                          }}
+                        >
+                          {isSubmitting ? 'Submitting...' : 'Submit'}
+                        </button>
                       </div>
                     </td>
                   </tr>
