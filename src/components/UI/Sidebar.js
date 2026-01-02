@@ -21,7 +21,11 @@ const Sidebar = ({ userLevel }) => {
       
       <ul className="sidebar-nav">
         <li>
-          <NavLink to="/dashboard" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+          <NavLink 
+            to="/dashboard" 
+            className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
+            title="Dashboard"
+          >
             <FiHome className="nav-icon" />
             {isOpen && <span>Dashboard</span>}
           </NavLink>
@@ -30,7 +34,11 @@ const Sidebar = ({ userLevel }) => {
         {/* Only show Reports if user is ADMIN or L2 */}
         {canAccessRestricted && (
           <li>
-            <NavLink to="/reports" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+            <NavLink 
+              to="/reports" 
+              className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
+              title="Reports"
+            >
               <FiBarChart2 className="nav-icon" />
               {isOpen && <span>Reports</span>}
             </NavLink>
@@ -40,7 +48,11 @@ const Sidebar = ({ userLevel }) => {
         {/* Only show Billing Analysis if user is ADMIN or L2 */}
         {canAccessRestricted && (
           <li>
-            <NavLink to="/billing-analysis" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+            <NavLink 
+              to="/billing-analysis" 
+              className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
+              title="Billing Portal"
+            >
               <FiFileText className="nav-icon" />
               {isOpen && <span>Billing Portal</span>}
             </NavLink>
