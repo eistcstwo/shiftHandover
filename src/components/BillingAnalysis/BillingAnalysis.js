@@ -8,7 +8,7 @@ const ANNOTATION_API = 'https://10.191.171.12:5443/EISHOME_TEST/projectRoster/up
 
 // Helper function to get authorization headers
 const getAuthHeaders = () => {
-  const sessionId = localStorage.getItem('sessionid'); // Adjust key name if different
+  const sessionId = localStorage.getItem('sessionid');
   return {
     'Content-Type': 'application/json',
     ...(sessionId && { 'Authorization': `Bearer ${sessionId}` })
@@ -143,7 +143,6 @@ const BillingAnalysis = () => {
   const extractValidDatesFromMonths = (months) => {
     const dates = [];
     months.forEach(monthStr => {
-      // monthStr is in format "YYYY-MM"
       const [year, month] = monthStr.split('-');
       const daysInMonth = new Date(year, month, 0).getDate();
 
@@ -196,17 +195,13 @@ const BillingAnalysis = () => {
       const data = await response.json();
       console.log('Search results:', data);
 
-      // Handle different response structures based on action
       let processedData = [];
 
       if (action === 'count' && Array.isArray(data)) {
-        // Count action returns array with counts object
         processedData = data;
       } else if (action === 'low_hours' && data.employees_with_low_hours) {
-        // Low hours action returns object with employees_with_low_hours array
         processedData = data.employees_with_low_hours;
       } else if (Array.isArray(data)) {
-        // Default roster data
         processedData = data;
 
         // Initialize annotations state for roster data
@@ -215,7 +210,7 @@ const BillingAnalysis = () => {
           const rosterId = item.id || item.roster_id;
           initialAnnotations[rosterId] = {
             comment: item.comment || '',
-            status: 'True'
+            status: item.status === 'False' || item.status === false ? false : true
           };
         });
         setAnnotations(initialAnnotations);
@@ -248,7 +243,7 @@ const BillingAnalysis = () => {
         body: JSON.stringify({
           roster_id: rosterId,
           comment: annotation.comment,
-          status: annotation.status
+          status: annotation.status ? 'True' : 'False'
         })
       });
 
@@ -263,7 +258,7 @@ const BillingAnalysis = () => {
       // Clear the annotation for this row
       setAnnotations(prev => ({
         ...prev,
-        [rosterId]: { comment: '', status: 'True' }
+        [rosterId]: { comment: '', status: true }
       }));
     } catch (err) {
       alert(`Error submitting annotation: ${err.message}`);
@@ -289,30 +284,59 @@ const BillingAnalysis = () => {
   };
 
   const handleMonthClick = (monthStr) => {
-  if (typeof monthStr !== 'string') {
-    console.error('Invalid monthStr type. Expected string. Received:', monthStr);
-    return;
-  }
+    if (typeof monthStr !== 'string') {
+      console.error('Invalid monthStr type. Expected string. Received:', monthStr);
+      return;
+    }
 
-  let year, month1; // month1 = 1..12
+    let year, month1;
 
-  // Case A: "YYYY-MM"
-  const yymm = monthStr.match(/^(\d{4})-(\d{1,2})$/);
-  if (yymm) {
-    year = Number(yymm[1]);
-    month1 = Number(yymm[2]);
-  }
-  // Case B: "Month+YYYY-zeroBasedMonth" e.g., "November+2025-10"
-  else if (monthStr.includes('+')) {
-    const parts = monthStr.split('+');
-    if (parts.length === 2) {
-      const [monthNamePart, rest] = parts;
-      const restParts = rest.split('-');
-      if (restParts.length >= 1) {
-        const yearStr = restParts[0];
-        const zeroBasedStr = restParts[1];
+    const yymm = monthStr.match(/^(\d{4})-(\d{1,2})$/);
+    if (yymm) {
+      year = Number(yymm[1]);
+      month1 = Number(yymm[2]);
+    }
+    else if (monthStr.includes('+')) {
+      const parts = monthStr.split('+');
+      if (parts.length === 2) {
+        const [monthNamePart, rest] = parts;
+        const restParts = rest.split('-');
+        if (restParts.length >= 1) {
+          const yearStr = restParts[0];
+          const zeroBasedStr = restParts[1];
 
-        year = Number(yearStr);
+          year = Number(yearStr);
+
+          const MONTH_NAMES = [
+            'January','February','March','April','May','June',
+            'July','August','September','October','November','December'
+          ];
+          const nameLower = monthNamePart.toLowerCase();
+          const index = MONTH_NAMES.findIndex(
+            m => m.toLowerCase() === nameLower || m.slice(0,3).toLowerCase() === nameLower
+          );
+
+          if (index !== -1) {
+            const month0FromName = index;
+            if (typeof zeroBasedStr !== 'undefined' && zeroBasedStr !== '') {
+              const month0 = Number(zeroBasedStr);
+              if (Number.isInteger(month0) && month0 >= 0 && month0 <= 11) {
+                month1 = month0 + 1;
+              } else {
+                month1 = month0FromName + 1;
+              }
+            } else {
+              month1 = month0FromName + 1;
+            }
+          }
+        }
+      }
+    }
+    else if (monthStr.includes(' ')) {
+      const parts = monthStr.trim().split(' ');
+      if (parts.length === 2) {
+        const monthNamePart = parts[0];
+        const yearPart = parts[1];
 
         const MONTH_NAMES = [
           'January','February','March','April','May','June',
@@ -324,78 +348,41 @@ const BillingAnalysis = () => {
         );
 
         if (index !== -1) {
-          const month0FromName = index;
-          if (typeof zeroBasedStr !== 'undefined' && zeroBasedStr !== '') {
-            const month0 = Number(zeroBasedStr);
-            if (Number.isInteger(month0) && month0 >= 0 && month0 <= 11) {
-              month1 = month0 + 1;
-            } else {
-              month1 = month0FromName + 1;
-            }
-          } else {
-            month1 = month0FromName + 1;
-          }
+          month1 = index + 1;
+          year = Number(yearPart);
         }
       }
     }
-  }
-  // Case C: "Month YYYY" like "November 2025"
-  else if (monthStr.includes(' ')) {
-    const parts = monthStr.trim().split(' ');
-    if (parts.length === 2) {
-      const monthNamePart = parts[0];
-      const yearPart = parts[1];
-
+    else {
       const MONTH_NAMES = [
         'January','February','March','April','May','June',
         'July','August','September','October','November','December'
       ];
-      const nameLower = monthNamePart.toLowerCase();
+      const nameLower = monthStr.trim().toLowerCase();
       const index = MONTH_NAMES.findIndex(
         m => m.toLowerCase() === nameLower || m.slice(0,3).toLowerCase() === nameLower
       );
 
       if (index !== -1) {
         month1 = index + 1;
-        year = Number(yearPart);
+        year = new Date().getFullYear();
       }
     }
-  }
-  // Case D: Just month name like "November" - use current year
-  else {
-    const MONTH_NAMES = [
-      'January','February','March','April','May','June',
-      'July','August','September','October','November','December'
-    ];
-    const nameLower = monthStr.trim().toLowerCase();
-    const index = MONTH_NAMES.findIndex(
-      m => m.toLowerCase() === nameLower || m.slice(0,3).toLowerCase() === nameLower
-    );
 
-    if (index !== -1) {
-      month1 = index + 1;
-      year = new Date().getFullYear();
+    if (!Number.isInteger(year) || !Number.isInteger(month1) || month1 < 1 || month1 > 12) {
+      console.error('Invalid monthStr format or values. Expected "YYYY-MM", "Month+YYYY-zeroBasedMonth", "Month YYYY", or month name. Received:', monthStr);
+      return;
     }
-  }
 
-  // Validate parsed values
-  if (!Number.isInteger(year) || !Number.isInteger(month1) || month1 < 1 || month1 > 12) {
-    console.error('Invalid monthStr format or values. Expected "YYYY-MM", "Month+YYYY-zeroBasedMonth", "Month YYYY", or month name. Received:', monthStr);
-    return;
-  }
+    const daysInMonth = new Date(year, month1, 0).getDate();
 
-  // Days in month
-  const daysInMonth = new Date(year, month1, 0).getDate();
+    const mm = String(month1).padStart(2, '0');
+    const startOfMonth = `${year}-${mm}-01`;
+    const endOfMonth = `${year}-${mm}-${String(daysInMonth).padStart(2, '0')}`;
 
-  // Build YYYY-MM-DD strings
-  const mm = String(month1).padStart(2, '0');
-  const startOfMonth = `${year}-${mm}-01`;
-  const endOfMonth = `${year}-${mm}-${String(daysInMonth).padStart(2, '0')}`;
-
-  setStartDate(startOfMonth);
-  setEndDate(endOfMonth);
-};
-
+    setStartDate(startOfMonth);
+    setEndDate(endOfMonth);
+  };
 
   // Pagination calculations
   const indexOfLastItem = currentPage * itemsPerPage;
@@ -485,7 +472,7 @@ const BillingAnalysis = () => {
         </div>
       );
     } else {
-      // Default roster view with annotations
+      // Default roster view with combined annotations cell
       return (
         <div className="results-table">
           <table>
@@ -500,15 +487,13 @@ const BillingAnalysis = () => {
                 <th>Last Out</th>
                 <th>Net Office Time</th>
                 <th>Status</th>
-                <th>Comment</th>
-                <th>Attendance Status</th>
-                <th>Action</th>
+                <th>Annotation</th>
               </tr>
             </thead>
             <tbody>
               {currentItems.map((item) => {
                 const rosterId = item.id || item.roster_id;
-                const annotation = annotations[rosterId] || { comment: item.comment || '', status: 'True' };
+                const annotation = annotations[rosterId] || { comment: item.comment || '', status: true };
                 const isSubmitting = submittingAnnotations[rosterId];
                 const attendance = item.attendance || {};
 
@@ -530,35 +515,61 @@ const BillingAnalysis = () => {
                       )}
                     </td>
                     <td>
-                      <input
-                        type="text"
-                        className="form-input"
-                        value={annotation.comment}
-                        onChange={(e) => updateAnnotationComment(rosterId, e.target.value)}
-                        placeholder="Enter comment"
-                        style={{ width: '200px' }}
-                      />
-                    </td>
-                    <td>
-                      <select
-                        className="form-select"
-                        value={annotation.status}
-                        onChange={(e) => updateAnnotationStatus(rosterId, e.target.value)}
-                        style={{ width: '120px' }}
-                      >
-                        <option value="True">✅ Present</option>
-                        <option value="False">❌ Absent</option>
-                      </select>
-                    </td>
-                    <td>
-                      <button
-                        className="search-btn"
-                        onClick={() => handleAnnotationSubmit(rosterId)}
-                        disabled={isSubmitting || !annotation.comment.trim()}
-                        style={{ padding: '6px 12px', fontSize: '0.9rem' }}
-                      >
-                        {isSubmitting ? 'Submitting...' : 'Submit'}
-                      </button>
+                      <div style={{ 
+                        display: 'flex', 
+                        flexDirection: 'column', 
+                        gap: '8px', 
+                        alignItems: 'flex-start',
+                        padding: '8px'
+                      }}>
+                        <input
+                          type="text"
+                          className="form-input"
+                          value={annotation.comment}
+                          onChange={(e) => updateAnnotationComment(rosterId, e.target.value)}
+                          placeholder="Enter comment"
+                          style={{ width: '100%', minWidth: '200px' }}
+                        />
+                        <div style={{ 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          gap: '8px',
+                          width: '100%',
+                          justifyContent: 'space-between'
+                        }}>
+                          <label style={{ 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            gap: '6px',
+                            cursor: 'pointer',
+                            fontSize: '0.9rem'
+                          }}>
+                            <input
+                              type="checkbox"
+                              checked={annotation.status}
+                              onChange={(e) => updateAnnotationStatus(rosterId, e.target.checked)}
+                              style={{ 
+                                width: '18px', 
+                                height: '18px',
+                                cursor: 'pointer'
+                              }}
+                            />
+                            <span>Present</span>
+                          </label>
+                          <button
+                            className="search-btn"
+                            onClick={() => handleAnnotationSubmit(rosterId)}
+                            disabled={isSubmitting || !annotation.comment.trim()}
+                            style={{ 
+                              padding: '6px 12px', 
+                              fontSize: '0.9rem',
+                              minWidth: '80px'
+                            }}
+                          >
+                            {isSubmitting ? 'Submitting...' : 'Submit'}
+                          </button>
+                        </div>
+                      </div>
                     </td>
                   </tr>
                 );
