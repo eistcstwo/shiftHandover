@@ -545,11 +545,13 @@ const BillingAnalysis = () => {
                               padding: '6px 10px',
                               fontSize: '0.9rem',
                               cursor: 'pointer',
-                              minWidth: '100px'
+                              minWidth: '100px',
+                              color: annotation.status ? '#28a745' : '#dc3545',
+                              fontWeight: 'bold'
                             }}
                           >
-                            <option value="true">Present</option>
-                            <option value="false">Absent</option>
+                            <option value="true" style={{ color: '#28a745' }}>Present</option>
+                            <option value="false" style={{ color: '#dc3545' }}>Absent</option>
                           </select>
                           <button
                             className="search-btn"
