@@ -537,38 +537,20 @@ const BillingAnalysis = () => {
                             placeholder="Enter comment"
                             style={{ flex: 1, minWidth: '120px', maxWidth: '180px' }}
                           />
-                          <div style={{ display: 'flex', gap: '4px' }}>
-                            <button
-                              onClick={() => updateAnnotationStatus(rosterId, true)}
-                              style={{
-                                padding: '6px 12px',
-                                fontSize: '0.85rem',
-                                cursor: 'pointer',
-                                border: annotation.status ? '2px solid #28a745' : '1px solid #ccc',
-                                backgroundColor: annotation.status ? '#d4edda' : '#fff',
-                                color: annotation.status ? '#155724' : '#666',
-                                borderRadius: '4px',
-                                fontWeight: annotation.status ? 'bold' : 'normal'
-                              }}
-                            >
-                              Present
-                            </button>
-                            <button
-                              onClick={() => updateAnnotationStatus(rosterId, false)}
-                              style={{
-                                padding: '6px 12px',
-                                fontSize: '0.85rem',
-                                cursor: 'pointer',
-                                border: !annotation.status ? '2px solid #dc3545' : '1px solid #ccc',
-                                backgroundColor: !annotation.status ? '#f8d7da' : '#fff',
-                                color: !annotation.status ? '#721c24' : '#666',
-                                borderRadius: '4px',
-                                fontWeight: !annotation.status ? 'bold' : 'normal'
-                              }}
-                            >
-                              Absent
-                            </button>
-                          </div>
+                          <select
+                            className="form-select"
+                            value={annotation.status ? 'true' : 'false'}
+                            onChange={(e) => updateAnnotationStatus(rosterId, e.target.value === 'true')}
+                            style={{ 
+                              padding: '6px 10px',
+                              fontSize: '0.9rem',
+                              cursor: 'pointer',
+                              minWidth: '100px'
+                            }}
+                          >
+                            <option value="true">Present</option>
+                            <option value="false">Absent</option>
+                          </select>
                           <button
                             className="search-btn"
                             onClick={() => handleAnnotationSubmit(rosterId)}
