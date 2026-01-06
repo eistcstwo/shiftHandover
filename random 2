@@ -1,1 +1,135 @@
-BillingAnalysis.js:361 Invalid monthStr format or values. Expected "YYYY-MM", "Month+YYYY-zeroBasedMonth", or month name. Received: November 2025
+ {
+            "sender": "Bot",
+            "message": "",
+            "options": [
+                "1.Team Info",
+                "2. Transaction Info",
+                "3. Cache Info",
+                "4. FAR Information",
+                "5.Server Configuration",
+                "6.Swagger/WorkLoad",
+                "z. Other"
+            ]
+        },
+        {
+            "sender": "You",
+            "message": "swagger/workload"
+        },
+        {
+            "sender": "Bot",
+            "message": {
+                "service": "",
+                "layer": [],
+                "server": [],
+                "eg": []
+            },
+            "options": [
+                "1.main menu"
+            ]
+        },
+        {
+            "sender": "You",
+            "message": "swagger/workload"
+        },
+        {
+            "sender": "Bot",
+            "message": "",
+            "options": [
+                "y.Back",
+                "z.Main Menu"
+            ]
+        },
+        {
+            "sender": "You",
+            "message": "main menu"
+        },
+        {
+            "sender": "Bot",
+            "message": "",
+            "options": [
+                "1.Team Info",
+                "2. Transaction Info",
+                "3. Cache Info",
+                "4. FAR Information",
+                "5.Server Configuration",
+                "6.Swagger/WorkLoad",
+                "z. Other"
+            ]
+        },
+        {
+            "sender": "You",
+            "message": "swagger/workload"
+        },
+        {
+            "sender": "Bot",
+            "message": {
+                "service": "",
+                "layer": [],
+                "server": [],
+                "eg": []
+            },
+            "options": [
+                "1.main menu"
+            ]
+        },
+        {
+            "sender": "You",
+            "message": "main menu"
+        },
+        {
+            "sender": "Bot",
+            "message": "",
+            "options": [
+                "1.Team Info",
+                "2. Transaction Info",
+                "3. Cache Info",
+                "4. FAR Information",
+                "5.Server Configuration",
+                "6.WorkLoad",
+                "z. Other"
+            ]
+        },
+        {
+            "sender": "You",
+            "message": "workload"
+        },
+        {
+            "sender": "Bot",
+            "message": "I don't understand the question.",
+            "options": [
+                "1.main menu"
+            ]
+        },
+        {
+            "sender": "You",
+            "message": "main menu"
+        },
+        {
+            "sender": "Bot",
+            "message": "I don't understand the question.",
+            "options": [
+                "1.Team Info",
+                "2. Transaction Info",
+                "3. Cache Info",
+                "4. FAR Information",
+                "5.Server Configuration",
+                "6.Swagger/WorkLoad",
+                "z. Other"
+            ]
+        },
+        {
+            "sender": "You",
+            "message": "swagger/workload"
+        },
+        {
+            "sender": "Bot",
+            "message": {
+                "service": "",
+                "layer": [],
+                "server": [],
+                "eg": []
+            },
+            "options": [
+                "1.main menu"
+            ]
+        }
