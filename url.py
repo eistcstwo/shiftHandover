@@ -1,11 +1,9 @@
 
 from django.urls import path
-from . import views
-urlpatterns = [
-path('saveNew_task/',views.saveTask,name='saveNewTask'),
-path('get_Handover/',views.getHandover,name='getHandover'),
-path('get_Handover_All/',views.getHandoverAll,name='getHandoverAll'),
-path('get_historyHandover/',views.getHistoryHandover,name="getHistoryHandover"),
-path('startBrokerRestartTask/',views.startBrokerRestart,name="startBrokerRestart")
+from projectRoster.views import FileUploadView, SearchView, UpdateAnnotationView
 
+urlpatterns = [
+    path('upload/', FileUploadView.as_view(), name='file-upload'),
+    path('search/', SearchView.as_view(), name='data-search'),
+    path('update_annotation/', UpdateAnnotationView.as_view(), name='update_annotation'),
 ]
