@@ -1,840 +1,283 @@
-import { useState, useEffect, useRef } from "react";
-import ProfileIcon from "./ProfileIcon";
-import TypingIndicator from "./TypingIndicator";
-import "../styles/Chatbot.css";
-import send from "../assets/Send.png";
-import logo from "../assets/logobot.jpg";
-import { getPost, postMessage } from "../api/PostApi";
-import { downloadSwagger } from "../api/PostApi";
+{/* Upload modal */}
+      {showUploadModal && (
+        <div className="upload-modal" style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <div style={{ background: '#fff', padding: 20, borderRadius: 6, width: 600, maxWidth: '95%' }}>
+            <h3>Upload Roster & Attendance Sheets</h3>
+            <form onSubmit={handleUploadSubmit}>
+              <div style={{ display: 'grid', gap: 8 }}>
+                <label>
+                  Roster file (required for roster uploads):
+                  <input
+                    type="file"
+                    accept=".csv,.xlsx,.xls"
+                    onChange={(e) => setRosterFile(e.target.files && e.target.files[0])}
+                  />
+                  {rosterFile && <div style={{ fontSize: 12 }}>{rosterFile.name}</div>}
+                </label>
 
-// Utility: Format dynamic bot message (safe HTML for <b> etc.)
-const formatDynamicMessage = (text) => {
-  if (!text || typeof text !== "string") return text;
-  if (text.includes("<b>")) {
-    const hasHeaderAndFields = text.includes("Here is the information for") &&
-      text.includes("<b>Name</b>:") &&
-      text.includes("<b>Email</b>:");
-    if (hasHeaderAndFields) {
-      const lines = text.split('\n').filter(line => line.trim());
-      const formattedLines = [];
-      lines.forEach(line => {
-        const trimmedLine = line.trim();
-        if (trimmedLine.includes("Here is the information for")) {
-          formattedLines.push(`<div class="info-header">${trimmedLine}</div>`);
-        }
-        else if (trimmedLine.includes("<b>") && trimmedLine.includes("</b>:")) {
-          const fieldMatch = trimmedLine.match(/<b>(.*?)<\/b>:\s*(.*)/);
-          if (fieldMatch) {
-            const fieldName = fieldMatch[1].trim();
-            const fieldValue = fieldMatch[2].trim() || "Not provided";
-            formattedLines.push(`<div class="info-field"><strong>${fieldName}:</strong> ${fieldValue}</div>`);
-          }
-        }
-        else if (trimmedLine && !trimmedLine.match(/^\s*$/)) {
-          formattedLines.push(`<div>${trimmedLine}</div>`);
-        }
-      });
-      return `<div class="formatted-card employee-info">${formattedLines.join('')}</div>`;
-    }
-    const pattern = /(?:<b>(.*?)<\/b>:\s*(.*?))/gs;
-    const lines = [];
-    let match;
-    while ((match = pattern.exec(text)) !== null) {
-      const key = (match[1] || match[3] || "").trim();
-      const value = (match[2] || match[4] || "").trim().replace(/\n/g, "<br/>");
-      lines.push(`<div><strong>${key}:</strong> ${value}</div>`);
-    }
-    if (lines.length === 0) {
-      return `<div class="formatted-card">${text.replace(/\n/g, "<br/>")}</div>`;
-    }
-    return `<div class="formatted-card">${lines.join("")}</div>`;
-  }
-  const isServerConfig = (text.match(/:/g) || []).length > 2;
-  if (isServerConfig) {
-    const lines = text.split('\n').map(line => `<div>${line.trim()}</div>`);
-    return `<div class="formatted-card">${lines.join('')}</div>`;
-  }
-  return text.replace(/\n/g, "<br/>");
-};
+                <label>
+                  Attendance sheet 1:
+                  <input
+                    type="file"
+                    accept=".csv,.xlsx,.xls"
+                    onChange={(e) => setAttendance1File(e.target.files && e.target.files[0])}
+                  />
+                  {attendance1File && <div style={{ fontSize: 12 }}>{attendance1File.name}</div>}
+                </label>
 
-const formatFormDataToSentence = (formData, originalFields, formType = null) => {
-  if (!formData || Object.keys(formData).length === 0) {
-    return "No form data provided";
-  }
-  const sentences = [];
-  const fieldLabelsMap = {};
-  if (originalFields) {
-    originalFields.forEach(field => {
-      fieldLabelsMap[field.name] = field.label || field.name;
-    });
-  }
-  if (formType === 'workload') {
-    Object.entries(formData).forEach(([key, value]) => {
-      if (value !== null && value !== undefined && value !== '') {
-        const fieldLabel = fieldLabelsMap[key] || key;
-        const formattedLabel = fieldLabel.replace('* ', '').charAt(0).toUpperCase() + 
-                              fieldLabel.replace('* ', '').slice(1);
-        sentences.push(`${formattedLabel}: "${value}"`);
-      }
-    });
-  } else {
-    Object.entries(formData).forEach(([key, value]) => {
-      const fieldLabel = fieldLabelsMap[key] || key;
-      const formattedLabel = fieldLabel.charAt(0).toUpperCase() + fieldLabel.slice(1);
-      if (value === null || value === undefined || value === '') {
-        sentences.push(``);
-      } else {
-        sentences.push(`${formattedLabel}: "${value}"`);
-      }
-    });
-  }
-  return sentences.length > 0 ? sentences.join(', ') : "No values provided";
-};
+                <label>
+                  Attendance sheet 2:
+                  <input
+                    type="file"
+                    accept=".csv,.xlsx,.xls"
+                    onChange={(e) => setAttendance2File(e.target.files && e.target.files[0])}
+                  />
+                  {attendance2File && <div style={{ fontSize: 12 }}>{attendance2File.name}</div>}
+                </label>
+              </div>
 
-const hasFormFields = (response) => {
-  if (!response || !response.message) return false;
-  return typeof response.message === 'object' &&
-    !Array.isArray(response.message) &&
-    Object.keys(response.message).length > 0;
-};
-
-const determineFieldType = (fieldName, fieldValue) => {
-  const lowerName = fieldName.toLowerCase();
-  if (
-    lowerName.includes('date') ||
-    lowerName.includes('expiry') ||
-    lowerName.includes('created') ||
-    lowerName.includes('expire') ||
-    lowerName.includes('start') ||
-    lowerName.includes('end') ||
-    fieldValue === 'date'
-  ) {
-    return 'date';
-  }
-  if (Array.isArray(fieldValue) && fieldValue.length > 0) {
-    return 'select';
-  }
-  if (typeof fieldValue === 'string' && fieldValue.trim() !== '' && fieldValue !== 'date') {
-    return 'text';
-  }
-  return 'text';
-};
-
-const determineFormType = (fields) => {
-  const fieldNames = fields.map(f => f.name.toLowerCase());
-  
-  // Check for swagger/workload form structure
-  const hasServiceField = fieldNames.includes('service');
-  const hasLayerField = fieldNames.includes('layer');
-  const hasServerField = fieldNames.includes('server');
-  const hasEgField = fieldNames.includes('eg');
-  
-  // If it has all workload fields, it's a workload form
-  if (hasServiceField && hasLayerField && hasServerField && hasEgField) {
-    return 'workload';
-  }
-
-  // Check if this is a filter form
-  const isFilterForm = fields.some(field =>
-    field.name.toLowerCase().includes('filter') &&
-    Array.isArray(field.options)
-  );
-
-  if (isFilterForm) return 'filter';
-  
-  const hasExpiryOrCreatedField = fields.some(field =>
-    field.name.toLowerCase().includes('expiry') ||
-    field.name.toLowerCase().includes('created')
-  );
-  
-  if (hasExpiryOrCreatedField) return 'multiple';
-  return 'default';
-};
-
-const filterNonEmptyFields = (obj) =>
-  Object.fromEntries(
-    Object.entries(obj).filter(
-      ([, value]) =>
-        value !== null &&
-        value !== undefined &&
-        value !== "date" &&
-        !(typeof value === "string" && value.trim() === "") &&
-        !(Array.isArray(value) && value.length === 0)
-    )
-  );
-
-const parseServiceOption = (serviceValue) => {
-  if (typeof serviceValue !== 'string') return { name: serviceValue, type: 'UNKNOWN' };
-
-  if (serviceValue.includes('-')) {
-    const lastHyphenIndex = serviceValue.lastIndexOf('-');
-    const name = serviceValue.substring(0, lastHyphenIndex);
-    const type = serviceValue.substring(lastHyphenIndex + 1);
-    return { name, type };
-  }
-  return { name: serviceValue, type: 'UNKNOWN' };
-};
-
-const cleanSwaggerJson = (swaggerResponse) => {
-  try {
-    let swaggerJson;
-
-    if (swaggerResponse && swaggerResponse.swaggerJson) {
-      if (typeof swaggerResponse.swaggerJson === 'string') {
-        const cleanedString = swaggerResponse.swaggerJson.replace(/\\/g, '');
-        swaggerJson = JSON.parse(cleanedString);
-      } else {
-        swaggerJson = swaggerResponse.swaggerJson;
-      }
-    }
-    else if (typeof swaggerResponse === 'string') {
-      const cleanedString = swaggerResponse.replace(/\\/g, '');
-      swaggerJson = JSON.parse(cleanedString);
-    } else {
-      swaggerJson = swaggerResponse;
-    }
-
-    return swaggerJson;
-  } catch (error) {
-    console.error('Error cleaning swagger JSON:', error);
-    return swaggerResponse;
-  }
-};
-
-const extractFormFields = (response, currentValues = {}) => {
-  if (!hasFormFields(response)) return null;
-  return Object.entries(response.message).map(([name, value]) => {
-    const isService = name === 'service';
-    let displayLabel = name.charAt(0).toUpperCase() + name.slice(1).replace(/_/g, ' ');
-    displayLabel = isService ? `* ${displayLabel}` : displayLabel;
-    const options = Array.isArray(value) ? value : [];
-    const fieldType = options.length > 0
-      ? 'select'
-      : isService
-        ? 'text'
-        : determineFieldType(name, value);
-
-    let initialValue;
-    if (typeof currentValues[name] !== "undefined") {
-      initialValue = currentValues[name];
-    } else if (fieldType === "date" && value === "date") {
-      initialValue = "";
-    } else if (Array.isArray(value)) {
-      initialValue = "";
-    } else {
-      initialValue = value;
-    }
-
-    return {
-      name,
-      label: displayLabel,
-      required: isService,
-      value: initialValue,
-      type: fieldType,
-      options,
-    };
-  });
-};
-
-const DynamicForm = ({
-  fields,
-  onSubmit,
-  onCancel,
-  formType,
-  onFieldChange,
-  isSubmittingFromParent,
-  clearFormSession,
-}) => {
-  const [fieldDefs, setFieldDefs] = useState(fields);
-  const [formData, setFormData] = useState(() =>
-    Object.fromEntries(fields.map(f => [f.name, f.value || ""]))
-  );
-  const [serviceInputValue, setServiceInputValue] = useState(
-    fields.find(f => f.name === "service")?.value || ""
-  );
-  const prevServiceFieldRef = useRef(fields.find(f => f.name === "service")?.value || "");
-  const serviceInputRef = useRef(null);
-  const [errors, setErrors] = useState({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [selectedFilter, setSelectedFilter] = useState(null);
-  const [showServiceDropdown, setShowServiceDropdown] = useState(false);
-  const [serviceTypeInfo, setServiceTypeInfo] = useState({ isApplication: false, serviceOption: null });
-
-  const allFieldsFilled = fieldDefs.every(f => !!formData[f.name]);
-
-  useEffect(() => {
-    setFieldDefs(fields);
-    setFormData(current => {
-      const merged = {};
-      fields.forEach(f => {
-        if (
-          typeof current[f.name] !== "undefined" &&
-          current[f.name] !== "" &&
-          (typeof f.value === "undefined" || f.value === null || f.value === "")
-        ) {
-          merged[f.name] = current[f.name];
-        } else if (typeof f.value !== "undefined" && f.value !== null) {
-          merged[f.name] = f.value;
-        } else {
-          merged[f.name] = "";
-        }
-      });
-      return merged;
-    });
-
-    const newService = fields.find(f => f.name === "service")?.value || "";
-    if (prevServiceFieldRef.current !== newService) {
-      setServiceInputValue(newService);
-      prevServiceFieldRef.current = newService;
-    }
-  }, [fields]);
-
-  const applyCascadingLogic = (updated, name) => {
-    if (formType === "workload") {
-      if (name === "service") {
-        updated.layer = "";
-        updated.server = "";
-        updated.eg = "";
-      } else if (name === "layer") {
-        updated.server = "";
-        updated.eg = "";
-      } else if (name === "server") {
-        updated.eg = "";
-      }
-    }
-    return updated;
-  };
-
-  const handleInputChange = (name, value) => {
-    let updated = { ...formData, [name]: value };
-    updated = applyCascadingLogic(updated, name);
-    setFormData(updated);
-    if (errors[name]) setErrors(prev => ({ ...prev, [name]: null }));
-  };
-
-  const handleServiceInputChange = async (value) => {
-    setServiceInputValue(value);
-    setFormData(prev => ({ ...prev, service: value }));
-    if (errors.service) setErrors(prev => ({ ...prev, service: null }));
-    
-    if (!value.trim()) {
-      setServiceTypeInfo({ isApplication: false, serviceOption: null });
-      setShowServiceDropdown(false);
-      return;
-    }
-
-    if (value.trim().length >= 4) {
-      setShowServiceDropdown(true);
-      if (onFieldChange) {
-        let updated = { ...formData, service: value };
-        updated = applyCascadingLogic(updated, 'service');
-        setFormData(updated);
-
-        const filtered = filterNonEmptyFields(updated);
-        await onFieldChange(filtered, 'service');
-      }
-      setTimeout(() => {
-        serviceInputRef.current?.focus();
-      }, 0);
-    } else {
-      setShowServiceDropdown(false);
-    }
-  };
-
-  const handleServiceOptionSelect = async (serviceValue) => {
-    const { name, type } = parseServiceOption(serviceValue);
-
-    setServiceInputValue(name);
-    setShowServiceDropdown(false);
-
-    const isApplication = type.toUpperCase() === 'APPLICATION';
-    setServiceTypeInfo({ isApplication, serviceOption: serviceValue });
-
-    let updated = { ...formData, service: name };
-    updated = applyCascadingLogic(updated, 'service');
-    setFormData(updated);
-
-    if (errors.service) setErrors(prev => ({ ...prev, service: null }));
-
-    if (onFieldChange) {
-      const filtered = filterNonEmptyFields(updated);
-      await onFieldChange(filtered, 'service');
-    }
-  };
-
-  const handleBlur = async (name) => {
-    if (name === 'service') {
-      if (serviceInputValue.trim() && onFieldChange) {
-        const filtered = filterNonEmptyFields(formData);
-        await onFieldChange(filtered, name);
-      }
-    } else if (onFieldChange) {
-      const filtered = filterNonEmptyFields(formData);
-      await onFieldChange(filtered, name);
-    }
-  };
-
-  const handleSelectChange = async (name, value) => {
-    let updated = { ...formData, [name]: value };
-
-    if (formType === 'filter' && name.toLowerCase() === 'filter') {
-      updated = applyCascadingLogic(updated, name);
-      setSelectedFilter(value.toLowerCase());
-    } else {
-      updated = applyCascadingLogic(updated, name);
-    }
-
-    setFormData(updated);
-    if (errors[name]) setErrors(prev => ({ ...prev, [name]: null }));
-
-    if (onFieldChange) {
-      const filtered = filterNonEmptyFields(updated);
-      await onFieldChange(filtered, name);
-    }
-  };
-
-  const handleSubmit = async e => {
-    e.preventDefault();
-
-    const missing = fieldDefs.filter(f => {
-      if (formType === 'filter' && selectedFilter) {
-        if (selectedFilter.includes('filterexpired')) {
-          return f.required && f.name.toLowerCase() === 'expires' && !formData[f.name];
-        }
-        if (selectedFilter.includes('filtercreated')) {
-          return f.required && f.name.toLowerCase() === 'created' && !formData[f.name];
-        }
-      }
-      return f.required && !formData[f.name];
-    });
-
-    if (missing.length > 0) {
-      setErrors(prev => ({
-        ...prev,
-        ...Object.fromEntries(missing.map(f => [f.name, "This field is required."]))
-      }));
-      return;
-    }
-
-    setIsSubmitting(true);
-    await onSubmit(formData, fieldDefs);
-    setIsSubmitting(false);
-  };
-
-  const allRequiredFilled = fieldDefs
-    .filter(f => {
-      if (formType === 'filter' && selectedFilter) {
-        if (selectedFilter.includes('filterexpired')) {
-          return f.required && f.name.toLowerCase() === 'expires';
-        }
-        if (selectedFilter.includes('filtercreated')) {
-          return f.required && f.name.toLowerCase() === 'created';
-        }
-        return false;
-      }
-      return f.required;
-    })
-    .every(f => !!formData[f.name]);
-
-  const getFilteredServiceOptions = () => {
-    const serviceField = fieldDefs.find(f => f.name === 'service');
-    if (!serviceField?.options || !serviceInputValue.trim()) return serviceField?.options || [];
-
-    return serviceField.options.filter(opt => {
-      const { name } = parseServiceOption(opt);
-      return name.toLowerCase().includes(serviceInputValue.toLowerCase());
-    });
-  };
-
-  const highlightMatch = (text, query) => {
-    if (!query || query.length < 4) return text;
-
-    const regex = new RegExp(`(${query})`, 'gi');
-    const parts = text.split(regex);
-
-    return (
-      <span>
-        {parts.map((part, i) =>
-          regex.test(part) ? (
-            <mark key={i} style={{ backgroundColor: '#fff3cd', padding: 0 }}>
-              {part}
-            </mark>
-          ) : (
-            part
-          )
-        )}
-      </span>
-    );
-  };
-
-  const renderServiceField = (field) => {
-    const { name, label } = field;
-    const error = errors[name];
-    const isRequiredField = field.required;
-    const filteredOptions = getFilteredServiceOptions();
-
-    const handleDropdownClick = (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      serviceInputRef.current?.focus();
-    };
-
-    return (
-      <div key={name} className="form-field service-field-container">
-        <label className="form-label">
-          {isRequiredField && <span style={{ color: "red" }}>* </span>}
-          {label.replace('* ', '')}
-        </label>
-
-        <div className="service-input-container" style={{ position: 'relative' }}>
-          <input
-            ref={serviceInputRef}
-            type="text"
-            value={serviceInputValue}
-            onChange={e => handleServiceInputChange(e.target.value)}
-            placeholder="Type to search (minimum 4 characters)"
-            autoComplete="off"
-            className={`form-input${error ? " error" : ""}`}
-            disabled={isSubmitting || isSubmittingFromParent}
-            style={{
-              width: '100%',
-              paddingRight: '12px',
-              fontSize: '14px',
-              height: '38px'
-            }}
-          />
-          {showServiceDropdown && filteredOptions.length > 0 && (
-            <div
-              className="service-dropdown"
-              onClick={handleDropdownClick}
-              style={{
-                position: 'absolute',
-                top: '100%',
-                left: 0,
-                right: 0,
-                background: 'white',
-                border: '1px solid #ddd',
-                borderRadius: '4px',
-                maxHeight: '200px',
-                overflowY: 'auto',
-                zIndex: 1000,
-                boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
-              }}>
-              {filteredOptions.map((opt, idx) => {
-                const { name: serviceName, type: serviceType } = parseServiceOption(opt);
-                return (
-                  <div
-                    key={idx}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleServiceOptionSelect(opt);
-                      serviceInputRef.current?.focus();
-                    }}
-                    style={{
-                      padding: '12px 16px',
-                      cursor: 'pointer',
-                      borderBottom: idx < filteredOptions.length - 1 ? '1px solid #f0f0f0' : 'none',
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      backgroundColor: 'white',
-                      color: '#000000'
-                    }}
-                    className="service-option"
-                    onMouseEnter={e => { e.target.style.backgroundColor = '#f5f5f5'; }}
-                    onMouseLeave={e => { e.target.style.backgroundColor = 'white'; }}>
-                    <span style={{ flex: 1, fontWeight: '500', color: '#000000' }}>
-                      {highlightMatch(serviceName, serviceInputValue)}
-                    </span>
-                    <span style={{
-                      background: serviceType.toUpperCase() === 'RESTAPI' ? '#27ae60' : '#e74c3c',
-                      color: 'white',
-                      padding: '2px 8px',
-                      borderRadius: '12px',
-                      fontSize: '11px',
-                      fontWeight: 'bold',
-                      textTransform: 'uppercase',
-                      marginLeft: '8px'
-                    }}>
-                      {serviceType.replace('API', ' API')}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+              <div style={{ marginTop: 12, display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                <button type="button" onClick={() => setShowUploadModal(false)} disabled={uploading}>
+                  Cancel
+                </button>
+                <button type="submit" disabled={uploading}>
+                  {uploading ? 'Uploading...' : 'Upload Files'}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
-        {error && <span className="error-message">{error}</span>}
-      </div>
-    );
-  };
+      )}
 
-  const { isApplication } = serviceTypeInfo;
+.upload-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(11, 18, 32, 0.85);
+  backdrop-filter: blur(12px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  animation: fadeIn 0.25s ease;
+  padding: 1rem;
+}
 
-  const renderField = (field) => {
-    const {
-      name,
-      label,
-      type,
-      options = [],
-      placeholder,
-    } = field;
-    const value = formData[name] || "";
-    const error = errors[name];
-    const isService = name === "service";
-    const isRequiredField = field.required;
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
 
-    if (isService && formType === 'workload') {
-      return renderServiceField(field);
-    }
+.upload-modal-content {
+  background: linear-gradient(135deg, rgba(26, 26, 62, 0.98) 0%, rgba(15, 15, 35, 0.98) 100%);
+  border-radius: 18px;
+  padding: 2.5rem;
+  max-width: 600px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  position: relative;
+  box-shadow: 0 20px 60px rgba(2, 6, 23, 0.6), 0 0 0 1px rgba(46, 213, 255, 0.2);
+  border: 1px solid rgba(46, 213, 255, 0.25);
+  animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
 
-    switch (type) {
-      case "select":
-        return (
-          <div key={name} className="form-field">
-            <label className="form-label">
-              {isRequiredField && <span style={{ color: "red" }}>* </span>}
-              {label.replace('* ', '')}
-            </label>
-            <select
-              value={value}
-              onChange={e => handleSelectChange(name, e.target.value)}
-              className={`form-select${error ? " error" : ""}`}
-              disabled={isSubmitting || isSubmittingFromParent || options.length === 0}
-            >
-              <option value="">Select {label.replace('* ', '').toLowerCase()}</option>
-              {options.map((opt, idx) => (
-                <option key={idx} value={opt.value || opt}>
-                  {opt.label || opt}
-                </option>
-              ))}
-            </select>
-            {error && <span className="error-message">{error}</span>}
-          </div>
-        );
+@keyframes slideUp {
+  from {
+    transform: translateY(40px) scale(0.96);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
 
-      case "textarea":
-        return (
-          <div key={name} className="form-field">
-            <label className="form-label">
-              {isRequiredField && <span style={{ color: "red" }}>* </span>}
-              {label.replace('* ', '')}
-            </label>
-            <textarea
-              value={value}
-              onChange={e => handleInputChange(name, e.target.value)}
-              placeholder={placeholder || ""}
-              className={`form-textarea${error ? " error" : ""}`}
-              rows={3}
-              disabled={isSubmitting || isSubmittingFromParent}
-            />
-            {error && <span className="error-message">{error}</span>}
-          </div>
-        );
-      default:
-        return (
-          <div key={name} className="form-field">
-            <label className="form-label">
-              {isRequiredField && <span style={{ color: "red" }}>* </span>}
-              {label.replace('* ', '')}
-            </label>
-            <input
-              type="text"
-              value={value}
-              onChange={e => handleInputChange(name, e.target.value)}
-              onBlur={() => handleBlur(name)}
-              placeholder={placeholder || ""}
-              className={`form-input${error ? " error" : ""}`}
-              disabled={isSubmitting || isSubmittingFromParent}
-            />
-            {error && <span className="error-message">{error}</span>}
-          </div>
-        );
-    }
-  };
+.upload-modal-content::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 120px;
+  background: radial-gradient(circle at top, rgba(46, 213, 255, 0.08) 0%, transparent 70%);
+  pointer-events: none;
+  border-radius: 18px 18px 0 0;
+}
 
-  const handleDownloadSwagger = async () => {
-    const { server, eg, service } = formData;
+.upload-modal-content h3 {
+  margin: 0 0 2rem 0;
+  font-size: 1.75rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, #2ed5ff 0%, #8a2be2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-align: center;
+  letter-spacing: 0.5px;
+  position: relative;
+  z-index: 1;
+}
 
-    if (serviceTypeInfo.isApplication) {
-      alert("Swagger file doesn't exist for applications. Only REST APIs have swagger specifications.");
-      return;
-    }
+.upload-modal-content form {
+  position: relative;
+  z-index: 1;
+}
 
-    if (!server || !eg || !service) {
-      alert("Please fill all required fields (Service, Layer, Server, and EG) before downloading.");
-      return;
-    }
+.upload-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
 
-    try {
-      setIsSubmitting(true);
-      
-      const response = await downloadSwagger({ 
-        server, 
-        egName: eg, 
-        apiName: service 
-      });
+.upload-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  color: #2ed5ff;
+  font-weight: 600;
+  font-size: 0.95rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
 
-      const cleanedSwaggerJson = cleanSwaggerJson(response);
+.upload-fields input[type="file"] {
+  padding: 0.85rem 1rem;
+  border: 2px dashed rgba(46, 213, 255, 0.3);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  color: #e6eef8;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.95rem;
+}
 
-      if (cleanedSwaggerJson && typeof cleanedSwaggerJson === 'object') {
-        if (!cleanedSwaggerJson.info) {
-          cleanedSwaggerJson.info = {};
-        }
-        
-        if (!cleanedSwaggerJson.info.title || cleanedSwaggerJson.info.title === 'API Documentation') {
-          cleanedSwaggerJson.info.title = `${service} API Documentation`;
-        }
-        
-        if (!cleanedSwaggerJson.host && server) {
-          cleanedSwaggerJson.host = server;
-        }
-        
-        cleanedSwaggerJson.info['x-download-info'] = {
-          service: service,
-          server: server,
-          eg: eg,
-          downloadDate: new Date().toISOString()
-        };
-      }
+.upload-fields input[type="file"]:hover {
+  border-color: rgba(46, 213, 255, 0.5);
+  background: rgba(255, 255, 255, 0.05);
+}
 
-      const formattedJson = JSON.stringify(cleanedSwaggerJson, null, 2);
+.upload-fields input[type="file"]:focus {
+  outline: none;
+  border-color: rgba(46, 213, 255, 0.6);
+  box-shadow: 0 0 0 3px rgba(46, 213, 255, 0.1);
+}
 
-      const blob = new Blob([formattedJson], {
-        type: "application/json;charset=utf-8"
-      });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${service}-swagger-spec.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+.file-name {
+  margin-top: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: rgba(46, 213, 255, 0.1);
+  border: 1px solid rgba(46, 213, 255, 0.2);
+  border-radius: 8px;
+  color: rgba(230, 238, 248, 0.9);
+  font-size: 0.9rem;
+  font-weight: 500;
+  display: inline-block;
+}
 
-      console.log(`✅ Successfully downloaded Swagger specification for ${service}`);
-      alert(`Successfully downloaded swagger specification for ${service}`);
+.upload-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
 
-      if (clearFormSession) {
-        clearFormSession();
-      }
+.upload-actions button {
+  padding: 0.85rem 1.75rem;
+  border: none;
+  border-radius: 10px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
 
-    } catch (err) {
-      console.error("Swagger download error:", err);
-      alert(`Failed to download Swagger file: ${err.message || 'Unknown error'}`);
+.upload-actions button[type="button"] {
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(230, 238, 248, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
 
-      if (clearFormSession) {
-        clearFormSession();
-      }
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+.upload-actions button[type="button"]:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+  transform: translateY(-2px);
+}
 
-  const isApp = serviceTypeInfo.isApplication;
+.upload-actions button[type="submit"] {
+  background: linear-gradient(90deg, rgba(46, 213, 255, 0.2), rgba(138, 43, 226, 0.15));
+  color: #2ed5ff;
+  border: 1px solid rgba(46, 213, 255, 0.3);
+  box-shadow: 0 4px 12px rgba(2, 6, 23, 0.3);
+}
 
-  return (
-    <div className="dynamic-form-container">
-      <form onSubmit={handleSubmit} className="dynamic-form">
-        {fieldDefs.map(renderField)}
-        <div className="form-actions">
-          <button type="button" onClick={onCancel} className="cancel-button" disabled={isSubmitting}>
-            Cancel
-          </button>
-          <button
-            type="submit"
-            className="submit-button"
-            disabled={
-              isSubmitting ||
-              isSubmittingFromParent ||
-              (formType === "workload" && !allFieldsFilled) ||
-              (formType === "filter" && !allRequiredFilled)
-            }
-          >
-            {isSubmitting || isSubmittingFromParent ? "Processing..." : "Submit"}
-          </button>
+.upload-actions button[type="submit"]:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(46, 213, 255, 0.25);
+  background: linear-gradient(90deg, rgba(46, 213, 255, 0.3), rgba(138, 43, 226, 0.2));
+}
 
-          {formType === "workload" && allFieldsFilled && (
-            <button
-              type="button"
-              className="download-swagger-button"
-              onClick={handleDownloadSwagger}
-              disabled={isSubmitting || isSubmittingFromParent || isApp}
-              style={{
-                marginLeft: 8,
-                background: isApp ? "#ccc" : "#007BFF",
-                color: "white",
-                cursor: isApp ? "not-allowed" : "pointer",
-                fontSize: "15px",
-                borderRadius: "4px",
-                padding: "10px 20px",
-                opacity: isApp ? "0.6" : "1",
-                border: "none"
-              }}
-              title={isApp ? "Swagger file doesn't exist for applications" : "Download Swagger"}
-            >
-              Download Swagger
-            </button>
-          )}
-        </div>
-      </form>
-    </div>
-  );
-};
+.upload-actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none !important;
+}
 
-const Chatbot = ({ setChatbotMinimized }) => {
-  const [messages, setMessages] = useState([]);
-  const [newMessage, setNewMessage] = useState("");
-  const [isTyping, setIsTyping] = useState(false);
-  const [isMinimized, setIsMinimized] = useState(false);
-  const [formDisabled, setFormDisabled] = useState(true);
-  const [activeForm, setActiveForm] = useState(null);
-  const [currentFormType, setCurrentFormType] = useState(null);
-  const [currentFormFields, setCurrentFormFields] = useState(null);
 
-  const messagesEndRef = useRef(null);
-  const timeoutRef = useRef(null);
-  const API_TIMEOUT = 200000;
+.upload-modal-close {
+  position: absolute;
+  top: 1.25rem;
+  right: 1.25rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(230, 238, 248, 0.7);
+  font-size: 1.75rem;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  z-index: 2;
+  line-height: 1;
+  font-weight: 300;
+}
 
-  const clearCurrentTimeout = () => {
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
-    }
-  };
+.upload-modal-close:hover {
+  background: rgba(231, 76, 60, 0.15);
+  color: #ffc4c4;
+  border-color: rgba(231, 76, 60, 0.3);
+  transform: rotate(90deg);
+}
 
-  const clearFormSession = () => {
-    setActiveForm(null);
-    setCurrentFormType(null);
-    setCurrentFormFields(null);
-    setFormDisabled(true);
-  };
 
-  const setApiTimeout = (errorHandler) => {
-    clearCurrentTimeout();
-    timeoutRef.current = setTimeout(() => {
-      setIsTyping(false);
-      errorHandler();
-    }, API_TIMEOUT);
-  };
+.upload-modal-content::-webkit-scrollbar {
+  width: 8px;
+}
 
-  const getCurrentTime = () => {
-    const now = new Date();
-    return `${now.getHours().toString().padStart(2, "0")}:${now.getMinutes().toString().padStart(2, "0")}`;
-  };
+.upload-modal-content::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 10px;
+}
 
-  const checkEnableForm = (text) => {
-    const lowerText = text.toLowerCase();
-    return lowerText.includes("enter") || lowerText.includes("provide");
-  };
+.upload-modal-content::-webkit-scrollbar-thumb {
+  background: linear-gradient(135deg, rgba(46, 213, 255, 0.3) 0%, rgba(138, 43, 226, 0.3) 100%);
+  border-radius: 10px;
+}
 
-  const getPostData = async () => {
-    try {
-      setIsTyping(true);
-      setApiTimeout(() => {
-        setMessages([{
-          id: Date.now(),
-          text: "Unable to load messages. Please try again later.",
-          sender: "bot",
-          time: getCurrentTime(),
-        }
+.upload-modal-content::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(135deg, rgba(46, 213, 255, 0.5) 0%, rgba(138, 43, 226, 0.5) 100%);
+}
+
+
+
+
+
+
+
+
