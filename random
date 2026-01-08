@@ -1,12 +1,18 @@
-{/* Upload modal */}
-      {showUploadModal && (
-        <div className="upload-modal" style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          <div style={{ background: '#fff', padding: 20, borderRadius: 6, width: 600, maxWidth: '95%' }}>
+{showUploadModal && (
+        <div className="upload-modal">
+          <div className="upload-modal-content">
+            <button 
+              className="upload-modal-close"
+              onClick={() => setShowUploadModal(false)}
+              aria-label="Close modal"
+            >
+              ×
+            </button>
+            
             <h3>Upload Roster & Attendance Sheets</h3>
-            <form onSubmit={handleUploadSubmit}>
-              <div style={{ display: 'grid', gap: 8 }}>
+            
+            <form onSubmit={handleSubmit}>
+              <div className="upload-fields">
                 <label>
                   Roster file (required for roster uploads):
                   <input
@@ -14,7 +20,9 @@
                     accept=".csv,.xlsx,.xls"
                     onChange={(e) => setRosterFile(e.target.files && e.target.files[0])}
                   />
-                  {rosterFile && <div style={{ fontSize: 12 }}>{rosterFile.name}</div>}
+                  {rosterFile && (
+                    <span className="file-name">{rosterFile.name}</span>
+                  )}
                 </label>
 
                 <label>
@@ -24,7 +32,9 @@
                     accept=".csv,.xlsx,.xls"
                     onChange={(e) => setAttendance1File(e.target.files && e.target.files[0])}
                   />
-                  {attendance1File && <div style={{ fontSize: 12 }}>{attendance1File.name}</div>}
+                  {attendance1File && (
+                    <span className="file-name">{attendance1File.name}</span>
+                  )}
                 </label>
 
                 <label>
@@ -34,15 +44,24 @@
                     accept=".csv,.xlsx,.xls"
                     onChange={(e) => setAttendance2File(e.target.files && e.target.files[0])}
                   />
-                  {attendance2File && <div style={{ fontSize: 12 }}>{attendance2File.name}</div>}
+                  {attendance2File && (
+                    <span className="file-name">{attendance2File.name}</span>
+                  )}
                 </label>
               </div>
 
-              <div style={{ marginTop: 12, display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                <button type="button" onClick={() => setShowUploadModal(false)} disabled={uploading}>
+              <div className="upload-actions">
+                <button
+                  type="button"
+                  onClick={() => setShowUploadModal(false)}
+                  disabled={uploading}
+                >
                   Cancel
                 </button>
-                <button type="submit" disabled={uploading}>
+                <button
+                  type="submit"
+                  disabled={uploading || !rosterFile}
+                >
                   {uploading ? 'Uploading...' : 'Upload Files'}
                 </button>
               </div>
@@ -51,233 +70,261 @@
         </div>
       )}
 
-.upload-modal {
-  position: fixed;
-  inset: 0;
-  background: rgba(11, 18, 32, 0.85);
-  backdrop-filter: blur(12px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 9999;
-  animation: fadeIn 0.25s ease;
-  padding: 1rem;
-}
+      <style>{`
+        .upload-modal {
+          position: fixed;
+          inset: 0;
+          background: rgba(11, 18, 32, 0.85);
+          backdrop-filter: blur(12px);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 9999;
+          animation: fadeIn 0.25s ease;
+          padding: 1rem;
+        }
 
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
 
-.upload-modal-content {
-  background: linear-gradient(135deg, rgba(26, 26, 62, 0.98) 0%, rgba(15, 15, 35, 0.98) 100%);
-  border-radius: 18px;
-  padding: 2.5rem;
-  max-width: 600px;
-  width: 100%;
-  max-height: 90vh;
-  overflow-y: auto;
-  position: relative;
-  box-shadow: 0 20px 60px rgba(2, 6, 23, 0.6), 0 0 0 1px rgba(46, 213, 255, 0.2);
-  border: 1px solid rgba(46, 213, 255, 0.25);
-  animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-}
+        .upload-modal-content {
+          background: linear-gradient(135deg, rgba(26, 26, 62, 0.98) 0%, rgba(15, 15, 35, 0.98) 100%);
+          border-radius: 18px;
+          padding: 2.5rem;
+          max-width: 600px;
+          width: 100%;
+          max-height: 90vh;
+          overflow-y: auto;
+          position: relative;
+          box-shadow: 0 20px 60px rgba(2, 6, 23, 0.6), 0 0 0 1px rgba(46, 213, 255, 0.2);
+          border: 1px solid rgba(46, 213, 255, 0.25);
+          animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
 
-@keyframes slideUp {
-  from {
-    transform: translateY(40px) scale(0.96);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0) scale(1);
-    opacity: 1;
-  }
-}
+        @keyframes slideUp {
+          from {
+            transform: translateY(40px) scale(0.96);
+            opacity: 0;
+          }
+          to {
+            transform: translateY(0) scale(1);
+            opacity: 1;
+          }
+        }
 
-.upload-modal-content::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 120px;
-  background: radial-gradient(circle at top, rgba(46, 213, 255, 0.08) 0%, transparent 70%);
-  pointer-events: none;
-  border-radius: 18px 18px 0 0;
-}
+        .upload-modal-content::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          height: 120px;
+          background: radial-gradient(circle at top, rgba(46, 213, 255, 0.08) 0%, transparent 70%);
+          pointer-events: none;
+          border-radius: 18px 18px 0 0;
+        }
 
-.upload-modal-content h3 {
-  margin: 0 0 2rem 0;
-  font-size: 1.75rem;
-  font-weight: 700;
-  background: linear-gradient(135deg, #2ed5ff 0%, #8a2be2 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  text-align: center;
-  letter-spacing: 0.5px;
-  position: relative;
-  z-index: 1;
-}
+        .upload-modal-content h3 {
+          margin: 0 0 2rem 0;
+          font-size: 1.75rem;
+          font-weight: 700;
+          background: linear-gradient(135deg, #2ed5ff 0%, #8a2be2 100%);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+          text-align: center;
+          letter-spacing: 0.5px;
+          position: relative;
+          z-index: 1;
+        }
 
-.upload-modal-content form {
-  position: relative;
-  z-index: 1;
-}
+        .upload-modal-content form {
+          position: relative;
+          z-index: 1;
+        }
 
-.upload-fields {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-  margin-bottom: 2rem;
-}
+        .upload-fields {
+          display: flex;
+          flex-direction: column;
+          gap: 1.5rem;
+          margin-bottom: 2rem;
+        }
 
-.upload-fields label {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  color: #2ed5ff;
-  font-weight: 600;
-  font-size: 0.95rem;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
+        .upload-fields label {
+          display: flex;
+          flex-direction: column;
+          gap: 0.75rem;
+          color: #2ed5ff;
+          font-weight: 600;
+          font-size: 0.95rem;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
 
-.upload-fields input[type="file"] {
-  padding: 0.85rem 1rem;
-  border: 2px dashed rgba(46, 213, 255, 0.3);
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.03);
-  color: #e6eef8;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  font-size: 0.95rem;
-}
+        .upload-fields input[type="file"] {
+          padding: 0.85rem 1rem;
+          border: 2px dashed rgba(46, 213, 255, 0.3);
+          border-radius: 10px;
+          background: rgba(255, 255, 255, 0.03);
+          color: #e6eef8;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          font-size: 0.95rem;
+        }
 
-.upload-fields input[type="file"]:hover {
-  border-color: rgba(46, 213, 255, 0.5);
-  background: rgba(255, 255, 255, 0.05);
-}
+        .upload-fields input[type="file"]:hover {
+          border-color: rgba(46, 213, 255, 0.5);
+          background: rgba(255, 255, 255, 0.05);
+        }
 
-.upload-fields input[type="file"]:focus {
-  outline: none;
-  border-color: rgba(46, 213, 255, 0.6);
-  box-shadow: 0 0 0 3px rgba(46, 213, 255, 0.1);
-}
+        .upload-fields input[type="file"]:focus {
+          outline: none;
+          border-color: rgba(46, 213, 255, 0.6);
+          box-shadow: 0 0 0 3px rgba(46, 213, 255, 0.1);
+        }
 
-.file-name {
-  margin-top: 0.5rem;
-  padding: 0.5rem 0.75rem;
-  background: rgba(46, 213, 255, 0.1);
-  border: 1px solid rgba(46, 213, 255, 0.2);
-  border-radius: 8px;
-  color: rgba(230, 238, 248, 0.9);
-  font-size: 0.9rem;
-  font-weight: 500;
-  display: inline-block;
-}
+        .upload-fields input[type="file"]::file-selector-button {
+          margin-right: 1rem;
+          padding: 0.5rem 1rem;
+          background: rgba(46, 213, 255, 0.1);
+          border: 1px solid rgba(46, 213, 255, 0.3);
+          border-radius: 6px;
+          color: #2ed5ff;
+          cursor: pointer;
+          font-weight: 600;
+          transition: all 0.2s ease;
+        }
 
-.upload-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 1rem;
-  padding-top: 1.5rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-}
+        .upload-fields input[type="file"]::file-selector-button:hover {
+          background: rgba(46, 213, 255, 0.2);
+          border-color: rgba(46, 213, 255, 0.5);
+        }
 
-.upload-actions button {
-  padding: 0.85rem 1.75rem;
-  border: none;
-  border-radius: 10px;
-  font-size: 1rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  font-family: inherit;
-}
+        .file-name {
+          margin-top: 0.5rem;
+          padding: 0.5rem 0.75rem;
+          background: rgba(46, 213, 255, 0.1);
+          border: 1px solid rgba(46, 213, 255, 0.2);
+          border-radius: 8px;
+          color: rgba(230, 238, 248, 0.9);
+          font-size: 0.9rem;
+          font-weight: 500;
+          display: inline-block;
+        }
 
-.upload-actions button[type="button"] {
-  background: rgba(255, 255, 255, 0.05);
-  color: rgba(230, 238, 248, 0.9);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
+        .upload-actions {
+          display: flex;
+          justify-content: flex-end;
+          gap: 1rem;
+          padding-top: 1.5rem;
+          border-top: 1px solid rgba(255, 255, 255, 0.08);
+        }
 
-.upload-actions button[type="button"]:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.08);
-  transform: translateY(-2px);
-}
+        .upload-actions button {
+          padding: 0.85rem 1.75rem;
+          border: none;
+          border-radius: 10px;
+          font-size: 1rem;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          font-family: inherit;
+        }
 
-.upload-actions button[type="submit"] {
-  background: linear-gradient(90deg, rgba(46, 213, 255, 0.2), rgba(138, 43, 226, 0.15));
-  color: #2ed5ff;
-  border: 1px solid rgba(46, 213, 255, 0.3);
-  box-shadow: 0 4px 12px rgba(2, 6, 23, 0.3);
-}
+        .upload-actions button[type="button"] {
+          background: rgba(255, 255, 255, 0.05);
+          color: rgba(230, 238, 248, 0.9);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+        }
 
-.upload-actions button[type="submit"]:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(46, 213, 255, 0.25);
-  background: linear-gradient(90deg, rgba(46, 213, 255, 0.3), rgba(138, 43, 226, 0.2));
-}
+        .upload-actions button[type="button"]:hover:not(:disabled) {
+          background: rgba(255, 255, 255, 0.08);
+          transform: translateY(-2px);
+        }
 
-.upload-actions button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  transform: none !important;
-}
+        .upload-actions button[type="submit"] {
+          background: linear-gradient(90deg, rgba(46, 213, 255, 0.2), rgba(138, 43, 226, 0.15));
+          color: #2ed5ff;
+          border: 1px solid rgba(46, 213, 255, 0.3);
+          box-shadow: 0 4px 12px rgba(2, 6, 23, 0.3);
+        }
 
+        .upload-actions button[type="submit"]:hover:not(:disabled) {
+          transform: translateY(-2px);
+          box-shadow: 0 6px 20px rgba(46, 213, 255, 0.25);
+          background: linear-gradient(90deg, rgba(46, 213, 255, 0.3), rgba(138, 43, 226, 0.2));
+        }
 
-.upload-modal-close {
-  position: absolute;
-  top: 1.25rem;
-  right: 1.25rem;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: rgba(230, 238, 248, 0.7);
-  font-size: 1.75rem;
-  width: 38px;
-  height: 38px;
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  z-index: 2;
-  line-height: 1;
-  font-weight: 300;
-}
+        .upload-actions button:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+          transform: none !important;
+        }
 
-.upload-modal-close:hover {
-  background: rgba(231, 76, 60, 0.15);
-  color: #ffc4c4;
-  border-color: rgba(231, 76, 60, 0.3);
-  transform: rotate(90deg);
-}
+        .upload-modal-close {
+          position: absolute;
+          top: 1.25rem;
+          right: 1.25rem;
+          background: rgba(255, 255, 255, 0.04);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          color: rgba(230, 238, 248, 0.7);
+          font-size: 1.75rem;
+          width: 38px;
+          height: 38px;
+          border-radius: 10px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          z-index: 2;
+          line-height: 1;
+          font-weight: 300;
+        }
 
+        .upload-modal-close:hover {
+          background: rgba(231, 76, 60, 0.15);
+          color: #ffc4c4;
+          border-color: rgba(231, 76, 60, 0.3);
+          transform: rotate(90deg);
+        }
 
-.upload-modal-content::-webkit-scrollbar {
-  width: 8px;
-}
+        .upload-modal-content::-webkit-scrollbar {
+          width: 8px;
+        }
 
-.upload-modal-content::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.02);
-  border-radius: 10px;
-}
+        .upload-modal-content::-webkit-scrollbar-track {
+          background: rgba(255, 255, 255, 0.02);
+          border-radius: 10px;
+        }
 
-.upload-modal-content::-webkit-scrollbar-thumb {
-  background: linear-gradient(135deg, rgba(46, 213, 255, 0.3) 0%, rgba(138, 43, 226, 0.3) 100%);
-  border-radius: 10px;
-}
+        .upload-modal-content::-webkit-scrollbar-thumb {
+          background: linear-gradient(135deg, rgba(46, 213, 255, 0.3) 0%, rgba(138, 43, 226, 0.3) 100%);
+          border-radius: 10px;
+        }
 
-.upload-modal-content::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(135deg, rgba(46, 213, 255, 0.5) 0%, rgba(138, 43, 226, 0.5) 100%);
-}
+        .upload-modal-content::-webkit-scrollbar-thumb:hover {
+          background: linear-gradient(135deg, rgba(46, 213, 255, 0.5) 0%, rgba(138, 43, 226, 0.5) 100%);
+        }
 
-
-
-
-
-
-
-
+        @media (max-width: 640px) {
+          .upload-modal-content {
+            padding: 2rem 1.5rem;
+            margin: 1rem;
+          }
+          
+          .upload-modal-content h3 {
+            font-size: 1.5rem;
+          }
+          
+          .upload-actions {
+            flex-direction: column-reverse;
+          }
+          
+          .upload-actions button {
+            width: 100%;
+          }
+        }
+      `
