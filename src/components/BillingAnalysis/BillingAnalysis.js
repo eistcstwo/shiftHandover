@@ -2,9 +2,10 @@ import React, { useState, useMemo, useEffect } from 'react';
 import './BillingAnalysis.css';
 import axios from 'axios';
 
-
 const API_BASE = 'https://10.191.171.12:5443/EISHOME_TEST/projectRoster/search/';
 const ANNOTATION_API = 'https://10.191.171.12:5443/EISHOME_TEST/projectRoster/update_annotation/';
+const RESTART_ID_API = 'https://10.191.171.12:5443/EISHOME/shiftHandover/getRestartId';
+const START_BROKER_RESTART_API = 'https://10.191.171.12:5443/EISHOME/shiftHandover/startBrokerRestartTask/';
 
 // Helper function to get authorization headers
 const getAuthHeaders = () => {
@@ -48,6 +49,16 @@ const BillingAnalysis = () => {
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+
+  // Broker Restart Modal State
+  const [showBrokerModal, setShowBrokerModal] = useState(false);
+  const [selectedSet, setSelectedSet] = useState(null);
+  const [brokerFormData, setBrokerFormData] = useState({
+    infraId: '',
+    infraName: ''
+  });
+  const [brokerRestartId, setBrokerRestartId] = useState(null);
+  const [isSubmittingBroker, setIsSubmittingBroker] = useState(false);
 
   // Min and max dates for date inputs
   const minDate = useMemo(() => {
@@ -290,6 +301,90 @@ const BillingAnalysis = () => {
     }));
   };
 
+  // Handle Broker Restart Set Click
+  const handleBrokerSetClick = async (setNumber) => {
+    setSelectedSet(setNumber);
+    setBrokerFormData({ infraId: '', infraName: '' });
+    setBrokerRestartId(null);
+
+    // For Sets 2, 3, 4 - fetch restart ID first
+    if (setNumber !== 1) {
+      try {
+        const response = await fetch(RESTART_ID_API, {
+          method: 'GET',
+          headers: getAuthHeaders()
+        });
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch restart ID: ${response.status}`);
+        }
+
+        const data = await response.json();
+        console.log('Restart ID response:', data);
+
+        if (data.brokerRestartId) {
+          setBrokerRestartId(data.brokerRestartId);
+        } else {
+          alert('No restart ID found in response');
+          return;
+        }
+      } catch (err) {
+        alert(`Error fetching restart ID: ${err.message}`);
+        return;
+      }
+    }
+
+    setShowBrokerModal(true);
+  };
+
+  // Handle Broker Form Submission
+  const handleBrokerSubmit = async (e) => {
+    e.preventDefault();
+
+    if (!brokerFormData.infraId || !brokerFormData.infraName) {
+      alert('Please fill in both Infra ID and Infra Name');
+      return;
+    }
+
+    setIsSubmittingBroker(true);
+
+    try {
+      const payload = {
+        infraId: brokerFormData.infraId,
+        infraName: brokerFormData.infraName
+      };
+
+      // Add brokerRestartId for sets 2, 3, 4
+      if (selectedSet !== 1 && brokerRestartId) {
+        payload.brokerRestartId = brokerRestartId;
+      }
+
+      console.log('Submitting broker restart:', payload);
+
+      const response = await fetch(START_BROKER_RESTART_API, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log('Broker restart result:', result);
+      
+      alert(`Broker restart task started successfully for Set ${selectedSet}!`);
+      setShowBrokerModal(false);
+      setBrokerFormData({ infraId: '', infraName: '' });
+      setBrokerRestartId(null);
+    } catch (err) {
+      alert(`Error starting broker restart: ${err.message}`);
+    } finally {
+      setIsSubmittingBroker(false);
+    }
+  };
+
   const handleMonthClick = (monthStr) => {
     if (typeof monthStr !== 'string') {
       console.error('Invalid monthStr type. Expected string. Received:', monthStr);
@@ -494,7 +589,7 @@ const BillingAnalysis = () => {
                 <th>Last Out</th>
                 <th>Net Office Time</th>
                 <th>Status</th>
-                                    <th>Change Status</th>
+                <th>Change Status</th>
               </tr>
             </thead>
             <tbody>
@@ -615,6 +710,139 @@ const BillingAnalysis = () => {
   return (
     <div className="billing-analysis">
       <h2>Billing Analysis</h2>
+
+      {/* Broker Restart Buttons */}
+      <div className="broker-restart-section" style={{ 
+        marginBottom: '20px', 
+        padding: '15px', 
+        backgroundColor: '#f8f9fa', 
+        borderRadius: '8px',
+        border: '1px solid #dee2e6'
+      }}>
+        <h3 style={{ marginBottom: '12px', fontSize: '1.1rem', color: '#495057' }}>
+          Broker Restart Tasks
+        </h3>
+        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+          {[1, 2, 3, 4].map((setNum) => (
+            <button
+              key={setNum}
+              className="search-btn"
+              onClick={() => handleBrokerSetClick(setNum)}
+              style={{
+                padding: '10px 20px',
+                fontSize: '0.95rem',
+                minWidth: '100px'
+              }}
+            >
+              Set {setNum}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Broker Restart Modal */}
+      {showBrokerModal && (
+        <div className="modal-overlay" style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div className="modal-content" style={{
+            backgroundColor: 'white',
+            padding: '24px',
+            borderRadius: '8px',
+            maxWidth: '500px',
+            width: '90%',
+            boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
+          }}>
+            <h3 style={{ marginBottom: '20px' }}>
+              Broker Restart - Set {selectedSet}
+            </h3>
+            
+            {brokerRestartId && (
+              <div style={{ 
+                marginBottom: '15px', 
+                padding: '10px', 
+                backgroundColor: '#e7f3ff',
+                borderRadius: '4px',
+                fontSize: '0.9rem'
+              }}>
+                <strong>Restart ID:</strong> {brokerRestartId}
+              </div>
+            )}
+
+            <form onSubmit={handleBrokerSubmit}>
+              <div style={{ marginBottom: '15px' }}>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500' }}>
+                  Infra ID *
+                </label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={brokerFormData.infraId}
+                  onChange={(e) => setBrokerFormData(prev => ({ ...prev, infraId: e.target.value }))}
+                  placeholder="Enter Infra ID"
+                  required
+                  style={{ width: '100%', padding: '8px' }}
+                />
+              </div>
+
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500' }}>
+                  Infra Name *
+                </label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={brokerFormData.infraName}
+                  onChange={(e) => setBrokerFormData(prev => ({ ...prev, infraName: e.target.value }))}
+                  placeholder="Enter Infra Name"
+                  required
+                  style={{ width: '100%', padding: '8px' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowBrokerModal(false);
+                    setBrokerFormData({ infraId: '', infraName: '' });
+                    setBrokerRestartId(null);
+                  }}
+                  style={{
+                    padding: '8px 16px',
+                    backgroundColor: '#6c757d',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingBroker}
+                  className="search-btn"
+                  style={{
+                    padding: '8px 16px'
+                  }}
+                >
+                  {isSubmittingBroker ? 'Submitting...' : 'Submit'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Search Form */}
       <div className="search-form">
