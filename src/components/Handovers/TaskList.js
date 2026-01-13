@@ -6,7 +6,7 @@ import './TasksList.css';
 
 const TasksList = () => {
   const navigate = useNavigate();
-  
+
   // State for main operator authentication
   const [operatorAuth, setOperatorAuth] = useState({
     name: '',
@@ -14,7 +14,7 @@ const TasksList = () => {
     isAuthenticated: false,
     authTime: null
   });
-  
+
   // State for support acknowledgment
   const [supportAckModal, setSupportAckModal] = useState(false);
   const [supportAckData, setSupportAckData] = useState({
@@ -22,7 +22,7 @@ const TasksList = () => {
     id: '',
     setNumber: null
   });
-  
+
   // State for set completion verification
   const [setCompleteModal, setSetCompleteModal] = useState(false);
   const [setCompleteData, setSetCompleteData] = useState({
@@ -30,12 +30,12 @@ const TasksList = () => {
     id: '',
     setNumber: null
   });
-  
+
   // State for current set
   const [currentSet, setCurrentSet] = useState(1);
   const [sets, setSets] = useState([
-    { 
-      id: 1, 
+    {
+      id: 1,
       name: '25 Series - Set 1',
       servers: '155, 156, 157, 173, 174, 73, 74, 55, 56, 57, 63, 64, 163, 164, 10, 11, 12, 110, 111, 112, 41, 42, 43, 141, 142, 143, 31, 32, 134, 135, 192, 196, 197, 68, 69, 168, 169',
       status: 'pending',
@@ -43,8 +43,8 @@ const TasksList = () => {
       completedBy: null,
       completedTime: null
     },
-    { 
-      id: 2, 
+    {
+      id: 2,
       name: '25 Series - Set 2',
       servers: '158, 159, 160, 175, 176, 75, 58, 59, 65, 66, 67, 165, 166, 13, 14, 113, 114, 115, 44, 45, 144, 145, 146, 33, 34, 131, 132, 133, 190, 191, 194, 195, 70, 71, 170, 171',
       status: 'pending',
@@ -52,8 +52,8 @@ const TasksList = () => {
       completedBy: null,
       completedTime: null
     },
-    { 
-      id: 3, 
+    {
+      id: 3,
       name: '24 Series - Set 3',
       servers: '158, 159, 160, 175, 176, 75, 58, 59, 65, 66, 67, 165, 166, 13, 14, 113, 114, 115, 44, 45, 144, 145, 146, 33, 34, 131, 132, 133, 190, 191, 194, 195, 70, 71, 170, 171',
       status: 'pending',
@@ -61,8 +61,8 @@ const TasksList = () => {
       completedBy: null,
       completedTime: null
     },
-    { 
-      id: 4, 
+    {
+      id: 4,
       name: '24 Series - Set 4',
       servers: '155, 156, 157, 173, 174, 73, 74, 55, 56, 57, 63, 64, 163, 164, 10, 11, 12, 110, 111, 112, 41, 42, 43, 141, 142, 143, 31, 32, 134, 135, 192, 196, 197, 68, 69, 168, 169',
       status: 'pending',
@@ -71,7 +71,7 @@ const TasksList = () => {
       completedTime: null
     }
   ]);
-  
+
   // State for checklist steps
   const [checklistSteps, setChecklistSteps] = useState([
     {
@@ -176,7 +176,7 @@ const TasksList = () => {
       requiresAck: false
     }
   ]);
-  
+
   const [currentStep, setCurrentStep] = useState(1);
   const [timer, setTimer] = useState(null);
   const [timeElapsed, setTimeElapsed] = useState(0);
@@ -191,10 +191,10 @@ const TasksList = () => {
       isAuthenticated: true,
       authTime
     });
-    
+
     // Log authentication
     logActivity('OPERATOR_AUTH', `Operator ${operatorAuth.name} (ID: ${operatorAuth.id}) started the task`, operatorAuth);
-    
+
     // Start timer for step 1
     startTimer();
   };
@@ -218,7 +218,7 @@ const TasksList = () => {
       operator: operatorAuth.name,
       operatorId: operatorAuth.id
     };
-    
+
     console.log(`[${type}] ${message}`, data);
     setActivityLog(prev => [logEntry, ...prev].slice(0, 50)); // Keep last 50 entries
   };
@@ -226,7 +226,7 @@ const TasksList = () => {
   // Complete step 1
   const completeStep1 = () => {
     if (currentStep !== 1) return;
-    
+
     const updatedSteps = [...checklistSteps];
     updatedSteps[0] = {
       ...updatedSteps[0],
@@ -234,15 +234,15 @@ const TasksList = () => {
       completedTime: new Date(),
       completedBy: operatorAuth.name
     };
-    
+
     setChecklistSteps(updatedSteps);
-    
+
     // Log step completion
     logActivity('STEP_COMPLETE', 'Step 1: CACHE UPDATED AFTER 12:00 A.M. completed', {
       completedBy: operatorAuth.name,
       time: new Date()
     });
-    
+
     // Move to step 2
     setTimeout(() => {
       setCurrentStep(2);
@@ -254,7 +254,7 @@ const TasksList = () => {
   // Complete step 2 (requires support acknowledgment)
   const completeStep2 = () => {
     if (currentStep !== 2) return;
-    
+
     // Show support acknowledgment modal
     setSupportAckModal(true);
     setSupportAckData({
@@ -267,9 +267,9 @@ const TasksList = () => {
   // Handle support acknowledgment submission
   const handleSupportAckSubmit = (e) => {
     e.preventDefault();
-    
+
     const ackTime = new Date();
-    
+
     // Update checklist step
     const updatedSteps = [...checklistSteps];
     updatedSteps[1] = {
@@ -281,7 +281,7 @@ const TasksList = () => {
       ackTime
     };
     setChecklistSteps(updatedSteps);
-    
+
     // Update current set
     const updatedSets = [...sets];
     updatedSets[currentSet - 1] = {
@@ -294,7 +294,7 @@ const TasksList = () => {
       }
     };
     setSets(updatedSets);
-    
+
     // Log support acknowledgment
     logActivity('SUPPORT_ACK', `Support team acknowledged by ${supportAckData.name} (ID: ${supportAckData.id})`, {
       supportName: supportAckData.name,
@@ -302,11 +302,11 @@ const TasksList = () => {
       setNumber: currentSet,
       time: ackTime
     });
-    
+
     // Close modal and reset
     setSupportAckModal(false);
     setSupportAckData({ name: '', id: '', setNumber: null });
-    
+
     // Move to step 3
     setTimeout(() => {
       setCurrentStep(3);
@@ -318,26 +318,26 @@ const TasksList = () => {
   // Complete a checklist step (for steps 3-11)
   const completeStep = (stepId) => {
     if (stepId !== currentStep || stepId <= 2) return;
-    
+
     const updatedSteps = [...checklistSteps];
     const stepIndex = stepId - 1;
-    
+
     updatedSteps[stepIndex] = {
       ...updatedSteps[stepIndex],
       completed: true,
       completedTime: new Date(),
       completedBy: operatorAuth.name
     };
-    
+
     setChecklistSteps(updatedSteps);
-    
+
     // Log step completion
     logActivity('STEP_COMPLETE', `Step ${stepId}: ${updatedSteps[stepIndex].title} completed`, {
       completedBy: operatorAuth.name,
       step: stepId,
       time: new Date()
     });
-    
+
     // Move to next step after a delay
     setTimeout(() => {
       if (currentStep < checklistSteps.length) {
@@ -364,9 +364,9 @@ const TasksList = () => {
   // Handle set completion verification
   const handleSetCompleteSubmit = (e) => {
     e.preventDefault();
-    
+
     const completeTime = new Date();
-    
+
     // Update current set as completed
     const updatedSets = [...sets];
     updatedSets[currentSet - 1] = {
@@ -376,7 +376,7 @@ const TasksList = () => {
       completedTime: completeTime
     };
     setSets(updatedSets);
-    
+
     // Log set completion
     logActivity('SET_COMPLETE', `Set ${currentSet} completed by ${setCompleteData.name} (ID: ${setCompleteData.id})`, {
       setName: sets[currentSet - 1].name,
@@ -385,13 +385,13 @@ const TasksList = () => {
       setNumber: currentSet,
       time: completeTime
     });
-    
+
     // Close modal and reset
     setSetCompleteModal(false);
     setSetCompleteData({ name: '', id: '', setNumber: null });
-    
+
     if (timer) clearInterval(timer);
-    
+
     // If there are more sets, prepare for next one
     if (currentSet < sets.length) {
       // Reset checklist for next set
@@ -403,7 +403,7 @@ const TasksList = () => {
         ackBy: null,
         ackTime: null
       }));
-      
+
       setTimeout(() => {
         setCurrentSet(currentSet + 1);
         setCurrentStep(1);
@@ -524,8 +524,8 @@ const TasksList = () => {
             <h2>📊 Server Sets Progress</h2>
             <div className="sets-grid">
               {sets.map((set) => (
-                <div 
-                  key={set.id} 
+                <div
+                  key={set.id}
                   className={`set-card ${currentSet === set.id ? 'active' : ''} ${set.status}`}
                   style={{ borderLeft: `4px solid ${getStatusColor(set.status)}` }}
                 >
@@ -538,7 +538,7 @@ const TasksList = () => {
                   <div className="set-servers">
                     <strong>Servers:</strong> {set.servers}
                   </div>
-                  
+
                   {set.supportAck && (
                     <div className="set-support-ack">
                       <strong>🛡️ Support Acknowledgment:</strong>
@@ -546,7 +546,7 @@ const TasksList = () => {
                       <small>{format(new Date(set.supportAck.time), 'MMM d, h:mm:ss a')}</small>
                     </div>
                   )}
-                  
+
                   {set.completedBy && (
                     <div className="set-completion-info">
                       <strong>✅ Completed by:</strong>
@@ -575,11 +575,11 @@ const TasksList = () => {
                   <h2>🛡️ Support Team Acknowledgment Required</h2>
                   <p>Step 2 requires support team acknowledgment before proceeding</p>
                 </div>
-                
+
                 <div className="modal-instructions">
                   <p>Please enter the support team member's details who acknowledged the activity start:</p>
                 </div>
-                
+
                 <form onSubmit={handleSupportAckSubmit} className="modal-form">
                   <div className="form-group">
                     <label htmlFor="supportName">Support Team Member Name</label>
@@ -626,14 +626,14 @@ const TasksList = () => {
                   <h2>✅ Set Completion Verification</h2>
                   <p>Set {currentSet} completed. Please verify completion.</p>
                 </div>
-                
+
                 <div className="modal-instructions">
                   <p>Enter your name and ADID to verify set completion:</p>
                   <div className="set-info">
                     <strong>Set {currentSet}:</strong> {sets[currentSet - 1].name}
                   </div>
                 </div>
-                
+
                 <form onSubmit={handleSetCompleteSubmit} className="modal-form">
                   <div className="form-group">
                     <label htmlFor="completeName">Your Name</label>
@@ -668,7 +668,7 @@ const TasksList = () => {
                     </button>
                   </div>
                 </form>
-                
+
                 <div className="modal-note">
                   <small>💡 Note: Different operators can verify different sets. This allows multiple people to work on the same task.</small>
                 </div>
@@ -681,8 +681,8 @@ const TasksList = () => {
             <h2>📋 Restart Procedure Checklist</h2>
             <div className="timeline-container">
               {checklistSteps.map((step, index) => (
-                <div 
-                  key={step.id} 
+                <div
+                  key={step.id}
                   className={`timeline-step ${step.completed ? 'completed' : ''} ${currentStep === step.id ? 'current' : ''}`}
                 >
                   <div className="step-marker">
@@ -705,7 +705,7 @@ const TasksList = () => {
                       </div>
                     </div>
                     <p className="step-description">{step.description}</p>
-                    
+
                     {step.completed && (
                       <div className="step-details">
                         <div className="detail-item">
@@ -723,7 +723,7 @@ const TasksList = () => {
                         )}
                       </div>
                     )}
-                    
+
                     {/* Step Actions */}
                     {currentStep === step.id && !step.completed && (
                       <div className="step-actions">
@@ -801,12 +801,12 @@ const TasksList = () => {
                 </span>
               </div>
             </div>
-            
+
             {sets.every(set => set.status === 'completed') && (
               <div className="completion-message">
                 <h3>🎉 All Tasks Completed Successfully!</h3>
                 <p>All 4 server sets have been processed. Night Broker Restart procedure is complete.</p>
-                
+
                 <div className="completion-summary">
                   <h4>Completion Summary:</h4>
                   <ul>
@@ -817,7 +817,7 @@ const TasksList = () => {
                     ))}
                   </ul>
                 </div>
-                
+
                 <button onClick={() => navigate('/dashboard')} className="btn-primary">
                   Return to Dashboard
                 </button>
