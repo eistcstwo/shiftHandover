@@ -1,6 +1,8 @@
-              https://10.191.171.12:5443/EISHOME/shiftHandover/getRestartId -- restart id if present ; whenn click on set and if i get restart id from backend; payload infraId ; infraName
+https://10.191.171.12:5443/EISHOME/shiftHandover/startBrokerRestartTask/ --if hit with resart id that i get from backend;whenn click on set and if i get restart id from backend; payload infraId ; infraName
 
-        https://10.191.171.12:5443/EISHOME/shiftHandover/startBrokerRestartTask/ --if hit with resart id that i get from backend;
+
+https://10.191.171.12:5443/EISHOME/shiftHandover/getRestartId -- restart id if present ; w\
+
 
 
 ---------------------------------------------------------------------------------------------------------------------------------------
@@ -16,3 +18,10 @@ curl -k -X POST -L  "https://10.191.171.12:5443/EISHOME_TEST/shiftHandover/start
 
 {'subSetsId': 27, 'status': 'started', 'startTime': '2026-01-12 18:52:33.992738', 'endTime': 'Present', 'supportTime': 'Pending', 'supportid': 'pending', 'infraId': '2743582', 'infraName': 'affan', 'brokerRestartId_id': None}
 [12/Jan/2026 18:52:34] "POST /shiftHandover/startBrokerRestartTask/ HTTP/1.0" 200 306
+
+
+
+
+
+in set 1 it will open form whch will ask for user name and id after i get it i waill send id as infraID and name as infraName as payload to  https://10.191.171.12:5443/EISHOME/shiftHandover/startBrokerRestartTask/ and in set two three and four i will do same process but for tose sets i will also hit https://10.191.171.12:5443/EISHOME/shiftHandover/getRestartId this api first to get a response and then send that response as paylod with infraName and infraID in 
+https://10.191.171.12:5443/EISHOME/shiftHandover/startBrokerRestartTask/
