@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { format } from 'date-fns';
+import './TasksList.css';
 
 const TasksList = () => {
   // State for main operator authentication
@@ -180,7 +181,6 @@ const TasksList = () => {
 
   // Handle set card click - show auth modal for that set
   const handleSetCardClick = (setId) => {
-    // Only allow clicking on pending sets or sets that haven't been started
     const selectedSet = sets.find(s => s.id === setId);
     if (selectedSet.status === 'completed') return;
     
@@ -446,44 +446,39 @@ const TasksList = () => {
   }, [timer]);
 
   return (
-    <div style={styles.container}>
+    <div className="tasks-list-page">
       {/* Header */}
-      <div style={styles.header}>
-        <div>
-          <h1 style={styles.title}>📝 Night Broker Restart Checklist</h1>
-          <p style={styles.subtitle}>Click on a server set to begin the restart procedure</p>
+      <div className="tasks-list-header">
+        <div className="header-content">
+          <h1>📝 Night Broker Restart Checklist</h1>
+          <p>Click on a server set to begin the restart procedure</p>
         </div>
       </div>
 
       {/* Server Sets Progress - Always visible */}
-      <section style={styles.section}>
-        <h2 style={styles.sectionTitle}>📊 Server Sets Progress</h2>
-        <div style={styles.setsGrid}>
+      <section className="sets-section">
+        <h2>📊 Server Sets Progress</h2>
+        <div className="sets-grid">
           {sets.map((set) => (
             <button
               key={set.id}
               onClick={() => handleSetCardClick(set.id)}
               disabled={set.status === 'completed'}
-              style={{
-                ...styles.setCard,
-                ...(currentSet === set.id ? styles.setCardActive : {}),
-                ...(set.status === 'completed' ? styles.setCardDisabled : {}),
-                borderLeft: `4px solid ${getStatusColor(set.status)}`,
-                cursor: set.status === 'completed' ? 'not-allowed' : 'pointer'
-              }}
+              className={`set-card ${currentSet === set.id ? 'active' : ''} ${set.status}`}
+              style={{ borderLeft: `4px solid ${getStatusColor(set.status)}` }}
             >
-              <div style={styles.setHeader}>
-                <h3 style={styles.setName}>{set.name}</h3>
-                <span style={{ ...styles.setStatus, color: getStatusColor(set.status) }}>
+              <div className="set-header">
+                <h3>{set.name}</h3>
+                <span className="set-status" style={{ color: getStatusColor(set.status) }}>
                   {set.status.toUpperCase()}
                 </span>
               </div>
-              <div style={styles.setServers}>
+              <div className="set-servers">
                 <strong>Servers:</strong> {set.servers}
               </div>
 
               {set.supportAck && (
-                <div style={styles.setInfo}>
+                <div className="set-support-ack">
                   <strong>🛡️ Support Acknowledgment:</strong>
                   <div>{set.supportAck.name} (ID: {set.supportAck.id})</div>
                   <small>{format(new Date(set.supportAck.time), 'MMM d, h:mm:ss a')}</small>
@@ -491,7 +486,7 @@ const TasksList = () => {
               )}
 
               {set.completedBy && (
-                <div style={styles.setInfo}>
+                <div className="set-completion-info">
                   <strong>✅ Completed by:</strong>
                   <div>{set.completedBy}</div>
                   <small>{format(new Date(set.completedTime), 'MMM d, h:mm:ss a')}</small>
@@ -499,7 +494,7 @@ const TasksList = () => {
               )}
 
               {set.status === 'pending' && (
-                <div style={styles.clickPrompt}>
+                <div className="click-prompt">
                   👆 Click to start this set
                 </div>
               )}
@@ -510,45 +505,47 @@ const TasksList = () => {
 
       {/* Operator Authentication Modal */}
       {operatorAuth.selectedSet && !operatorAuth.isAuthenticated && (
-        <div style={styles.modalOverlay}>
-          <div style={styles.modalContainer}>
-            <div style={styles.modalHeader}>
+        <div className="modal-overlay">
+          <div className="modal-container">
+            <div className="modal-header">
               <h2>🔐 Operator Authentication Required</h2>
               <p>Starting work on {sets[operatorAuth.selectedSet - 1].name}</p>
             </div>
 
-            <form onSubmit={handleOperatorAuth} style={styles.form}>
-              <div style={styles.formGroup}>
-                <label style={styles.label}>Your Name (Operator)</label>
+            <form onSubmit={handleOperatorAuth} className="modal-form">
+              <div className="form-group">
+                <label htmlFor="operatorName">Your Name (Operator)</label>
                 <input
                   type="text"
+                  id="operatorName"
                   value={operatorAuth.name}
                   onChange={(e) => setOperatorAuth({...operatorAuth, name: e.target.value})}
                   placeholder="Enter your full name"
                   required
-                  style={styles.input}
+                  className="form-input"
                 />
               </div>
-              <div style={styles.formGroup}>
-                <label style={styles.label}>Your ADID / Employee ID</label>
+              <div className="form-group">
+                <label htmlFor="operatorId">Your ADID / Employee ID</label>
                 <input
                   type="text"
+                  id="operatorId"
                   value={operatorAuth.id}
                   onChange={(e) => setOperatorAuth({...operatorAuth, id: e.target.value})}
                   placeholder="Enter your ADID"
                   required
-                  style={styles.input}
+                  className="form-input"
                 />
               </div>
-              <div style={styles.modalActions}>
+              <div className="modal-actions">
                 <button 
                   type="button" 
                   onClick={() => setOperatorAuth({...operatorAuth, selectedSet: null})}
-                  style={styles.btnSecondary}
+                  className="btn-secondary"
                 >
                   Cancel
                 </button>
-                <button type="submit" style={styles.btnPrimary}>
+                <button type="submit" className="btn-primary">
                   Start Task
                 </button>
               </div>
@@ -561,21 +558,23 @@ const TasksList = () => {
       {operatorAuth.isAuthenticated && currentSet && (
         <>
           {/* Operator Info Banner */}
-          <div style={styles.userBanner}>
-            <div style={styles.userInfo}>
-              <span>👤 Current Operator:</span>
-              <span style={styles.userName}>{operatorAuth.name}</span>
-              <span>(ADID: {operatorAuth.id})</span>
-              <span>Started: {format(operatorAuth.authTime, 'MMM d, h:mm a')}</span>
+          <div className="user-info-banner">
+            <div className="user-info-content">
+              <span className="user-label">👤 Current Operator:</span>
+              <span className="user-name">{operatorAuth.name}</span>
+              <span className="user-id">(ADID: {operatorAuth.id})</span>
+              <span className="user-time">
+                Started: {format(operatorAuth.authTime, 'MMM d, h:mm a')}
+              </span>
             </div>
-            <div style={styles.timer}>
+            <div className="current-timer">
               ⏱️ Current Step Time: {formatTime(timeElapsed)}
             </div>
           </div>
 
-          <div style={styles.currentSetInfo}>
-            <h3>Currently Working On: <span style={styles.setHighlight}>{sets[currentSet - 1].name}</span></h3>
-            <div style={styles.progressInfo}>
+          <div className="current-set-info">
+            <h3>Currently Working On: <span className="set-highlight">{sets[currentSet - 1].name}</span></h3>
+            <div className="set-progress-info">
               <span>Set {currentSet} of {sets.length}</span>
               <span>•</span>
               <span>Step {currentStep} of {checklistSteps.length}</span>
@@ -584,41 +583,47 @@ const TasksList = () => {
 
           {/* Support Acknowledgment Modal */}
           {supportAckModal && (
-            <div style={styles.modalOverlay}>
-              <div style={styles.modalContainer}>
-                <div style={styles.modalHeader}>
+            <div className="modal-overlay">
+              <div className="modal-container">
+                <div className="modal-header">
                   <h2>🛡️ Support Team Acknowledgment Required</h2>
                   <p>Step 2 requires support team acknowledgment before proceeding</p>
                 </div>
 
-                <form onSubmit={handleSupportAckSubmit} style={styles.form}>
-                  <div style={styles.formGroup}>
-                    <label style={styles.label}>Support Team Member Name</label>
+                <div className="modal-instructions">
+                  <p>Please enter the support team member's details who acknowledged the activity start:</p>
+                </div>
+
+                <form onSubmit={handleSupportAckSubmit} className="modal-form">
+                  <div className="form-group">
+                    <label htmlFor="supportName">Support Team Member Name</label>
                     <input
                       type="text"
+                      id="supportName"
                       value={supportAckData.name}
                       onChange={(e) => setSupportAckData({...supportAckData, name: e.target.value})}
                       placeholder="Enter support team member name"
                       required
-                      style={styles.input}
+                      className="form-input"
                     />
                   </div>
-                  <div style={styles.formGroup}>
-                    <label style={styles.label}>Support Team Member ADID/Employee ID</label>
+                  <div className="form-group">
+                    <label htmlFor="supportId">Support Team Member ADID/Employee ID</label>
                     <input
                       type="text"
+                      id="supportId"
                       value={supportAckData.id}
                       onChange={(e) => setSupportAckData({...supportAckData, id: e.target.value})}
                       placeholder="Enter support team member ID"
                       required
-                      style={styles.input}
+                      className="form-input"
                     />
                   </div>
-                  <div style={styles.modalActions}>
-                    <button type="button" onClick={() => setSupportAckModal(false)} style={styles.btnSecondary}>
+                  <div className="modal-actions">
+                    <button type="button" onClick={() => setSupportAckModal(false)} className="btn-secondary">
                       Cancel
                     </button>
-                    <button type="submit" style={styles.btnPrimary}>
+                    <button type="submit" className="btn-primary">
                       Acknowledge & Continue
                     </button>
                   </div>
@@ -629,89 +634,102 @@ const TasksList = () => {
 
           {/* Set Completion Verification Modal */}
           {setCompleteModal && (
-            <div style={styles.modalOverlay}>
-              <div style={styles.modalContainer}>
-                <div style={styles.modalHeader}>
+            <div className="modal-overlay">
+              <div className="modal-container">
+                <div className="modal-header">
                   <h2>✅ Set Completion Verification</h2>
                   <p>Set {currentSet} completed. Please verify completion.</p>
                 </div>
 
-                <form onSubmit={handleSetCompleteSubmit} style={styles.form}>
-                  <div style={styles.formGroup}>
-                    <label style={styles.label}>Your Name</label>
+                <div className="modal-instructions">
+                  <p>Enter your name and ADID to verify set completion:</p>
+                  <div className="set-info">
+                    <strong>Set {currentSet}:</strong> {sets[currentSet - 1].name}
+                  </div>
+                </div>
+
+                <form onSubmit={handleSetCompleteSubmit} className="modal-form">
+                  <div className="form-group">
+                    <label htmlFor="completeName">Your Name</label>
                     <input
                       type="text"
+                      id="completeName"
                       value={setCompleteData.name}
                       onChange={(e) => setSetCompleteData({...setCompleteData, name: e.target.value})}
                       placeholder="Enter your name"
                       required
-                      style={styles.input}
+                      className="form-input"
                     />
                   </div>
-                  <div style={styles.formGroup}>
-                    <label style={styles.label}>Your ADID / Employee ID</label>
+                  <div className="form-group">
+                    <label htmlFor="completeId">Your ADID / Employee ID</label>
                     <input
                       type="text"
+                      id="completeId"
                       value={setCompleteData.id}
                       onChange={(e) => setSetCompleteData({...setCompleteData, id: e.target.value})}
                       placeholder="Enter your ADID"
                       required
-                      style={styles.input}
+                      className="form-input"
                     />
                   </div>
-                  <div style={styles.modalActions}>
-                    <button type="button" onClick={() => setSetCompleteModal(false)} style={styles.btnSecondary}>
+                  <div className="modal-actions">
+                    <button type="button" onClick={() => setSetCompleteModal(false)} className="btn-secondary">
                       Cancel
                     </button>
-                    <button type="submit" style={styles.btnPrimary}>
+                    <button type="submit" className="btn-primary">
                       Verify & Complete Set
                     </button>
                   </div>
                 </form>
+
+                <div className="modal-note">
+                  <small>💡 Note: Different operators can verify different sets. This allows multiple people to work on the same task.</small>
+                </div>
               </div>
             </div>
           )}
 
           {/* Checklist Timeline */}
-          <section style={styles.section}>
-            <h2 style={styles.sectionTitle}>📋 Restart Procedure Checklist</h2>
-            <div style={styles.timeline}>
+          <section className="checklist-section">
+            <h2>📋 Restart Procedure Checklist</h2>
+            <div className="timeline-container">
               {checklistSteps.map((step, index) => (
                 <div
                   key={step.id}
-                  style={{
-                    ...styles.timelineStep,
-                    ...(step.completed ? styles.stepCompleted : {}),
-                    ...(currentStep === step.id ? styles.stepCurrent : {})
-                  }}
+                  className={`timeline-step ${step.completed ? 'completed' : ''} ${currentStep === step.id ? 'current' : ''}`}
                 >
-                  <div style={styles.stepMarker}>
-                    <div style={styles.stepNumber}>{step.id}</div>
+                  <div className="step-marker">
+                    <div className="step-number">{step.id}</div>
                     {index < checklistSteps.length - 1 && (
-                      <div style={styles.stepConnector}></div>
+                      <div className="step-connector"></div>
                     )}
                   </div>
-                  <div style={styles.stepContent}>
-                    <div style={styles.stepHeader}>
-                      <h3 style={styles.stepTitle}>{step.title}</h3>
-                      <div>
+                  <div className="step-content">
+                    <div className="step-header">
+                      <h3>{step.title}</h3>
+                      <div className="step-status">
                         {step.completed ? (
-                          <span style={styles.statusCompleted}>✅ Completed</span>
+                          <span className="status-completed">✅ Completed</span>
                         ) : currentStep === step.id ? (
-                          <span style={styles.statusCurrent}>⏳ In Progress</span>
+                          <span className="status-current">⏳ In Progress</span>
                         ) : (
-                          <span style={styles.statusPending}>⏱️ Pending</span>
+                          <span className="status-pending">⏱️ Pending</span>
                         )}
                       </div>
                     </div>
-                    <p style={styles.stepDescription}>{step.description}</p>
+                    <p className="step-description">{step.description}</p>
 
                     {step.completed && (
-                      <div style={styles.stepDetails}>
-                        <div><strong>Completed by:</strong> {step.completedBy}</div>
-                        <div><strong>Time:</strong> {format(new Date(step.completedTime), 'MMM d, h:mm:ss a')}</div>
+                      <div className="step-details">
+                        <div className="detail-item">
+                          <strong>Completed by:</strong> {step.completedBy}
+                        </div>
+                        <div className="detail-item">
+                          <strong>Time:</strong> {format(new Date(step.completedTime), 'MMM d, h:mm:ss a')}
+                        </div>
                         {step.requiresAck && step.ackBy && (
-                          <div style={styles.ackInfo}>
+                          <div className="detail-item ack-info">
                             <strong>✅ Support Acknowledgment by:</strong> {step.ackBy}
                             <br />
                             <small>{format(new Date(step.ackTime), 'MMM d, h:mm:ss a')}</small>
@@ -721,17 +739,17 @@ const TasksList = () => {
                     )}
 
                     {currentStep === step.id && !step.completed && (
-                      <div style={styles.stepActions}>
+                      <div className="step-actions">
                         {step.id === 1 ? (
-                          <button onClick={completeStep1} style={styles.completeBtn}>
+                          <button onClick={completeStep1} className="complete-btn">
                             Mark as Complete
                           </button>
                         ) : step.id === 2 ? (
-                          <button onClick={completeStep2} style={styles.completeBtn}>
+                          <button onClick={completeStep2} className="complete-btn">
                             Enter Support Acknowledgment
                           </button>
                         ) : (
-                          <button onClick={() => completeStep(step.id)} style={styles.completeBtn}>
+                          <button onClick={() => completeStep(step.id)} className="complete-btn">
                             Mark as Complete
                           </button>
                         )}
@@ -745,29 +763,58 @@ const TasksList = () => {
 
           {/* Activity Log */}
           {activityLog.length > 0 && (
-            <section style={styles.section}>
-              <h2 style={styles.sectionTitle}>📜 Activity Log</h2>
-              <div style={styles.activityLog}>
+            <section className="activity-log-section">
+              <h2>📜 Activity Log</h2>
+              <div className="activity-log-container">
                 {activityLog.slice(0, 10).map((log, index) => (
-                  <div key={index} style={styles.logEntry}>
-                    <div style={styles.logTime}>
+                  <div key={index} className="log-entry">
+                    <div className="log-time">
                       {format(new Date(log.timestamp), 'HH:mm:ss')}
                     </div>
-                    <div style={styles.logMessage}>{log.message}</div>
+                    <div className="log-message">
+                      {log.message}
+                    </div>
                   </div>
                 ))}
               </div>
             </section>
           )}
+
+          {/* Progress Summary */}
+          <section className="progress-section">
+            <h2>📈 Progress Summary</h2>
+            <div className="progress-stats">
+              <div className="progress-stat">
+                <span className="stat-label">Current Set</span>
+                <span className="stat-value">{currentSet} of {sets.length}</span>
+              </div>
+              <div className="progress-stat">
+                <span className="stat-label">Completed Steps</span>
+                <span className="stat-value">
+                  {checklistSteps.filter(s => s.completed).length} of {checklistSteps.length}
+                </span>
+              </div>
+              <div className="progress-stat">
+                <span className="stat-label">Current Step Time</span>
+                <span className="stat-value">{formatTime(timeElapsed)}</span>
+              </div>
+              <div className="progress-stat">
+                <span className="stat-label">Completed Sets</span>
+                <span className="stat-value">
+                  {sets.filter(s => s.status === 'completed').length} of {sets.length}
+                </span>
+              </div>
+            </div>
+          </section>
         </>
       )}
 
       {/* Completion Summary */}
       {sets.every(set => set.status === 'completed') && (
-        <div style={styles.completionMessage}>
+        <div className="completion-message">
           <h3>🎉 All Tasks Completed Successfully!</h3>
           <p>All 4 server sets have been processed. Night Broker Restart procedure is complete.</p>
-          <div style={styles.completionSummary}>
+          <div className="completion-summary">
             <h4>Completion Summary:</h4>
             <ul>
               {sets.map(set => (
@@ -781,384 +828,6 @@ const TasksList = () => {
       )}
     </div>
   );
-};
-
-const styles = {
-  container: {
-    minHeight: '100vh',
-    backgroundColor: '#f5f7fa',
-    padding: '20px',
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-  },
-  header: {
-    backgroundColor: '#2c3e50',
-    color: 'white',
-    padding: '30px',
-    borderRadius: '12px',
-    marginBottom: '30px'
-  },
-  title: {
-    margin: '0 0 10px 0',
-    fontSize: '28px',
-    fontWeight: 'bold'
-  },
-  subtitle: {
-    margin: 0,
-    opacity: 0.9,
-    fontSize: '16px'
-  },
-  section: {
-    backgroundColor: 'white',
-    borderRadius: '12px',
-    padding: '25px',
-    marginBottom: '25px',
-    boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
-  },
-  sectionTitle: {
-    fontSize: '22px',
-    marginTop: 0,
-    marginBottom: '20px',
-    color: '#2c3e50'
-  },
-  setsGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-    gap: '20px',
-    marginBottom: '20px'
-  },
-  setCard: {
-    backgroundColor: 'white',
-    border: '1px solid #e1e8ed',
-    borderRadius: '8px',
-    padding: '20px',
-    textAlign: 'left',
-    transition: 'all 0.3s ease',
-    outline: 'none'
-  },
-  setCardActive: {
-    transform: 'scale(1.02)',
-    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-    borderColor: '#3498db'
-  },
-  setCardDisabled: {
-    opacity: 0.6,
-    backgroundColor: '#f8f9fa'
-  },
-  setHeader: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: '15px'
-  },
-  setName: {
-    margin: 0,
-    fontSize: '18px',
-    color: '#2c3e50'
-  },
-  setStatus: {
-    fontSize: '12px',
-    fontWeight: 'bold',
-    padding: '4px 8px',
-    borderRadius: '4px',
-    backgroundColor: '#ecf0f1'
-  },
-  setServers: {
-    fontSize: '13px',
-    color: '#555',
-    marginBottom: '10px',
-    lineHeight: '1.6'
-  },
-  setInfo: {
-    marginTop: '12px',
-    padding: '10px',
-    backgroundColor: '#f8f9fa',
-    borderRadius: '6px',
-    fontSize: '13px'
-  },
-  clickPrompt: {
-    marginTop: '15px',
-    padding: '10px',
-    backgroundColor: '#e3f2fd',
-    borderRadius: '6px',
-    textAlign: 'center',
-    color: '#1976d2',
-    fontWeight: '500'
-  },
-  userBanner: {
-    backgroundColor: '#34495e',
-    color: 'white',
-    padding: '20px',
-    borderRadius: '8px',
-    marginBottom: '20px',
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: '15px'
-  },
-  userInfo: {
-    display: 'flex',
-    gap: '12px',
-    alignItems: 'center',
-    flexWrap: 'wrap'
-  },
-  userName: {
-    fontWeight: 'bold',
-    fontSize: '16px'
-  },
-  timer: {
-    fontSize: '18px',
-    fontWeight: 'bold',
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    padding: '8px 16px',
-    borderRadius: '6px'
-  },
-  currentSetInfo: {
-    backgroundColor: '#3498db',
-    color: 'white',
-    padding: '20px',
-    borderRadius: '8px',
-    marginBottom: '25px',
-    textAlign: 'center'
-  },
-  setHighlight: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    padding: '4px 12px',
-    borderRadius: '4px',
-    fontWeight: 'bold'
-  },
-  progressInfo: {
-    display: 'flex',
-    gap: '10px',
-    justifyContent: 'center',
-    marginTop: '10px',
-    fontSize: '14px',
-    opacity: 0.9
-  },
-  modalOverlay: {
-    position: 'fixed',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 1000,
-    padding: '20px'
-  },
-  modalContainer: {
-    backgroundColor: 'white',
-    borderRadius: '12px',
-    padding: '30px',
-    maxWidth: '500px',
-    width: '100%',
-    maxHeight: '90vh',
-    overflow: 'auto'
-  },
-  modalHeader: {
-    marginBottom: '25px'
-  },
-  form: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '20px'
-  },
-  formGroup: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '8px'
-  },
-  label: {
-    fontWeight: '600',
-    color: '#2c3e50',
-    fontSize: '14px'
-  },
-  input: {
-    padding: '12px',
-    border: '1px solid #ddd',
-    borderRadius: '6px',
-    fontSize: '14px',
-    outline: 'none',
-    transition: 'border-color 0.3s'
-  },
-  modalActions: {
-    display: 'flex',
-    gap: '12px',
-    justifyContent: 'flex-end',
-    marginTop: '10px'
-  },
-  btnPrimary: {
-    backgroundColor: '#3498db',
-    color: 'white',
-    border: 'none',
-    padding: '12px 24px',
-    borderRadius: '6px',
-    fontSize: '14px',
-    fontWeight: '600',
-    cursor: 'pointer',
-    transition: 'background-color 0.3s'
-  },
-  btnSecondary: {
-    backgroundColor: '#95a5a6',
-    color: 'white',
-    border: 'none',
-    padding: '12px 24px',
-    borderRadius: '6px',
-    fontSize: '14px',
-    fontWeight: '600',
-    cursor: 'pointer',
-    transition: 'background-color 0.3s'
-  },
-  timeline: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '20px'
-  },
-  timelineStep: {
-    display: 'flex',
-    gap: '20px',
-    position: 'relative'
-  },
-  stepCompleted: {
-    opacity: 0.7
-  },
-  stepCurrent: {
-    backgroundColor: '#e3f2fd',
-    padding: '15px',
-    borderRadius: '8px',
-    marginLeft: '-15px',
-    marginRight: '-15px'
-  },
-  stepMarker: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    position: 'relative'
-  },
-  stepNumber: {
-    width: '40px',
-    height: '40px',
-    borderRadius: '50%',
-    backgroundColor: '#3498db',
-    color: 'white',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontWeight: 'bold',
-    fontSize: '16px',
-    flexShrink: 0
-  },
-  stepConnector: {
-    width: '2px',
-    flex: 1,
-    backgroundColor: '#ddd',
-    marginTop: '8px',
-    minHeight: '40px'
-  },
-  stepContent: {
-    flex: 1,
-    paddingBottom: '10px'
-  },
-  stepHeader: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: '8px',
-    gap: '15px'
-  },
-  stepTitle: {
-    margin: 0,
-    fontSize: '16px',
-    fontWeight: '600',
-    color: '#2c3e50'
-  },
-  stepDescription: {
-    margin: '0 0 12px 0',
-    color: '#666',
-    fontSize: '14px'
-  },
-  stepDetails: {
-    backgroundColor: '#f8f9fa',
-    padding: '12px',
-    borderRadius: '6px',
-    fontSize: '13px',
-    marginTop: '12px',
-    lineHeight: '1.6'
-  },
-  ackInfo: {
-    marginTop: '8px',
-    paddingTop: '8px',
-    borderTop: '1px solid #dee2e6'
-  },
-  stepActions: {
-    marginTop: '12px'
-  },
-  completeBtn: {
-    backgroundColor: '#27ae60',
-    color: 'white',
-    border: 'none',
-    padding: '10px 20px',
-    borderRadius: '6px',
-    fontSize: '14px',
-    fontWeight: '600',
-    cursor: 'pointer',
-    transition: 'background-color 0.3s'
-  },
-  statusCompleted: {
-    color: '#27ae60',
-    fontSize: '13px',
-    fontWeight: '600'
-  },
-  statusCurrent: {
-    color: '#f39c12',
-    fontSize: '13px',
-    fontWeight: '600'
-  },
-  statusPending: {
-    color: '#95a5a6',
-    fontSize: '13px',
-    fontWeight: '600'
-  },
-  activityLog: {
-    backgroundColor: '#f8f9fa',
-    borderRadius: '8px',
-    padding: '15px',
-    maxHeight: '300px',
-    overflow: 'auto'
-  },
-  logEntry: {
-    display: 'flex',
-    gap: '15px',
-    padding: '10px',
-    borderBottom: '1px solid #e1e8ed',
-    fontSize: '13px'
-  },
-  logTime: {
-    color: '#7f8c8d',
-    fontWeight: '600',
-    minWidth: '70px'
-  },
-  logMessage: {
-    color: '#2c3e50',
-    flex: 1
-  },
-  completionMessage: {
-    backgroundColor: '#d4edda',
-    border: '1px solid #c3e6cb',
-    borderRadius: '8px',
-    padding: '25px',
-    marginTop: '25px',
-    textAlign: 'center'
-  },
-  completionSummary: {
-    marginTop: '20px',
-    textAlign: 'left',
-    backgroundColor: 'white',
-    padding: '20px',
-    borderRadius: '8px'
-  }
 };
 
 export default TasksList;
