@@ -1,11 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
-import axios from 'axios';
 import './TasksList.css';
-
-// Configure axios with base URL
-const API_BASE_URL = 'https://10.191.171.12:5443/EISHOME/shiftHandover';
 
 const TasksList = () => {
   const navigate = useNavigate();
@@ -34,18 +30,6 @@ const TasksList = () => {
     setNumber: null
   });
 
-  // State for set start modal (Set 1)
-  const [setStartModal, setSetStartModal] = useState(false);
-  const [setStartData, setSetStartData] = useState({
-    name: '',
-    id: '',
-    setNumber: null
-  });
-
-  // State for set start modal (Sets 2,3,4 - with restart ID)
-  const [setStartWithIdModal, setSetStartWithIdModal] = useState(false);
-  const [restartId, setRestartId] = useState(null);
-
   // State for current set
   const [currentSet, setCurrentSet] = useState(1);
   const [sets, setSets] = useState([
@@ -54,7 +38,6 @@ const TasksList = () => {
       name: '25 Series - Set 1',
       servers: '155, 156, 157, 173, 174, 73, 74, 55, 56, 57, 63, 64, 163, 164, 10, 11, 12, 110, 111, 112, 41, 42, 43, 141, 142, 143, 31, 32, 134, 135, 192, 196, 197, 68, 69, 168, 169',
       status: 'pending',
-      restartId: null,
       supportAck: null,
       completedBy: null,
       completedTime: null
@@ -64,7 +47,6 @@ const TasksList = () => {
       name: '25 Series - Set 2',
       servers: '158, 159, 160, 175, 176, 75, 58, 59, 65, 66, 67, 165, 166, 13, 14, 113, 114, 115, 44, 45, 144, 145, 146, 33, 34, 131, 132, 133, 190, 191, 194, 195, 70, 71, 170, 171',
       status: 'pending',
-      restartId: null,
       supportAck: null,
       completedBy: null,
       completedTime: null
@@ -74,7 +56,6 @@ const TasksList = () => {
       name: '24 Series - Set 3',
       servers: '158, 159, 160, 175, 176, 75, 58, 59, 65, 66, 67, 165, 166, 13, 14, 113, 114, 115, 44, 45, 144, 145, 146, 33, 34, 131, 132, 133, 190, 191, 194, 195, 70, 71, 170, 171',
       status: 'pending',
-      restartId: null,
       supportAck: null,
       completedBy: null,
       completedTime: null
@@ -84,7 +65,6 @@ const TasksList = () => {
       name: '24 Series - Set 4',
       servers: '155, 156, 157, 173, 174, 73, 74, 55, 56, 57, 63, 64, 163, 164, 10, 11, 12, 110, 111, 112, 41, 42, 43, 141, 142, 143, 31, 32, 134, 135, 192, 196, 197, 68, 69, 168, 169',
       status: 'pending',
-      restartId: null,
       supportAck: null,
       completedBy: null,
       completedTime: null
@@ -200,7 +180,32 @@ const TasksList = () => {
   const [timer, setTimer] = useState(null);
   const [timeElapsed, setTimeElapsed] = useState(0);
   const [activityLog, setActivityLog] = useState([]);
-  const [loading, setLoading] = useState(false);
+
+  // Handle operator authentication
+  const handleOperatorAuth = (e) => {
+    e.preventDefault();
+    const authTime = new Date();
+    setOperatorAuth({
+      ...operatorAuth,
+      isAuthenticated: true,
+      authTime
+    });
+
+    // Log authentication
+    logActivity('OPERATOR_AUTH', `Operator ${operatorAuth.name} (ID: ${operatorAuth.id}) started the task`, operatorAuth);
+
+    // Start timer for step 1
+    startTimer();
+  };
+
+  // Start timer for current step
+  const startTimer = () => {
+    if (timer) clearInterval(timer);
+    const newTimer = setInterval(() => {
+      setTimeElapsed(prev => prev + 1);
+    }, 1000);
+    setTimer(newTimer);
+  };
 
   // Log activity
   const logActivity = (type, message, data = null) => {
@@ -215,199 +220,6 @@ const TasksList = () => {
 
     console.log(`[${type}] ${message}`, data);
     setActivityLog(prev => [logEntry, ...prev].slice(0, 50)); // Keep last 50 entries
-  };
-
-  // Start timer for current step
-  const startTimer = () => {
-    if (timer) clearInterval(timer);
-    const newTimer = setInterval(() => {
-      setTimeElapsed(prev => prev + 1);
-    }, 1000);
-    setTimer(newTimer);
-  };
-
-  // Handle operator authentication
-  const handleOperatorAuth = (e) => {
-    e.preventDefault();
-    const authTime = new Date();
-    setOperatorAuth({
-      ...operatorAuth,
-      isAuthenticated: true,
-      authTime
-    });
-
-    // Log authentication
-    logActivity('OPERATOR_AUTH', `Operator ${operatorAuth.name} (ID: ${operatorAuth.id}) started the task`, operatorAuth);
-  };
-
-  // API: Start broker restart task
-  const startBrokerRestartTask = async (infraName, infraId, brokerRestartId = null) => {
-    try {
-      setLoading(true);
-      
-      const payload = {
-        infraName,
-        infraId
-      };
-      
-      // Add brokerRestartId for sets 2,3,4
-      if (brokerRestartId) {
-        payload.brokerRestartId = brokerRestartId;
-      }
-
-      const url = brokerRestartId 
-        ? `${API_BASE_URL}/startBrokerRestartTask/${brokerRestartId}`
-        : `${API_BASE_URL}/startBrokerRestartTask`;
-
-      const response = await axios.post(url, payload);
-      
-      logActivity('API_SUCCESS', `Start broker restart task successful`, response.data);
-      return response.data;
-    } catch (error) {
-      logActivity('API_ERROR', `Failed to start broker restart task`, error.response?.data || error.message);
-      throw error;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // API: Get restart ID
-  const getRestartId = async () => {
-    try {
-      setLoading(true);
-      const response = await axios.get(`${API_BASE_URL}/getRestartId`);
-      
-      logActivity('API_SUCCESS', `Got restart ID: ${response.data}`, response.data);
-      return response.data;
-    } catch (error) {
-      logActivity('API_ERROR', `Failed to get restart ID`, error.response?.data || error.message);
-      throw error;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Handle Set 1 start
-  const handleStartSet1 = () => {
-    if (currentSet !== 1) return;
-    setSetStartData({
-      name: '',
-      id: '',
-      setNumber: 1
-    });
-    setSetStartModal(true);
-  };
-
-  // Handle Set 1 start submission
-  const handleSet1StartSubmit = async (e) => {
-    e.preventDefault();
-    
-    try {
-      // Call API to start broker restart task
-      const result = await startBrokerRestartTask(setStartData.name, setStartData.id);
-      
-      // Update set state
-      const updatedSets = [...sets];
-      updatedSets[0] = {
-        ...updatedSets[0],
-        status: 'in-progress',
-        restartId: result.restartId || 'SET1_STARTED'
-      };
-      setSets(updatedSets);
-
-      // Log activity
-      logActivity('SET_START', `Set 1 started by ${setStartData.name} (ID: ${setStartData.id})`, {
-        setName: sets[0].name,
-        startedBy: setStartData.name,
-        startedById: setStartData.id,
-        restartId: result.restartId
-      });
-
-      // Close modal
-      setSetStartModal(false);
-      setSetStartData({ name: '', id: '', setNumber: null });
-
-      // Start timer for step 1
-      setCurrentStep(1);
-      setTimeElapsed(0);
-      startTimer();
-
-    } catch (error) {
-      alert('Failed to start Set 1. Please try again.');
-    }
-  };
-
-  // Handle Set 2,3,4 start
-  const handleStartSetWithRestartId = (setNumber) => {
-    if (currentSet !== setNumber) return;
-    
-    // First get restart ID
-    const fetchRestartId = async () => {
-      try {
-        const restartId = await getRestartId();
-        setRestartId(restartId);
-        
-        // Show modal with restart ID
-        setSetStartData({
-          name: '',
-          id: '',
-          setNumber: setNumber
-        });
-        setSetStartWithIdModal(true);
-        
-      } catch (error) {
-        alert('Failed to get restart ID. Please try again.');
-      }
-    };
-
-    fetchRestartId();
-  };
-
-  // Handle Set 2,3,4 start submission
-  const handleSetWithIdStartSubmit = async (e) => {
-    e.preventDefault();
-    
-    try {
-      // Call API to start broker restart task with restart ID
-      const result = await startBrokerRestartTask(
-        setStartData.name, 
-        setStartData.id, 
-        restartId
-      );
-      
-      // Update set state
-      const setIndex = setStartData.setNumber - 1;
-      const updatedSets = [...sets];
-      updatedSets[setIndex] = {
-        ...updatedSets[setIndex],
-        status: 'in-progress',
-        restartId: restartId
-      };
-      setSets(updatedSets);
-
-      // Log activity
-      logActivity('SET_START', `Set ${setStartData.setNumber} started by ${setStartData.name} (ID: ${setStartData.id})`, {
-        setName: sets[setIndex].name,
-        startedBy: setStartData.name,
-        startedById: setStartData.id,
-        restartId: restartId
-      });
-
-      // Close modal and reset
-      setSetStartWithIdModal(false);
-      setSetStartData({ name: '', id: '', setNumber: null });
-      setRestartId(null);
-
-      // If this is the first set being started, begin checklist
-      if (setStartData.setNumber === currentSet) {
-        setCurrentStep(1);
-        setTimeElapsed(0);
-        startTimer();
-      }
-
-    } catch (error) {
-      alert('Failed to start set. Please try again.');
-    }
   };
 
   // Complete step 1
@@ -473,6 +285,7 @@ const TasksList = () => {
     const updatedSets = [...sets];
     updatedSets[currentSet - 1] = {
       ...updatedSets[currentSet - 1],
+      status: 'in-progress',
       supportAck: {
         name: supportAckData.name,
         id: supportAckData.id,
@@ -595,6 +408,7 @@ const TasksList = () => {
         setCurrentStep(1);
         setChecklistSteps(resetChecklist);
         setTimeElapsed(0);
+        startTimer();
       }, 3000);
     }
   };
@@ -615,43 +429,6 @@ const TasksList = () => {
       case 'completed': return '#00b894';
       default: return '#636e72';
     }
-  };
-
-  // Get action button for each set
-  const getSetActionButton = (set) => {
-    if (set.status === 'pending') {
-      return (
-        <button
-          onClick={() => {
-            if (set.id === 1) {
-              handleStartSet1();
-            } else {
-              handleStartSetWithRestartId(set.id);
-            }
-          }}
-          className="start-set-btn"
-          disabled={loading}
-        >
-          {loading ? 'Starting...' : 'Start Set'}
-        </button>
-      );
-    } else if (set.status === 'in-progress') {
-      return (
-        <div className="set-in-progress">
-          <span className="in-progress-badge">In Progress</span>
-          {set.restartId && (
-            <small className="restart-id">Restart ID: {set.restartId}</small>
-          )}
-        </div>
-      );
-    } else if (set.status === 'completed') {
-      return (
-        <div className="set-completed">
-          <span className="completed-badge">Completed</span>
-        </div>
-      );
-    }
-    return null;
   };
 
   // Clean up timer on unmount
@@ -716,11 +493,10 @@ const TasksList = () => {
               <h4>⚠️ Important Instructions:</h4>
               <ul>
                 <li>Enter your name and ADID to start the task</li>
-                <li>Each set requires individual start with API call</li>
-                <li>Set 1: Start directly with name/ID</li>
-                <li>Sets 2,3,4: First get Restart ID, then start</li>
                 <li>Step 2 requires support team acknowledgment</li>
                 <li>Each set completion requires verification</li>
+                <li>Different operators can work on different sets</li>
+                <li>Complete steps in sequential order</li>
               </ul>
             </div>
           </div>
@@ -762,17 +538,6 @@ const TasksList = () => {
                     <strong>Servers:</strong> {set.servers}
                   </div>
 
-                  {/* Set Action Button */}
-                  <div className="set-action">
-                    {getSetActionButton(set)}
-                  </div>
-
-                  {set.restartId && (
-                    <div className="set-restart-id">
-                      <strong>🔑 Restart ID:</strong> {set.restartId}
-                    </div>
-                  )}
-
                   {set.supportAck && (
                     <div className="set-support-ack">
                       <strong>🛡️ Support Acknowledgment:</strong>
@@ -797,138 +562,9 @@ const TasksList = () => {
                 <span>Set {currentSet} of {sets.length}</span>
                 <span>•</span>
                 <span>Step {currentStep} of {checklistSteps.length}</span>
-                {sets[currentSet - 1].status === 'in-progress' && sets[currentSet - 1].restartId && (
-                  <>
-                    <span>•</span>
-                    <span>Restart ID: {sets[currentSet - 1].restartId}</span>
-                  </>
-                )}
               </div>
             </div>
           </section>
-
-          {/* Set 1 Start Modal */}
-          {setStartModal && (
-            <div className="modal-overlay">
-              <div className="modal-container">
-                <div className="modal-header">
-                  <h2>🚀 Start Set 1</h2>
-                  <p>Enter your details to start Set 1 (25 Series - Set 1)</p>
-                </div>
-
-                <div className="modal-instructions">
-                  <p>This will call the API: <code>/startBrokerRestartTask</code> with your details as payload</p>
-                  <div className="api-info">
-                    <strong>Payload:</strong> infraName, infraId
-                  </div>
-                </div>
-
-                <form onSubmit={handleSet1StartSubmit} className="modal-form">
-                  <div className="form-group">
-                    <label htmlFor="set1Name">Your Name</label>
-                    <input
-                      type="text"
-                      id="set1Name"
-                      value={setStartData.name}
-                      onChange={(e) => setStartData({...setStartData, name: e.target.value})}
-                      placeholder="Enter your name"
-                      required
-                      className="form-input"
-                      disabled={loading}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label htmlFor="set1Id">Your ADID / Employee ID</label>
-                    <input
-                      type="text"
-                      id="set1Id"
-                      value={setStartData.id}
-                      onChange={(e) => setStartData({...setStartData, id: e.target.value})}
-                      placeholder="Enter your ADID"
-                      required
-                      className="form-input"
-                      disabled={loading}
-                    />
-                  </div>
-                  <div className="modal-actions">
-                    <button 
-                      type="button" 
-                      onClick={() => setSetStartModal(false)} 
-                      className="btn-secondary"
-                      disabled={loading}
-                    >
-                      Cancel
-                    </button>
-                    <button type="submit" className="btn-primary" disabled={loading}>
-                      {loading ? 'Starting...' : 'Start Set 1'}
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          )}
-
-          {/* Set 2,3,4 Start Modal (with Restart ID) */}
-          {setStartWithIdModal && (
-            <div className="modal-overlay">
-              <div className="modal-container">
-                <div className="modal-header">
-                  <h2>🚀 Start Set {setStartData.setNumber}</h2>
-                  <p>Enter your details to start Set {setStartData.setNumber}</p>
-                </div>
-
-                <div className="modal-instructions">
-                  <p>Restart ID obtained: <strong>{restartId}</strong></p>
-                  <p>This will call the API: <code>/startBrokerRestartTask/{restartId}</code></p>
-                  <div className="api-info">
-                    <strong>Payload:</strong> infraName, infraId, brokerRestartId
-                  </div>
-                </div>
-
-                <form onSubmit={handleSetWithIdStartSubmit} className="modal-form">
-                  <div className="form-group">
-                    <label htmlFor="setWithIdName">Your Name</label>
-                    <input
-                      type="text"
-                      id="setWithIdName"
-                      value={setStartData.name}
-                      onChange={(e) => setStartData({...setStartData, name: e.target.value})}
-                      placeholder="Enter your name"
-                      required
-                      className="form-input"
-                      disabled={loading}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label htmlFor="setWithIdId">Your ADID / Employee ID</label>
-                    <input
-                      type="text"
-                      id="setWithIdId"
-                      value={setStartData.id}
-                      onChange={(e) => setStartData({...setStartData, id: e.target.value})}
-                      placeholder="Enter your ADID"
-                      required
-                      className="form-input"
-                      disabled={loading}
-                    />
-                  </div>
-                  <div className="modal-actions">
-                    <button 
-                      type="button" 
-                      onClick={() => setSetStartWithIdModal(false)} 
-                      className="btn-secondary"
-                      disabled={loading}
-                    >
-                      Cancel
-                    </button>
-                    <button type="submit" className="btn-primary" disabled={loading}>
-                      {loading ? 'Starting...' : `Start Set ${setStartData.setNumber}`}
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          )}
 
           {/* Support Acknowledgment Modal */}
           {supportAckModal && (
@@ -1039,88 +675,86 @@ const TasksList = () => {
             </div>
           )}
 
-          {/* Checklist Timeline (Only show if current set is in progress) */}
-          {sets[currentSet - 1].status === 'in-progress' && (
-            <section className="checklist-section">
-              <h2>📋 Restart Procedure Checklist</h2>
-              <div className="timeline-container">
-                {checklistSteps.map((step, index) => (
-                  <div
-                    key={step.id}
-                    className={`timeline-step ${step.completed ? 'completed' : ''} ${currentStep === step.id ? 'current' : ''}`}
-                  >
-                    <div className="step-marker">
-                      <div className="step-number">{step.id}</div>
-                      {index < checklistSteps.length - 1 && (
-                        <div className="step-connector"></div>
-                      )}
-                    </div>
-                    <div className="step-content">
-                      <div className="step-header">
-                        <h3>{step.title}</h3>
-                        <div className="step-status">
-                          {step.completed ? (
-                            <span className="status-completed">✅ Completed</span>
-                          ) : currentStep === step.id ? (
-                            <span className="status-current">⏳ In Progress</span>
-                          ) : (
-                            <span className="status-pending">⏱️ Pending</span>
-                          )}
-                        </div>
-                      </div>
-                      <p className="step-description">{step.description}</p>
-
-                      {step.completed && (
-                        <div className="step-details">
-                          <div className="detail-item">
-                            <strong>Completed by:</strong> {step.completedBy}
-                          </div>
-                          <div className="detail-item">
-                            <strong>Time:</strong> {format(new Date(step.completedTime), 'MMM d, h:mm:ss a')}
-                          </div>
-                          {step.requiresAck && step.ackBy && (
-                            <div className="detail-item ack-info">
-                              <strong>✅ Support Acknowledgment by:</strong> {step.ackBy}
-                              <br />
-                              <small>{format(new Date(step.ackTime), 'MMM d, h:mm:ss a')}</small>
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Step Actions */}
-                      {currentStep === step.id && !step.completed && (
-                        <div className="step-actions">
-                          {step.id === 1 ? (
-                            <button
-                              onClick={completeStep1}
-                              className="complete-btn"
-                            >
-                              Mark as Complete
-                            </button>
-                          ) : step.id === 2 ? (
-                            <button
-                              onClick={completeStep2}
-                              className="complete-btn"
-                            >
-                              Enter Support Acknowledgment
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => completeStep(step.id)}
-                              className="complete-btn"
-                            >
-                              Mark as Complete
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </div>
+          {/* Checklist Timeline */}
+          <section className="checklist-section">
+            <h2>📋 Restart Procedure Checklist</h2>
+            <div className="timeline-container">
+              {checklistSteps.map((step, index) => (
+                <div
+                  key={step.id}
+                  className={`timeline-step ${step.completed ? 'completed' : ''} ${currentStep === step.id ? 'current' : ''}`}
+                >
+                  <div className="step-marker">
+                    <div className="step-number">{step.id}</div>
+                    {index < checklistSteps.length - 1 && (
+                      <div className="step-connector"></div>
+                    )}
                   </div>
-                ))}
-              </div>
-            </section>
-          )}
+                  <div className="step-content">
+                    <div className="step-header">
+                      <h3>{step.title}</h3>
+                      <div className="step-status">
+                        {step.completed ? (
+                          <span className="status-completed">✅ Completed</span>
+                        ) : currentStep === step.id ? (
+                          <span className="status-current">⏳ In Progress</span>
+                        ) : (
+                          <span className="status-pending">⏱️ Pending</span>
+                        )}
+                      </div>
+                    </div>
+                    <p className="step-description">{step.description}</p>
+
+                    {step.completed && (
+                      <div className="step-details">
+                        <div className="detail-item">
+                          <strong>Completed by:</strong> {step.completedBy}
+                        </div>
+                        <div className="detail-item">
+                          <strong>Time:</strong> {format(new Date(step.completedTime), 'MMM d, h:mm:ss a')}
+                        </div>
+                        {step.requiresAck && step.ackBy && (
+                          <div className="detail-item ack-info">
+                            <strong>✅ Support Acknowledgment by:</strong> {step.ackBy}
+                            <br />
+                            <small>{format(new Date(step.ackTime), 'MMM d, h:mm:ss a')}</small>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Step Actions */}
+                    {currentStep === step.id && !step.completed && (
+                      <div className="step-actions">
+                        {step.id === 1 ? (
+                          <button
+                            onClick={completeStep1}
+                            className="complete-btn"
+                          >
+                            Mark as Complete
+                          </button>
+                        ) : step.id === 2 ? (
+                          <button
+                            onClick={completeStep2}
+                            className="complete-btn"
+                          >
+                            Enter Support Acknowledgment
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => completeStep(step.id)}
+                            className="complete-btn"
+                          >
+                            Mark as Complete
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
 
           {/* Activity Log */}
           {activityLog.length > 0 && (
@@ -1177,9 +811,7 @@ const TasksList = () => {
                   <ul>
                     {sets.map(set => (
                       <li key={set.id}>
-                        <strong>{set.name}:</strong> 
-                        {set.restartId && ` [Restart ID: ${set.restartId}] `}
-                        Completed by {set.completedBy} at {format(new Date(set.completedTime), 'h:mm a')}
+                        <strong>{set.name}:</strong> Completed by {set.completedBy} at {format(new Date(set.completedTime), 'h:mm a')}
                       </li>
                     ))}
                   </ul>
