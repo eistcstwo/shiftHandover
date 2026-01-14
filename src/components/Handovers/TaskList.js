@@ -83,6 +83,29 @@ const TasksList = () => {
   const START_TASK_URL = `${API_BASE_URL}/startBrokerRestartTask/`;
   const GET_RESTART_ID_URL = `${API_BASE_URL}/getRestartId`;
 
+  // Get session ID from localStorage
+  const getSessionId = () => {
+    return localStorage.getItem('sessionid');
+  };
+
+  // Create fetch with authorization header
+  const fetchWithAuth = async (url, options = {}) => {
+    const sessionId = getSessionId();
+    const headers = {
+      'Content-Type': 'application/json',
+      ...options.headers
+    };
+
+    if (sessionId) {
+      headers['Authorization'] = `Bearer ${sessionId}`;
+    }
+
+    return fetch(url, {
+      ...options,
+      headers
+    });
+  };
+
   // State for checklist steps
   const [checklistSteps, setChecklistSteps] = useState([
     {
@@ -192,7 +215,6 @@ const TasksList = () => {
   const [timer, setTimer] = useState(null);
   const [timeElapsed, setTimeElapsed] = useState(0);
   const [activityLog, setActivityLog] = useState([]);
-  const [apiError, setApiError] = useState(null);
 
   // Handle set card click - show auth modal for that set
   const handleSetCardClick = (setId) => {
@@ -208,14 +230,10 @@ const TasksList = () => {
   // API call to get restart ID for sets 2, 3, 4
   const getRestartId = async () => {
     try {
-      setApiError(null);
       logActivity('API_CALL', 'Fetching restart ID from backend...');
       
-      const response = await fetch(GET_RESTART_ID_URL, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        }
+      const response = await fetchWithAuth(GET_RESTART_ID_URL, {
+        method: 'GET'
       });
 
       if (!response.ok) {
@@ -227,9 +245,7 @@ const TasksList = () => {
       
       return data.restartId;
     } catch (error) {
-      const errorMessage = `Failed to get restart ID: ${error.message}`;
-      setApiError(errorMessage);
-      logActivity('API_ERROR', errorMessage);
+      logActivity('API_ERROR', `Failed to get restart ID: ${error.message}`);
       console.error('Error fetching restart ID:', error);
       return null;
     }
@@ -238,8 +254,6 @@ const TasksList = () => {
   // API call to start broker restart task
   const startBrokerRestartTask = async (infraId, infraName, restartId = null) => {
     try {
-      setApiError(null);
-      
       const payload = {
         infraId: infraId,
         infraName: infraName
@@ -253,11 +267,8 @@ const TasksList = () => {
         logActivity('API_CALL', 'Starting broker restart task for Set 1');
       }
 
-      const response = await fetch(url, {
+      const response = await fetchWithAuth(url, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify(payload)
       });
 
@@ -266,13 +277,11 @@ const TasksList = () => {
       }
 
       const data = await response.json();
-      logActivity('API_SUCCESS', `Broker restart task started successfully. Response: ${JSON.stringify(data)}`);
+      logActivity('API_SUCCESS', `Broker restart task started successfully`);
       
       return data;
     } catch (error) {
-      const errorMessage = `Failed to start broker restart task: ${error.message}`;
-      setApiError(errorMessage);
-      logActivity('API_ERROR', errorMessage);
+      logActivity('API_ERROR', `Failed to start broker restart task: ${error.message}`);
       console.error('Error starting broker restart task:', error);
       throw error;
     }
@@ -305,7 +314,7 @@ const TasksList = () => {
         restartId = await getRestartId();
         
         if (!restartId) {
-          alert('Failed to get restart ID. Please try again.');
+          // Don't show alert, just return
           setOperatorAuth({
             ...operatorAuth,
             loading: false
@@ -353,12 +362,12 @@ const TasksList = () => {
       startTimer();
 
     } catch (error) {
-      logActivity('AUTH_FAILED', `Failed to authenticate operator for Set ${selectedSetId}: ${error.message}`);
+      logActivity('AUTH_FAILED', `Failed to authenticate operator for Set ${selectedSetId}`);
       setOperatorAuth({
         ...operatorAuth,
         loading: false
       });
-      alert(`Failed to start task: ${error.message}. Please try again.`);
+      // Don't show alert to user
     }
   };
 
@@ -599,14 +608,6 @@ const TasksList = () => {
         </div>
       </div>
 
-      {/* API Error Display */}
-      {apiError && (
-        <div className="api-error-banner">
-          <strong>⚠️ API Error:</strong> {apiError}
-          <button onClick={() => setApiError(null)} className="close-error-btn">×</button>
-        </div>
-      )}
-
       {/* Server Sets Progress - Always visible */}
       <section className="sets-section">
         <h2>📊 Server Sets Progress</h2>
@@ -658,16 +659,7 @@ const TasksList = () => {
               )}
 
               {set.status === 'pending' && (
-                <div style={{
-                  marginTop: '15px',
-                  padding: '10px',
-                  backgroundColor: 'rgba(46, 213, 255, 0.1)',
-                  borderRadius: '6px',
-                  textAlign: 'center',
-                  color: '#2ed5ff',
-                  fontWeight: '500',
-                  fontSize: '0.9rem'
-                }}>
+                <div className="set-start-hint">
                   👆 Click to start this set
                 </div>
               )}
@@ -723,7 +715,11 @@ const TasksList = () => {
               <div className="modal-actions">
                 <button 
                   type="button" 
-                  onClick={() => setOperatorAuth({...operatorAuth, selectedSet: null})}
+                  onClick={() => setOperatorAuth({
+                    ...operatorAuth,
+                    selectedSet: null,
+                    loading: false
+                  })}
                   className="btn-secondary"
                   disabled={operatorAuth.loading}
                 >
@@ -963,14 +959,10 @@ const TasksList = () => {
                     <div className="log-message">
                       {log.message}
                     </div>
-                    {log.type === 'API_CALL' && (
-                      <div className="log-type api-call">API</div>
-                    )}
-                    {log.type === 'API_SUCCESS' && (
-                      <div className="log-type api-success">SUCCESS</div>
-                    )}
-                    {log.type === 'API_ERROR' && (
-                      <div className="log-type api-error">ERROR</div>
+                    {log.type.includes('API') && (
+                      <div className={`log-type ${log.type.includes('SUCCESS') ? 'api-success' : log.type.includes('ERROR') ? 'api-error' : 'api-call'}`}>
+                        {log.type.includes('SUCCESS') ? 'SUCCESS' : log.type.includes('ERROR') ? 'ERROR' : 'API'}
+                      </div>
                     )}
                   </div>
                 ))}
