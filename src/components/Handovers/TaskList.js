@@ -494,7 +494,16 @@ const TasksList = () => {
               )}
 
               {set.status === 'pending' && (
-                <div className="click-prompt">
+                <div style={{
+                  marginTop: '15px',
+                  padding: '10px',
+                  backgroundColor: 'rgba(46, 213, 255, 0.1)',
+                  borderRadius: '6px',
+                  textAlign: 'center',
+                  color: '#2ed5ff',
+                  fontWeight: '500',
+                  fontSize: '0.9rem'
+                }}>
                   👆 Click to start this set
                 </div>
               )}
@@ -826,8 +835,8 @@ const TasksList = () => {
           </div>
         </div>
       )}
-    </div>
-  );
+</div>
+);
 };
 
-export default TasksList;
+export default TaskList;
