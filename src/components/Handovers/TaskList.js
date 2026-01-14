@@ -9,7 +9,8 @@ const TasksList = () => {
     id: '',
     isAuthenticated: false,
     authTime: null,
-    selectedSet: null
+    selectedSet: null,
+    loading: false
   });
 
   // State for support acknowledgment
@@ -38,7 +39,9 @@ const TasksList = () => {
       status: 'pending',
       supportAck: null,
       completedBy: null,
-      completedTime: null
+      completedTime: null,
+      restartId: null,
+      apiCallMade: false
     },
     {
       id: 2,
@@ -47,7 +50,9 @@ const TasksList = () => {
       status: 'pending',
       supportAck: null,
       completedBy: null,
-      completedTime: null
+      completedTime: null,
+      restartId: null,
+      apiCallMade: false
     },
     {
       id: 3,
@@ -56,7 +61,9 @@ const TasksList = () => {
       status: 'pending',
       supportAck: null,
       completedBy: null,
-      completedTime: null
+      completedTime: null,
+      restartId: null,
+      apiCallMade: false
     },
     {
       id: 4,
@@ -65,9 +72,16 @@ const TasksList = () => {
       status: 'pending',
       supportAck: null,
       completedBy: null,
-      completedTime: null
+      completedTime: null,
+      restartId: null,
+      apiCallMade: false
     }
   ]);
+
+  // API Configuration
+  const API_BASE_URL = 'https://10.191.171.12:5443/EISHOME/shiftHandover';
+  const START_TASK_URL = `${API_BASE_URL}/startBrokerRestartTask/`;
+  const GET_RESTART_ID_URL = `${API_BASE_URL}/getRestartId`;
 
   // State for checklist steps
   const [checklistSteps, setChecklistSteps] = useState([
@@ -178,6 +192,7 @@ const TasksList = () => {
   const [timer, setTimer] = useState(null);
   const [timeElapsed, setTimeElapsed] = useState(0);
   const [activityLog, setActivityLog] = useState([]);
+  const [apiError, setApiError] = useState(null);
 
   // Handle set card click - show auth modal for that set
   const handleSetCardClick = (setId) => {
@@ -190,33 +205,161 @@ const TasksList = () => {
     });
   };
 
-  // Handle operator authentication
-  const handleOperatorAuth = (e) => {
+  // API call to get restart ID for sets 2, 3, 4
+  const getRestartId = async () => {
+    try {
+      setApiError(null);
+      logActivity('API_CALL', 'Fetching restart ID from backend...');
+      
+      const response = await fetch(GET_RESTART_ID_URL, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      logActivity('API_SUCCESS', `Restart ID received: ${data.restartId}`);
+      
+      return data.restartId;
+    } catch (error) {
+      const errorMessage = `Failed to get restart ID: ${error.message}`;
+      setApiError(errorMessage);
+      logActivity('API_ERROR', errorMessage);
+      console.error('Error fetching restart ID:', error);
+      return null;
+    }
+  };
+
+  // API call to start broker restart task
+  const startBrokerRestartTask = async (infraId, infraName, restartId = null) => {
+    try {
+      setApiError(null);
+      
+      const payload = {
+        infraId: infraId,
+        infraName: infraName
+      };
+
+      let url = START_TASK_URL;
+      if (restartId) {
+        url += restartId;
+        logActivity('API_CALL', `Starting broker restart task for set with restart ID: ${restartId}`);
+      } else {
+        logActivity('API_CALL', 'Starting broker restart task for Set 1');
+      }
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      logActivity('API_SUCCESS', `Broker restart task started successfully. Response: ${JSON.stringify(data)}`);
+      
+      return data;
+    } catch (error) {
+      const errorMessage = `Failed to start broker restart task: ${error.message}`;
+      setApiError(errorMessage);
+      logActivity('API_ERROR', errorMessage);
+      console.error('Error starting broker restart task:', error);
+      throw error;
+    }
+  };
+
+  // Handle operator authentication with API integration
+  const handleOperatorAuth = async (e) => {
     e.preventDefault();
+    
     const authTime = new Date();
     const selectedSetId = operatorAuth.selectedSet;
     
     setOperatorAuth({
       ...operatorAuth,
-      isAuthenticated: true,
-      authTime
+      loading: true
     });
 
-    setCurrentSet(selectedSetId);
+    try {
+      logActivity('AUTH_START', `Operator ${operatorAuth.name} (ID: ${operatorAuth.id}) attempting to start Set ${selectedSetId}`, operatorAuth);
 
-    // Update set status to in-progress
-    const updatedSets = [...sets];
-    updatedSets[selectedSetId - 1] = {
-      ...updatedSets[selectedSetId - 1],
-      status: 'in-progress'
-    };
-    setSets(updatedSets);
+      let restartId = null;
+      
+      // For Set 1: No restart ID needed
+      if (selectedSetId === 1) {
+        logActivity('SET_START', 'Starting Set 1 - No restart ID required');
+      } 
+      // For Sets 2, 3, 4: Get restart ID first
+      else {
+        logActivity('SET_START', `Starting Set ${selectedSetId} - Fetching restart ID...`);
+        restartId = await getRestartId();
+        
+        if (!restartId) {
+          alert('Failed to get restart ID. Please try again.');
+          setOperatorAuth({
+            ...operatorAuth,
+            loading: false
+          });
+          return;
+        }
+        
+        // Update set with restart ID
+        const updatedSets = [...sets];
+        updatedSets[selectedSetId - 1] = {
+          ...updatedSets[selectedSetId - 1],
+          restartId: restartId
+        };
+        setSets(updatedSets);
+      }
 
-    // Log authentication
-    logActivity('OPERATOR_AUTH', `Operator ${operatorAuth.name} (ID: ${operatorAuth.id}) started Set ${selectedSetId}`, operatorAuth);
+      // Start the broker restart task via API
+      await startBrokerRestartTask(operatorAuth.id, operatorAuth.name, restartId);
 
-    // Start timer for step 1
-    startTimer();
+      // Update operator auth state
+      setOperatorAuth({
+        ...operatorAuth,
+        isAuthenticated: true,
+        authTime,
+        loading: false
+      });
+
+      setCurrentSet(selectedSetId);
+
+      // Update set status to in-progress
+      const updatedSets = [...sets];
+      updatedSets[selectedSetId - 1] = {
+        ...updatedSets[selectedSetId - 1],
+        status: 'in-progress',
+        apiCallMade: true
+      };
+      setSets(updatedSets);
+
+      logActivity('AUTH_SUCCESS', `Operator ${operatorAuth.name} (ID: ${operatorAuth.id}) successfully started Set ${selectedSetId}`, {
+        restartId,
+        authTime
+      });
+
+      // Start timer for step 1
+      startTimer();
+
+    } catch (error) {
+      logActivity('AUTH_FAILED', `Failed to authenticate operator for Set ${selectedSetId}: ${error.message}`);
+      setOperatorAuth({
+        ...operatorAuth,
+        loading: false
+      });
+      alert(`Failed to start task: ${error.message}. Please try again.`);
+    }
   };
 
   // Start timer for current step
@@ -416,7 +559,8 @@ const TasksList = () => {
       id: '',
       isAuthenticated: false,
       authTime: null,
-      selectedSet: null
+      selectedSet: null,
+      loading: false
     });
   };
 
@@ -455,6 +599,14 @@ const TasksList = () => {
         </div>
       </div>
 
+      {/* API Error Display */}
+      {apiError && (
+        <div className="api-error-banner">
+          <strong>⚠️ API Error:</strong> {apiError}
+          <button onClick={() => setApiError(null)} className="close-error-btn">×</button>
+        </div>
+      )}
+
       {/* Server Sets Progress - Always visible */}
       <section className="sets-section">
         <h2>📊 Server Sets Progress</h2>
@@ -476,6 +628,18 @@ const TasksList = () => {
               <div className="set-servers">
                 <strong>Servers:</strong> {set.servers}
               </div>
+
+              {set.restartId && (
+                <div className="set-restart-id">
+                  <strong>🔄 Restart ID:</strong> {set.restartId}
+                </div>
+              )}
+
+              {set.apiCallMade && (
+                <div className="api-indicator">
+                  <span className="api-success">✅ API Call Made</span>
+                </div>
+              )}
 
               {set.supportAck && (
                 <div className="set-support-ack">
@@ -521,6 +685,14 @@ const TasksList = () => {
               <p>Starting work on {sets[operatorAuth.selectedSet - 1].name}</p>
             </div>
 
+            <div className="api-info-note">
+              {operatorAuth.selectedSet === 1 ? (
+                <p>📝 <strong>Set 1:</strong> API call will be made with infraID and infraName only</p>
+              ) : (
+                <p>📝 <strong>Set {operatorAuth.selectedSet}:</strong> First get restart ID, then call API with restart ID + infraID + infraName</p>
+              )}
+            </div>
+
             <form onSubmit={handleOperatorAuth} className="modal-form">
               <div className="form-group">
                 <label htmlFor="operatorName">Your Name (Operator)</label>
@@ -532,6 +704,7 @@ const TasksList = () => {
                   placeholder="Enter your full name"
                   required
                   className="form-input"
+                  disabled={operatorAuth.loading}
                 />
               </div>
               <div className="form-group">
@@ -544,6 +717,7 @@ const TasksList = () => {
                   placeholder="Enter your ADID"
                   required
                   className="form-input"
+                  disabled={operatorAuth.loading}
                 />
               </div>
               <div className="modal-actions">
@@ -551,11 +725,12 @@ const TasksList = () => {
                   type="button" 
                   onClick={() => setOperatorAuth({...operatorAuth, selectedSet: null})}
                   className="btn-secondary"
+                  disabled={operatorAuth.loading}
                 >
                   Cancel
                 </button>
-                <button type="submit" className="btn-primary">
-                  Start Task
+                <button type="submit" className="btn-primary" disabled={operatorAuth.loading}>
+                  {operatorAuth.loading ? 'Starting Task...' : 'Start Task'}
                 </button>
               </div>
             </form>
@@ -583,6 +758,11 @@ const TasksList = () => {
 
           <div className="current-set-info">
             <h3>Currently Working On: <span className="set-highlight">{sets[currentSet - 1].name}</span></h3>
+            {sets[currentSet - 1].restartId && (
+              <div className="restart-id-display">
+                <strong>Restart ID:</strong> {sets[currentSet - 1].restartId}
+              </div>
+            )}
             <div className="set-progress-info">
               <span>Set {currentSet} of {sets.length}</span>
               <span>•</span>
@@ -783,6 +963,15 @@ const TasksList = () => {
                     <div className="log-message">
                       {log.message}
                     </div>
+                    {log.type === 'API_CALL' && (
+                      <div className="log-type api-call">API</div>
+                    )}
+                    {log.type === 'API_SUCCESS' && (
+                      <div className="log-type api-success">SUCCESS</div>
+                    )}
+                    {log.type === 'API_ERROR' && (
+                      <div className="log-type api-error">ERROR</div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -835,8 +1024,8 @@ const TasksList = () => {
           </div>
         </div>
       )}
-</div>
-);
+    </div>
+  );
 };
 
-export default TaskList;
+export default TasksList;
