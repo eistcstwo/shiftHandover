@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import './TasksList.css';
+import { getRestartId, startBrokerRestartTask } from '../../Api/HandOverApi';
 
 const TasksList = () => {
   // State for main operator authentication
@@ -77,34 +78,6 @@ const TasksList = () => {
       apiCallMade: false
     }
   ]);
-
-  // API Configuration
-  const API_BASE_URL = 'https://10.191.171.12:5443/EISHOME/shiftHandover';
-  const START_TASK_URL = `${API_BASE_URL}/startBrokerRestartTask/`;
-  const GET_RESTART_ID_URL = `${API_BASE_URL}/getRestartId`;
-
-  // Get session ID from localStorage
-  const getSessionId = () => {
-    return localStorage.getItem('sessionid');
-  };
-
-  // Create fetch with authorization header
-  const fetchWithAuth = async (url, options = {}) => {
-    const sessionId = getSessionId();
-    const headers = {
-      'Content-Type': 'application/json',
-      ...options.headers
-    };
-
-    if (sessionId) {
-      headers['Authorization'] = `Bearer ${sessionId}`;
-    }
-
-    return fetch(url, {
-      ...options,
-      headers
-    });
-  };
 
   // State for checklist steps
   const [checklistSteps, setChecklistSteps] = useState([
@@ -227,66 +200,6 @@ const TasksList = () => {
     });
   };
 
-  // API call to get restart ID for sets 2, 3, 4
-  const getRestartId = async () => {
-    try {
-      logActivity('API_CALL', 'Fetching restart ID from backend...');
-      
-      const response = await fetchWithAuth(GET_RESTART_ID_URL, {
-        method: 'GET'
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      logActivity('API_SUCCESS', `Restart ID received: ${data.restartId}`);
-      
-      return data.restartId;
-    } catch (error) {
-      logActivity('API_ERROR', `Failed to get restart ID: ${error.message}`);
-      console.error('Error fetching restart ID:', error);
-      return null;
-    }
-  };
-
-  // API call to start broker restart task
-  const startBrokerRestartTask = async (infraId, infraName, restartId = null) => {
-    try {
-      const payload = {
-        infraId: infraId,
-        infraName: infraName
-      };
-
-      let url = START_TASK_URL;
-      if (restartId) {
-        url += restartId;
-        logActivity('API_CALL', `Starting broker restart task for set with restart ID: ${restartId}`);
-      } else {
-        logActivity('API_CALL', 'Starting broker restart task for Set 1');
-      }
-
-      const response = await fetchWithAuth(url, {
-        method: 'POST',
-        body: JSON.stringify(payload)
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      logActivity('API_SUCCESS', `Broker restart task started successfully`);
-      
-      return data;
-    } catch (error) {
-      logActivity('API_ERROR', `Failed to start broker restart task: ${error.message}`);
-      console.error('Error starting broker restart task:', error);
-      throw error;
-    }
-  };
-
   // Handle operator authentication with API integration
   const handleOperatorAuth = async (e) => {
     e.preventDefault();
@@ -311,16 +224,20 @@ const TasksList = () => {
       // For Sets 2, 3, 4: Get restart ID first
       else {
         logActivity('SET_START', `Starting Set ${selectedSetId} - Fetching restart ID...`);
-        restartId = await getRestartId();
+        
+        const restartIdResponse = await getRestartId();
+        restartId = restartIdResponse.restartId;
         
         if (!restartId) {
-          // Don't show alert, just return
+          logActivity('API_ERROR', 'Failed to get restart ID');
           setOperatorAuth({
             ...operatorAuth,
             loading: false
           });
           return;
         }
+        
+        logActivity('API_SUCCESS', `Restart ID received: ${restartId}`);
         
         // Update set with restart ID
         const updatedSets = [...sets];
@@ -333,6 +250,8 @@ const TasksList = () => {
 
       // Start the broker restart task via API
       await startBrokerRestartTask(operatorAuth.id, operatorAuth.name, restartId);
+      
+      logActivity('API_SUCCESS', 'Broker restart task started successfully');
 
       // Update operator auth state
       setOperatorAuth({
@@ -362,12 +281,11 @@ const TasksList = () => {
       startTimer();
 
     } catch (error) {
-      logActivity('AUTH_FAILED', `Failed to authenticate operator for Set ${selectedSetId}`);
+      logActivity('AUTH_FAILED', `Failed to authenticate operator for Set ${selectedSetId}: ${error.message}`);
       setOperatorAuth({
         ...operatorAuth,
         loading: false
       });
-      // Don't show alert to user
     }
   };
 
@@ -922,6 +840,8 @@ const TasksList = () => {
                         )}
                       </div>
                     )}
+
+            
 
                     {currentStep === step.id && !step.completed && (
                       <div className="step-actions">
