@@ -1,7 +1,83 @@
+
+eistcstwo/shiftHandover
+main
+
+GITHUB
+
+i want to implement this function where this curl is for getting the status of the BrokerRestartTasks and if hitted with restart id it will create on subset and if not it will give a restart id with it curl -k -X POST -L -H "Content-Type: application/json" -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoidjEwMTk0NjgiLCJleHAiOjE3Njg1NTg3MzgsImlhdCI6MTc2ODQ3MjMzOH0.l1ANnofq-O5kre95C-XJXGTi2ZjF1t_kkkFgJNYUPSQ" "https://10.191.171.12:5443/EISHOME_TEST/shiftHandover/startBrokerRestartTask/" -d '{"restartId":37}' {"brokerRestartId": 37, "startTiming": "2026-01-15 17:04:51.047754", "currSet": [{"status": "started", "startTime": "2026-01-15 17:04:51.047754", "endTime": "Present", "supportTime": "Pending", "supportId": "pending", "subTasks": []}, {"status": "started", "startTime": "2026-01-15 17:19:15.285086", "endTime": "Present", "supportTime": "Pending", "supportId": "pending", "subTasks": []}, {"status": "started", "startTime": "2026-01-15 17:19:56.389222", "endTime": "Present", "supportTime": "Pending", "supportId": "pending", "subTasks": []}]} 
+
+use getRestartId to get restart id before each set and
+
+Show more
+17:42
+I'll help you implement the broker restart task status tracking functionality. Based on your curl command and existing code, here's the implementation:
+
+1. Update API Functions
+First, let's add the new API function to HandOverApi.js:
+
+Updated HandOverApi.js - Add Get Broker Status
+Code 
+2. Update TasksList Component
+Now let's update the TasksList component to use the new status tracking:
+
+Updated TasksList.js - With Status Tracking
+Code 
+3. Add CSS for Broker Status Display
+Add these CSS classes to your TasksList.css:
+
+css
+/* Broker Status Display */
+.broker-status-display {
+  margin-top: 10px;
+  padding: 10px;
+  background-color: rgba(116, 185, 255, 0.1);
+  border-radius: 6px;
+  border: 1px solid rgba(116, 185, 255, 0.3);
+}
+
+.broker-status-display strong {
+  color: #74b9ff;
+  display: block;
+  margin-bottom: 5px;
+  font-size: 0.9rem;
+}
+
+.broker-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.broker-info small {
+  color: rgba(230, 238, 248, 0.7);
+  font-size: 0.8rem;
+}
+Summary
+This implementation provides:
+
+Get Restart ID: Calls getRestartId() before starting sets 2, 3, and 4
+Start Broker Task: Calls startBrokerRestartTask() with the restart ID
+Status Tracking: New getBrokerRestartStatus() function polls the API every 10 seconds
+Status Display: Shows broker status in the set cards including:
+Start timing
+Current subsets count
+Status information
+Activity Logging: All API calls and status updates are logged
+Visual Feedback: Set cards show broker status data when available
+The status polling automatically starts when a set is activated and stops when the set is completed.
+
+
+
+You are out of free messages until 10:30 PM
+Upgrade
+
+
+
+Claude is AI and can make mistakes. Please double-check responses.
 import React, { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import './TasksList.css';
-import { getRestartId, startBrokerRestartTask } from '../../Api/HandOverApi';
+import { getRestartId, startBrokerRestartTask, getBrokerRestartStatus } from '../../Api/HandOverApi';
 
 const TasksList = () => {
   // State for main operator authentication
@@ -32,6 +108,9 @@ const TasksList = () => {
 
   // State for current set
   const [currentSet, setCurrentSet] = useState(null);
+  const [currentRestartId, setCurrentRestartId] = useState(null);
+  const [brokerStatus, setBrokerStatus] = useState(null);
+  
   const [sets, setSets] = useState([
     {
       id: 1,
@@ -42,7 +121,8 @@ const TasksList = () => {
       completedBy: null,
       completedTime: null,
       restartId: null,
-      apiCallMade: false
+      apiCallMade: false,
+      brokerData: null
     },
     {
       id: 2,
@@ -53,7 +133,8 @@ const TasksList = () => {
       completedBy: null,
       completedTime: null,
       restartId: null,
-      apiCallMade: false
+      apiCallMade: false,
+      brokerData: null
     },
     {
       id: 3,
@@ -64,7 +145,8 @@ const TasksList = () => {
       completedBy: null,
       completedTime: null,
       restartId: null,
-      apiCallMade: false
+      apiCallMade: false,
+      brokerData: null
     },
     {
       id: 4,
@@ -75,7 +157,8 @@ const TasksList = () => {
       completedBy: null,
       completedTime: null,
       restartId: null,
-      apiCallMade: false
+      apiCallMade: false,
+      brokerData: null
     }
   ]);
 
@@ -189,6 +272,37 @@ const TasksList = () => {
   const [timeElapsed, setTimeElapsed] = useState(0);
   const [activityLog, setActivityLog] = useState([]);
 
+  // Poll broker status every 10 seconds when a set is active
+  useEffect(() => {
+    let statusInterval;
+    
+    if (currentRestartId && currentSet) {
+      statusInterval = setInterval(async () => {
+        try {
+          const status = await getBrokerRestartStatus(currentRestartId);
+          setBrokerStatus(status);
+          
+          // Update set data with broker status
+          const updatedSets = [...sets];
+          const setIndex = currentSet - 1;
+          updatedSets[setIndex] = {
+            ...updatedSets[setIndex],
+            brokerData: status
+          };
+          setSets(updatedSets);
+          
+          logActivity('STATUS_UPDATE', `Broker status updated for Set ${currentSet}`, status);
+        } catch (error) {
+          console.error('Error fetching broker status:', error);
+        }
+      }, 10000); // Poll every 10 seconds
+    }
+    
+    return () => {
+      if (statusInterval) clearInterval(statusInterval);
+    };
+  }, [currentRestartId, currentSet]);
+
   // Handle set card click - show auth modal for that set
   const handleSetCardClick = (setId) => {
     const selectedSet = sets.find(s => s.id === setId);
@@ -238,20 +352,13 @@ const TasksList = () => {
         }
         
         logActivity('API_SUCCESS', `Restart ID received: ${restartId}`);
-        
-        // Update set with restart ID
-        const updatedSets = [...sets];
-        updatedSets[selectedSetId - 1] = {
-          ...updatedSets[selectedSetId - 1],
-          restartId: restartId
-        };
-        setSets(updatedSets);
+        setCurrentRestartId(restartId);
       }
 
       // Start the broker restart task via API
-      await startBrokerRestartTask(operatorAuth.id, operatorAuth.name, restartId);
+      const brokerResponse = await startBrokerRestartTask(operatorAuth.id, operatorAuth.name, restartId);
       
-      logActivity('API_SUCCESS', 'Broker restart task started successfully');
+      logActivity('API_SUCCESS', 'Broker restart task started successfully', brokerResponse);
 
       // Update operator auth state
       setOperatorAuth({
@@ -262,19 +369,23 @@ const TasksList = () => {
       });
 
       setCurrentSet(selectedSetId);
+      setBrokerStatus(brokerResponse);
 
       // Update set status to in-progress
       const updatedSets = [...sets];
       updatedSets[selectedSetId - 1] = {
         ...updatedSets[selectedSetId - 1],
         status: 'in-progress',
-        apiCallMade: true
+        apiCallMade: true,
+        restartId: restartId || 'N/A',
+        brokerData: brokerResponse
       };
       setSets(updatedSets);
 
       logActivity('AUTH_SUCCESS', `Operator ${operatorAuth.name} (ID: ${operatorAuth.id}) successfully started Set ${selectedSetId}`, {
         restartId,
-        authTime
+        authTime,
+        brokerStatus: brokerResponse
       });
 
       // Start timer for step 1
@@ -459,7 +570,8 @@ const TasksList = () => {
       completedBy: setCompleteData.name,
       completedById: setCompleteData.id,
       setNumber: currentSet,
-      time: completeTime
+      time: completeTime,
+      brokerStatus: brokerStatus
     });
 
     setSetCompleteModal(false);
@@ -479,6 +591,8 @@ const TasksList = () => {
 
     setChecklistSteps(resetChecklist);
     setCurrentSet(null);
+    setCurrentRestartId(null);
+    setBrokerStatus(null);
     setCurrentStep(1);
     setTimeElapsed(0);
     setOperatorAuth({
@@ -551,6 +665,18 @@ const TasksList = () => {
               {set.restartId && (
                 <div className="set-restart-id">
                   <strong>🔄 Restart ID:</strong> {set.restartId}
+                </div>
+              )}
+
+              {set.brokerData && (
+                <div className="broker-status-display">
+                  <strong>📊 Broker Status:</strong>
+                  <div className="broker-info">
+                    <small>Start Time: {set.brokerData.startTiming || 'N/A'}</small>
+                    {set.brokerData.currSet && set.brokerData.currSet.length > 0 && (
+                      <small>Current Subsets: {set.brokerData.currSet.length}</small>
+                    )}
+                  </div>
                 </div>
               )}
 
