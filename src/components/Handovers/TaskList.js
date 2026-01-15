@@ -255,31 +255,25 @@ const TasksList = () => {
 
       let restartId = null;
       
-      // For Set 1: No restart ID needed
-      if (selectedSetId === 1) {
-        logActivity('SET_START', 'Starting Set 1 - No restart ID required');
-      } 
-      // For Sets 2, 3, 4: Get restart ID first
-      else {
-        logActivity('SET_START', `Starting Set ${selectedSetId} - Fetching restart ID...`);
-        
-        const restartIdResponse = await getRestartId();
-        restartId = restartIdResponse.restartId;
-        
-        if (!restartId) {
-          logActivity('API_ERROR', 'Failed to get restart ID');
-          setOperatorAuth({
-            ...operatorAuth,
-            loading: false
-          });
-          return;
-        }
-        
-        logActivity('API_SUCCESS', `Restart ID received: ${restartId}`);
-        setCurrentRestartId(restartId);
+      // Get restart ID for ALL sets (including Set 1)
+      logActivity('SET_START', `Starting Set ${selectedSetId} - Fetching restart ID...`);
+      
+      const restartIdResponse = await getRestartId();
+      restartId = restartIdResponse.restartId;
+      
+      if (!restartId) {
+        logActivity('API_ERROR', 'Failed to get restart ID');
+        setOperatorAuth({
+          ...operatorAuth,
+          loading: false
+        });
+        return;
       }
+      
+      logActivity('API_SUCCESS', `Restart ID received: ${restartId}`);
+      setCurrentRestartId(restartId);
 
-      // Start the broker restart task via API
+      // Start the broker restart task via API with the restart ID
       const brokerResponse = await startBrokerRestartTask(operatorAuth.id, operatorAuth.name, restartId);
       
       logActivity('API_SUCCESS', 'Broker restart task started successfully', brokerResponse);
@@ -301,7 +295,7 @@ const TasksList = () => {
         ...updatedSets[selectedSetId - 1],
         status: 'in-progress',
         apiCallMade: true,
-        restartId: restartId || 'N/A',
+        restartId: restartId,
         brokerData: brokerResponse
       };
       setSets(updatedSets);
@@ -646,11 +640,7 @@ const TasksList = () => {
             </div>
 
             <div className="api-info-note">
-              {operatorAuth.selectedSet === 1 ? (
-                <p>📝 <strong>Set 1:</strong> API call will be made with infraID and infraName only</p>
-              ) : (
-                <p>📝 <strong>Set {operatorAuth.selectedSet}:</strong> First get restart ID, then call API with restart ID + infraID + infraName</p>
-              )}
+              <p>📝 <strong>All Sets:</strong> Will get restart ID first, then call API with restart ID + infraID + infraName</p>
             </div>
 
             <form onSubmit={handleOperatorAuth} className="modal-form">
@@ -890,8 +880,6 @@ const TasksList = () => {
                         )}
                       </div>
                     )}
-
-            
 
                     {currentStep === step.id && !step.completed && (
                       <div className="step-actions">
