@@ -176,3 +176,75 @@ export const getHistoryHandovers = async () => {
     throw error;
   }
 };
+export const getHistoryHandovers = async () => {
+  try {
+    const uid = localStorage.getItem('uidd');
+    const password = localStorage.getItem('password');
+    if (!uid || !password) {
+      throw new Error('Authentication credentials not found in localStorage');
+    }
+    const payload = { uidd: uid, password }; // Changed to uidd to match backend
+    const response = await api.post('/get_historyHandover/', payload, {
+      timeout: 30000,
+      headers: {
+        'Content-Type': 'application/json',
+      }
+    });
+    console.log('getHistoryHandovers response:', response);
+    return response.data;
+  } catch (error) {
+    console.error('getHistoryHandovers error:', error);
+    throw error;
+  }
+};
+
+// ========== BROKER RESTART TASK APIs ==========
+
+// Get restart ID for sets 2, 3, 4
+export const getRestartId = async () => {
+  try {
+    const response = await api.post('/getRestartId', {}, {
+      timeout: 30000,
+      headers: {
+        'Content-Type': 'application/json',
+      }
+    });
+    console.log('getRestartId response:', response);
+    return response.data;
+  } catch (error) {
+    console.error('getRestartId error:', error);
+    throw error;
+  }
+};
+
+// Start broker restart task
+export const startBrokerRestartTask = async (infraId, infraName, restartId = null) => {
+  try {
+    const payload = {
+      infraId: infraId,
+      infraName: infraName
+    };
+
+    let url = '/startBrokerRestartTask/';
+    if (restartId) {
+      url += restartId;
+      console.log('Starting broker restart task with restart ID:', restartId);
+    } else {
+      console.log('Starting broker restart task for Set 1 (no restart ID)');
+    }
+
+    const response = await api.post(url, payload, {
+      timeout: 30000,
+      headers: {
+        'Content-Type': 'application/json',
+      }
+    });
+    
+    console.log('startBrokerRestartTask response:', response);
+    return response.data;
+  } catch (error) {
+    console.error('startBrokerRestartTask error:', error);
+    throw error;
+  }
+};
+
