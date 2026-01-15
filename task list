@@ -25,3 +25,9 @@ curl -k -X POST -L  "https://10.191.171.12:5443/EISHOME_TEST/shiftHandover/start
 
 in set 1 it will open form whch will ask for user name and id after i get it i waill send id as infraID and name as infraName as payload to  https://10.191.171.12:5443/EISHOME/shiftHandover/startBrokerRestartTask/ and in set two three and four i will do same process but for tose sets i will also hit https://10.191.171.12:5443/EISHOME/shiftHandover/getRestartId this api first to get a response and then send that response as paylod with infraName and infraID in 
 https://10.191.171.12:5443/EISHOME/shiftHandover/startBrokerRestartTask/
+
+
+
+this curl is for getting the status of the BrokerRestartTasks ans if hitted with restart id it will create on subset and if not it will give a restart id with it s
+curl -k -X POST -L -H "Content-Type: application/json" -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoidjEwMTk0NjgiLCJleHAiOjE3Njg1NTg3MzgsImlhdCI6MTc2ODQ3MjMzOH0.l1ANnofq-O5kre95C-XJXGTi2ZjF1t_kkkFgJNYUPSQ"  "https://10.191.171.12:5443/EISHOME_TEST/shiftHandover/startBrokerRestartTask/" -d '{"restartId":37}'
+{"brokerRestartId": 37, "startTiming": "2026-01-15 17:04:51.047754", "currSet": [{"status": "started", "startTime": "2026-01-15 17:04:51.047754", "endTime": "Present", "supportTime": "Pending", "supportId": "pending", "subTasks": []}, {"status": "started", "startTime": "2026-01-15 17:19:15.285086", "endTime": "Present", "supportTime": "Pending", "supportId": "pending", "subTasks": []}, {"status": "started", "startTime": "2026-01-15 17:19:56.389222", "endTime": "Present", "supportTime": "Pending", "supportId": "pending", "subTasks": []}]}
