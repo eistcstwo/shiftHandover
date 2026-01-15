@@ -85,7 +85,7 @@ export const createTask = async (taskData) => {
       acknowledgeStatus: taskData.acknowledgeStatus || 'Pending',
       taskTitle: taskData.taskTitle || '',
       ackDesc: taskData.ackDesc || '',
-      handover_id_id: taskData.handover_id_id // Changed from handover_id
+      handover_id_id: taskData.handover_id_id
     };
 
     console.log('Creating task with payload:', payload);
@@ -124,7 +124,6 @@ export const updateTask = async (taskData) => {
       ackDesc: taskData.ackDesc || ''
     };
 
-    // Only add handover_id_id if it's being reassigned
     if (taskData.handover_id_id) {
       payload.handover_id_id = taskData.handover_id_id;
     }
@@ -162,28 +161,7 @@ export const getHistoryHandovers = async () => {
     if (!uid || !password) {
       throw new Error('Authentication credentials not found in localStorage');
     }
-    const payload = { uidd: uid, password }; // Changed to uidd to match backend
-    const response = await api.post('/get_historyHandover/', payload, {
-      timeout: 30000,
-      headers: {
-        'Content-Type': 'application/json',
-      }
-    });
-    console.log('getHistoryHandovers response:', response);
-    return response.data;
-  } catch (error) {
-    console.error('getHistoryHandovers error:', error);
-    throw error;
-  }
-};
-export const getHistoryHandovers = async () => {
-  try {
-    const uid = localStorage.getItem('uidd');
-    const password = localStorage.getItem('password');
-    if (!uid || !password) {
-      throw new Error('Authentication credentials not found in localStorage');
-    }
-    const payload = { uidd: uid, password }; // Changed to uidd to match backend
+    const payload = { uidd: uid, password };
     const response = await api.post('/get_historyHandover/', payload, {
       timeout: 30000,
       headers: {
@@ -248,3 +226,22 @@ export const startBrokerRestartTask = async (infraId, infraName, restartId = nul
   }
 };
 
+// NEW: Get broker restart task status
+export const getBrokerRestartStatus = async (restartId) => {
+  try {
+    const payload = restartId ? { restartId } : {};
+    
+    const response = await api.post('/startBrokerRestartTask/', payload, {
+      timeout: 30000,
+      headers: {
+        'Content-Type': 'application/json',
+      }
+    });
+    
+    console.log('getBrokerRestartStatus response:', response);
+    return response.data;
+  } catch (error) {
+    console.error('getBrokerRestartStatus error:', error);
+    throw error;
+  }
+};
