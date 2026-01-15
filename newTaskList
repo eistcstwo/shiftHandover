@@ -25,9 +25,13 @@ this curl is for updating sub restart tasks
  curl -k -X POST -L  "https://10.191.171.12:5443/EISHOME_TEST/shiftHandover/updateSubRestart/" -d '{"description":"CACHE UPDATED AFTER 12:00 A.M.","subSetsId":39}'
 
 
+curl -k -X POST -L  "https://10.191.171.12:5443/EISHOME_TEST/shiftHandover/updateSetRestart/" -d '{"status" :"completed","suportId":"234848","supportName" :"sushma","subSetsId":39}'
 
 
- curl -k -X POST -L  "https://10.191.171.12:5443/EISHOME_TEST/shiftHandover/updateSetRestart/" -d '{"status" :"completed","suportId":"234848","supportName" :"sushma","subSetsId":39}'
+
+
+
+ 
 '
 
 
