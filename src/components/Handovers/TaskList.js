@@ -1,101 +1,50 @@
 import React, { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import './TasksList.css';
-import { getRestartId, startBrokerRestartTask, getBrokerRestartStatus } from '../../Api/HandOverApi';
+import { 
+  getRestartId, 
+  getBrokerRestartStatus, 
+  startBrokerRestartTask, 
+  updateSubRestart,
+  updateSupportAck 
+} from '../../Api/HandOverApi';
 
 const TasksList = () => {
-  // State for main operator authentication
-  const [operatorAuth, setOperatorAuth] = useState({
-    name: '',
-    id: '',
-    isAuthenticated: false,
-    authTime: null,
-    selectedSet: null,
-    loading: false
+  // State for restart ID management
+  const [restartId, setRestartId] = useState(null);
+  const [brokerStatus, setBrokerStatus] = useState(null);
+  const [currentSubsetId, setCurrentSubsetId] = useState(null);
+  const [loading, setLoading] = useState(true);
+  
+  // State for set selection modal
+  const [showSetModal, setShowSetModal] = useState(false);
+  const [selectedSetIndex, setSelectedSetIndex] = useState(null);
+  const [setStartData, setSetStartData] = useState({
+    infraName: '',
+    infraId: ''
   });
 
-  // State for support acknowledgment
+  // State for support acknowledgment modal
   const [supportAckModal, setSupportAckModal] = useState(false);
   const [supportAckData, setSupportAckData] = useState({
     name: '',
-    id: '',
-    setNumber: null
+    id: ''
   });
 
-  // State for set completion verification
-  const [setCompleteModal, setSetCompleteModal] = useState(false);
-  const [setCompleteData, setSetCompleteData] = useState({
-    name: '',
-    id: '',
-    setNumber: null
-  });
+  // State for current step tracking
+  const [currentStep, setCurrentStep] = useState(1);
+  const [timer, setTimer] = useState(null);
+  const [timeElapsed, setTimeElapsed] = useState(0);
+  const [activityLog, setActivityLog] = useState([]);
 
-  // State for current set
-  const [currentSet, setCurrentSet] = useState(null);
-  const [currentRestartId, setCurrentRestartId] = useState(null);
-  const [brokerStatus, setBrokerStatus] = useState(null);
-  
-  const [sets, setSets] = useState([
-    {
-      id: 1,
-      name: '25 Series - Set 1',
-      servers: '155, 156, 157, 173, 174, 73, 74, 55, 56, 57, 63, 64, 163, 164, 10, 11, 12, 110, 111, 112, 41, 42, 43, 141, 142, 143, 31, 32, 134, 135, 192, 196, 197, 68, 69, 168, 169',
-      status: 'pending',
-      supportAck: null,
-      completedBy: null,
-      completedTime: null,
-      restartId: null,
-      apiCallMade: false,
-      brokerData: null
-    },
-    {
-      id: 2,
-      name: '25 Series - Set 2',
-      servers: '158, 159, 160, 175, 176, 75, 58, 59, 65, 66, 67, 165, 166, 13, 14, 113, 114, 115, 44, 45, 144, 145, 146, 33, 34, 131, 132, 133, 190, 191, 194, 195, 70, 71, 170, 171',
-      status: 'pending',
-      supportAck: null,
-      completedBy: null,
-      completedTime: null,
-      restartId: null,
-      apiCallMade: false,
-      brokerData: null
-    },
-    {
-      id: 3,
-      name: '24 Series - Set 3',
-      servers: '158, 159, 160, 175, 176, 75, 58, 59, 65, 66, 67, 165, 166, 13, 14, 113, 114, 115, 44, 45, 144, 145, 146, 33, 34, 131, 132, 133, 190, 191, 194, 195, 70, 71, 170, 171',
-      status: 'pending',
-      supportAck: null,
-      completedBy: null,
-      completedTime: null,
-      restartId: null,
-      apiCallMade: false,
-      brokerData: null
-    },
-    {
-      id: 4,
-      name: '24 Series - Set 4',
-      servers: '155, 156, 157, 173, 174, 73, 74, 55, 56, 57, 63, 64, 163, 164, 10, 11, 12, 110, 111, 112, 41, 42, 43, 141, 142, 143, 31, 32, 134, 135, 192, 196, 197, 68, 69, 168, 169',
-      status: 'pending',
-      supportAck: null,
-      completedBy: null,
-      completedTime: null,
-      restartId: null,
-      apiCallMade: false,
-      brokerData: null
-    }
-  ]);
-
-  // State for checklist steps
+  // Checklist steps definition
   const [checklistSteps, setChecklistSteps] = useState([
     {
       id: 1,
       title: 'CACHE UPDATED AFTER 12:00 A.M.',
       description: 'Ensure cache is updated after midnight',
       completed: false,
-      completedTime: null,
-      completedBy: null,
-      requiresAck: false
+      completedTime: null
     },
     {
       id: 2,
@@ -103,7 +52,6 @@ const TasksList = () => {
       description: 'Notify support team about activity start',
       completed: false,
       completedTime: null,
-      completedBy: null,
       requiresAck: true,
       ackBy: null,
       ackTime: null
@@ -113,212 +61,305 @@ const TasksList = () => {
       title: 'SETS READY FOR RESTART',
       description: 'Prepare all server sets for restart',
       completed: false,
-      completedTime: null,
-      completedBy: null,
-      requiresAck: false
+      completedTime: null
     },
     {
       id: 4,
       title: 'ISOLATOR DOWN',
       description: 'Bring isolator down for maintenance',
       completed: false,
-      completedTime: null,
-      completedBy: null,
-      requiresAck: false
+      completedTime: null
     },
     {
       id: 5,
       title: 'BROKER STOPPED',
       description: 'Stop all broker services',
       completed: false,
-      completedTime: null,
-      completedBy: null,
-      requiresAck: false
+      completedTime: null
     },
     {
       id: 6,
       title: 'HEARTBEAT & CACHE BROKER STARTED',
       description: 'Start heartbeat and cache broker services',
       completed: false,
-      completedTime: null,
-      completedBy: null,
-      requiresAck: false
+      completedTime: null
     },
     {
       id: 7,
       title: 'ALL BROKER STARTED',
       description: 'Start all broker services',
       completed: false,
-      completedTime: null,
-      completedBy: null,
-      requiresAck: false
+      completedTime: null
     },
     {
       id: 8,
       title: 'CACHE HIT & WORKLOAD DONE',
       description: 'Verify cache hits and complete workload',
       completed: false,
-      completedTime: null,
-      completedBy: null,
-      requiresAck: false
+      completedTime: null
     },
     {
       id: 9,
       title: 'UDP CHANGES (TIMEOUT & URL CHANGES)',
       description: 'Apply UDP configuration changes',
       completed: false,
-      completedTime: null,
-      completedBy: null,
-      requiresAck: false
+      completedTime: null
     },
     {
       id: 10,
       title: 'LOGS VERIFICATION DONE',
       description: 'Verify all system logs',
       completed: false,
-      completedTime: null,
-      completedBy: null,
-      requiresAck: false
+      completedTime: null
     },
     {
       id: 11,
       title: 'ISOLATOR UP',
       description: 'Bring isolator back online',
       completed: false,
-      completedTime: null,
-      completedBy: null,
-      requiresAck: false
+      completedTime: null
     }
   ]);
 
-  const [currentStep, setCurrentStep] = useState(1);
-  const [timer, setTimer] = useState(null);
-  const [timeElapsed, setTimeElapsed] = useState(0);
-  const [activityLog, setActivityLog] = useState([]);
-
-  // Poll broker status every 10 seconds when a set is active
+  // STEP 1: Initialize - Get restart ID on component mount
   useEffect(() => {
-    let statusInterval;
-    
-    if (currentRestartId && currentSet) {
-      statusInterval = setInterval(async () => {
-        try {
-          const status = await getBrokerRestartStatus(currentRestartId);
-          setBrokerStatus(status);
-          
-          // Update set data with broker status
-          const updatedSets = [...sets];
-          const setIndex = currentSet - 1;
-          updatedSets[setIndex] = {
-            ...updatedSets[setIndex],
-            brokerData: status
-          };
-          setSets(updatedSets);
-          
-          logActivity('STATUS_UPDATE', `Broker status updated for Set ${currentSet}`, status);
-        } catch (error) {
-          console.error('Error fetching broker status:', error);
-        }
-      }, 10000); // Poll every 10 seconds
-    }
-    
-    return () => {
-      if (statusInterval) clearInterval(statusInterval);
-    };
-  }, [currentRestartId, currentSet]);
+    initializeRestartId();
+  }, []);
 
-  // Handle set card click - show auth modal for that set
-  const handleSetCardClick = (setId) => {
-    const selectedSet = sets.find(s => s.id === setId);
-    if (selectedSet.status === 'completed') return;
-    
-    setOperatorAuth({
-      ...operatorAuth,
-      selectedSet: setId
-    });
+  const initializeRestartId = async () => {
+    setLoading(true);
+    try {
+      // Check if we already have a restart ID in localStorage
+      const storedRestartId = localStorage.getItem('brokerRestartId');
+      
+      if (storedRestartId) {
+        setRestartId(parseInt(storedRestartId));
+        logActivity('INIT', `Using stored restart ID: ${storedRestartId}`);
+        // STEP 2: Fetch current status
+        await fetchBrokerStatus(parseInt(storedRestartId));
+      } else {
+        // Get new restart ID from API
+        const response = await getRestartId();
+        const newRestartId = response.restartId;
+        setRestartId(newRestartId);
+        localStorage.setItem('brokerRestartId', newRestartId);
+        logActivity('API_SUCCESS', `New restart ID obtained: ${newRestartId}`, response);
+        
+        // STEP 2: Fetch current status
+        await fetchBrokerStatus(newRestartId);
+      }
+    } catch (error) {
+      console.error('Error initializing restart ID:', error);
+      logActivity('API_ERROR', `Failed to initialize: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // Handle operator authentication with API integration
-  const handleOperatorAuth = async (e) => {
+  // STEP 2: Fetch broker status to check if any set is in progress
+  const fetchBrokerStatus = async (rid) => {
+    try {
+      const statusResponse = await getBrokerRestartStatus(rid);
+      setBrokerStatus(statusResponse);
+      logActivity('API_SUCCESS', 'Broker status fetched', statusResponse);
+
+      // Check if there's an ongoing set
+      if (statusResponse.currSet && statusResponse.currSet.length > 0) {
+        const lastSet = statusResponse.currSet[statusResponse.currSet.length - 1];
+        
+        // If the last set is started but not ended, resume from there
+        if (lastSet.status === 'started' && lastSet.endTime === 'Present') {
+          setSelectedSetIndex(statusResponse.currSet.length - 1);
+          setCurrentSubsetId(lastSet.subSetsId);
+          
+          // Determine which step we're on based on subtasks
+          if (lastSet.subTasks && lastSet.subTasks.length > 0) {
+            setCurrentStep(lastSet.subTasks.length + 1);
+            
+            // Update completed steps
+            const updatedSteps = [...checklistSteps];
+            lastSet.subTasks.forEach((task, index) => {
+              if (updatedSteps[index]) {
+                updatedSteps[index].completed = true;
+                updatedSteps[index].completedTime = task.timestamp || new Date().toISOString();
+              }
+            });
+            setChecklistSteps(updatedSteps);
+          }
+          
+          logActivity('RESUME', `Resuming set ${statusResponse.currSet.length} from step ${currentStep}`);
+          startTimer();
+        } else {
+          // All sets are complete or we need to start a new one
+          logActivity('INFO', 'No active set found. Ready to start a new set.');
+        }
+      } else {
+        logActivity('INFO', 'No sets started yet. Ready to begin.');
+      }
+    } catch (error) {
+      console.error('Error fetching broker status:', error);
+      logActivity('API_ERROR', `Failed to fetch status: ${error.message}`);
+    }
+  };
+
+  // STEP 4: Handle set start
+  const handleSetStart = (setIndex) => {
+    setSelectedSetIndex(setIndex);
+    setShowSetModal(true);
+    setSetStartData({ infraName: '', infraId: '' });
+  };
+
+  const handleSetStartSubmit = async (e) => {
     e.preventDefault();
-    
-    const authTime = new Date();
-    const selectedSetId = operatorAuth.selectedSet;
-    
-    setOperatorAuth({
-      ...operatorAuth,
-      loading: true
-    });
+    setLoading(true);
 
     try {
-      logActivity('AUTH_START', `Operator ${operatorAuth.name} (ID: ${operatorAuth.id}) attempting to start Set ${selectedSetId}`, operatorAuth);
+      logActivity('SET_START', `Starting set ${selectedSetIndex + 1}`, setStartData);
 
-      let restartId = null;
-      
-      // Get restart ID for ALL sets (including Set 1)
-      logActivity('SET_START', `Starting Set ${selectedSetId} - Fetching restart ID...`);
-      
-      const restartIdResponse = await getRestartId();
-      restartId = restartIdResponse.restartId;
-      
-      if (!restartId) {
-        logActivity('API_ERROR', 'Failed to get restart ID');
-        setOperatorAuth({
-          ...operatorAuth,
-          loading: false
-        });
-        return;
+      // STEP 3 & 4: Call startBrokerRestartTask with restartId to create subset
+      const response = await startBrokerRestartTask(
+        setStartData.infraId,
+        setStartData.infraName,
+        restartId
+      );
+
+      logActivity('API_SUCCESS', `Set ${selectedSetIndex + 1} started successfully`, response);
+
+      // Extract subSetsId from the last item in currSet
+      if (response.currSet && response.currSet.length > 0) {
+        const latestSet = response.currSet[response.currSet.length - 1];
+        setCurrentSubsetId(latestSet.subSetsId || null);
       }
-      
-      logActivity('API_SUCCESS', `Restart ID received: ${restartId}`);
-      setCurrentRestartId(restartId);
 
-      // Start the broker restart task via API with the restart ID
-      const brokerResponse = await startBrokerRestartTask(operatorAuth.id, operatorAuth.name, restartId);
-      
-      logActivity('API_SUCCESS', 'Broker restart task started successfully', brokerResponse);
-
-      // Update operator auth state
-      setOperatorAuth({
-        ...operatorAuth,
-        isAuthenticated: true,
-        authTime,
-        loading: false
-      });
-
-      setCurrentSet(selectedSetId);
-      setBrokerStatus(brokerResponse);
-
-      // Update set status to in-progress
-      const updatedSets = [...sets];
-      updatedSets[selectedSetId - 1] = {
-        ...updatedSets[selectedSetId - 1],
-        status: 'in-progress',
-        apiCallMade: true,
-        restartId: restartId,
-        brokerData: brokerResponse
-      };
-      setSets(updatedSets);
-
-      logActivity('AUTH_SUCCESS', `Operator ${operatorAuth.name} (ID: ${operatorAuth.id}) successfully started Set ${selectedSetId}`, {
-        restartId,
-        authTime,
-        brokerStatus: brokerResponse
-      });
-
-      // Start timer for step 1
+      setBrokerStatus(response);
+      setShowSetModal(false);
+      setCurrentStep(1);
       startTimer();
 
     } catch (error) {
-      logActivity('AUTH_FAILED', `Failed to authenticate operator for Set ${selectedSetId}: ${error.message}`);
-      setOperatorAuth({
-        ...operatorAuth,
-        loading: false
-      });
+      console.error('Error starting set:', error);
+      logActivity('API_ERROR', `Failed to start set: ${error.message}`);
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Start timer for current step
+  // STEP 5: Mark step as complete
+  const completeStep = async (stepId) => {
+    if (stepId !== currentStep || stepId === 2) return; // Step 2 handled separately
+
+    if (!currentSubsetId) {
+      logActivity('ERROR', 'No active subset ID. Cannot complete step.');
+      return;
+    }
+
+    try {
+      const step = checklistSteps[stepId - 1];
+      
+      // Call updateSubRestart API
+      await updateSubRestart(step.title, currentSubsetId);
+      
+      logActivity('API_SUCCESS', `Step ${stepId} completed: ${step.title}`);
+
+      // Update local state
+      const updatedSteps = [...checklistSteps];
+      updatedSteps[stepId - 1] = {
+        ...updatedSteps[stepId - 1],
+        completed: true,
+        completedTime: new Date().toISOString()
+      };
+      setChecklistSteps(updatedSteps);
+
+      // Move to next step
+      if (stepId < checklistSteps.length) {
+        setTimeout(() => {
+          setCurrentStep(stepId + 1);
+          setTimeElapsed(0);
+        }, 500);
+      } else {
+        // All steps complete - refresh and start again
+        setTimeout(() => {
+          handleSetComplete();
+        }, 1000);
+      }
+    } catch (error) {
+      console.error('Error completing step:', error);
+      logActivity('API_ERROR', `Failed to complete step ${stepId}: ${error.message}`);
+    }
+  };
+
+  // STEP 6: Handle support acknowledgment (Step 2)
+  const handleSupportAckClick = () => {
+    setSupportAckModal(true);
+    setSupportAckData({ name: '', id: '' });
+  };
+
+  const handleSupportAckSubmit = async (e) => {
+    e.preventDefault();
+
+    if (!currentSubsetId) {
+      logActivity('ERROR', 'No active subset ID. Cannot acknowledge support.');
+      return;
+    }
+
+    try {
+      // Call updateSupportAck API
+      await updateSupportAck(supportAckData.id, supportAckData.name, currentSubsetId);
+      
+      logActivity('API_SUCCESS', `Support acknowledgment by ${supportAckData.name} (${supportAckData.id})`);
+
+      // Update step 2 as completed
+      const updatedSteps = [...checklistSteps];
+      updatedSteps[1] = {
+        ...updatedSteps[1],
+        completed: true,
+        completedTime: new Date().toISOString(),
+        ackBy: supportAckData.name,
+        ackTime: new Date().toISOString()
+      };
+      setChecklistSteps(updatedSteps);
+
+      setSupportAckModal(false);
+      setSupportAckData({ name: '', id: '' });
+
+      // Move to step 3
+      setTimeout(() => {
+        setCurrentStep(3);
+        setTimeElapsed(0);
+      }, 500);
+
+    } catch (error) {
+      console.error('Error submitting support acknowledgment:', error);
+      logActivity('API_ERROR', `Failed to submit support ack: ${error.message}`);
+    }
+  };
+
+  // Handle set completion - refresh and start from step 2
+  const handleSetComplete = async () => {
+    logActivity('SET_COMPLETE', `Set ${selectedSetIndex + 1} completed`);
+    
+    if (timer) clearInterval(timer);
+    
+    // Reset checklist
+    const resetSteps = checklistSteps.map(step => ({
+      ...step,
+      completed: false,
+      completedTime: null,
+      ackBy: null,
+      ackTime: null
+    }));
+    setChecklistSteps(resetSteps);
+    
+    setCurrentStep(1);
+    setTimeElapsed(0);
+    setSelectedSetIndex(null);
+    setCurrentSubsetId(null);
+    
+    // Refresh status from step 2
+    await fetchBrokerStatus(restartId);
+  };
+
+  // Timer management
   const startTimer = () => {
     if (timer) clearInterval(timer);
     const newTimer = setInterval(() => {
@@ -327,200 +368,22 @@ const TasksList = () => {
     setTimer(newTimer);
   };
 
-  // Log activity
+  useEffect(() => {
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [timer]);
+
+  // Activity logging
   const logActivity = (type, message, data = null) => {
     const logEntry = {
       timestamp: new Date(),
       type,
       message,
-      data,
-      operator: operatorAuth.name,
-      operatorId: operatorAuth.id
+      data
     };
-
     console.log(`[${type}] ${message}`, data);
     setActivityLog(prev => [logEntry, ...prev].slice(0, 50));
-  };
-
-  // Complete step 1
-  const completeStep1 = () => {
-    if (currentStep !== 1) return;
-
-    const updatedSteps = [...checklistSteps];
-    updatedSteps[0] = {
-      ...updatedSteps[0],
-      completed: true,
-      completedTime: new Date(),
-      completedBy: operatorAuth.name
-    };
-
-    setChecklistSteps(updatedSteps);
-
-    logActivity('STEP_COMPLETE', 'Step 1: CACHE UPDATED AFTER 12:00 A.M. completed', {
-      completedBy: operatorAuth.name,
-      time: new Date()
-    });
-
-    setTimeout(() => {
-      setCurrentStep(2);
-      setTimeElapsed(0);
-      startTimer();
-    }, 1000);
-  };
-
-  // Complete step 2 (requires support acknowledgment)
-  const completeStep2 = () => {
-    if (currentStep !== 2) return;
-
-    setSupportAckModal(true);
-    setSupportAckData({
-      name: '',
-      id: '',
-      setNumber: currentSet
-    });
-  };
-
-  // Handle support acknowledgment submission
-  const handleSupportAckSubmit = (e) => {
-    e.preventDefault();
-
-    const ackTime = new Date();
-
-    const updatedSteps = [...checklistSteps];
-    updatedSteps[1] = {
-      ...updatedSteps[1],
-      completed: true,
-      completedTime: ackTime,
-      completedBy: operatorAuth.name,
-      ackBy: supportAckData.name,
-      ackTime
-    };
-    setChecklistSteps(updatedSteps);
-
-    const updatedSets = [...sets];
-    updatedSets[currentSet - 1] = {
-      ...updatedSets[currentSet - 1],
-      supportAck: {
-        name: supportAckData.name,
-        id: supportAckData.id,
-        time: ackTime
-      }
-    };
-    setSets(updatedSets);
-
-    logActivity('SUPPORT_ACK', `Support team acknowledged by ${supportAckData.name} (ID: ${supportAckData.id})`, {
-      supportName: supportAckData.name,
-      supportId: supportAckData.id,
-      setNumber: currentSet,
-      time: ackTime
-    });
-
-    setSupportAckModal(false);
-    setSupportAckData({ name: '', id: '', setNumber: null });
-
-    setTimeout(() => {
-      setCurrentStep(3);
-      setTimeElapsed(0);
-      startTimer();
-    }, 1000);
-  };
-
-  // Complete a checklist step (for steps 3-11)
-  const completeStep = (stepId) => {
-    if (stepId !== currentStep || stepId <= 2) return;
-
-    const updatedSteps = [...checklistSteps];
-    const stepIndex = stepId - 1;
-
-    updatedSteps[stepIndex] = {
-      ...updatedSteps[stepIndex],
-      completed: true,
-      completedTime: new Date(),
-      completedBy: operatorAuth.name
-    };
-
-    setChecklistSteps(updatedSteps);
-
-    logActivity('STEP_COMPLETE', `Step ${stepId}: ${updatedSteps[stepIndex].title} completed`, {
-      completedBy: operatorAuth.name,
-      step: stepId,
-      time: new Date()
-    });
-
-    setTimeout(() => {
-      if (currentStep < checklistSteps.length) {
-        setCurrentStep(currentStep + 1);
-        setTimeElapsed(0);
-        startTimer();
-      } else {
-        showSetCompletionModal();
-      }
-    }, 1000);
-  };
-
-  // Show set completion verification modal
-  const showSetCompletionModal = () => {
-    setSetCompleteModal(true);
-    setSetCompleteData({
-      name: '',
-      id: '',
-      setNumber: currentSet
-    });
-  };
-
-  // Handle set completion verification
-  const handleSetCompleteSubmit = (e) => {
-    e.preventDefault();
-
-    const completeTime = new Date();
-
-    const updatedSets = [...sets];
-    updatedSets[currentSet - 1] = {
-      ...updatedSets[currentSet - 1],
-      status: 'completed',
-      completedBy: setCompleteData.name,
-      completedTime: completeTime
-    };
-    setSets(updatedSets);
-
-    logActivity('SET_COMPLETE', `Set ${currentSet} completed by ${setCompleteData.name} (ID: ${setCompleteData.id})`, {
-      setName: sets[currentSet - 1].name,
-      completedBy: setCompleteData.name,
-      completedById: setCompleteData.id,
-      setNumber: currentSet,
-      time: completeTime,
-      brokerStatus: brokerStatus
-    });
-
-    setSetCompleteModal(false);
-    setSetCompleteData({ name: '', id: '', setNumber: null });
-
-    if (timer) clearInterval(timer);
-
-    // Reset for next set
-    const resetChecklist = checklistSteps.map(step => ({
-      ...step,
-      completed: false,
-      completedTime: null,
-      completedBy: null,
-      ackBy: null,
-      ackTime: null
-    }));
-
-    setChecklistSteps(resetChecklist);
-    setCurrentSet(null);
-    setCurrentRestartId(null);
-    setBrokerStatus(null);
-    setCurrentStep(1);
-    setTimeElapsed(0);
-    setOperatorAuth({
-      name: '',
-      id: '',
-      isAuthenticated: false,
-      authTime: null,
-      selectedSet: null,
-      loading: false
-    });
   };
 
   // Format time
@@ -534,19 +397,28 @@ const TasksList = () => {
   const getStatusColor = (status) => {
     switch (status) {
       case 'pending': return '#ff7675';
-      case 'in-progress': return '#74b9ff';
-      case 'waiting-ack': return '#fdcb6e';
+      case 'started': return '#74b9ff';
       case 'completed': return '#00b894';
       default: return '#636e72';
     }
   };
 
-  // Clean up timer on unmount
-  useEffect(() => {
-    return () => {
-      if (timer) clearInterval(timer);
-    };
-  }, [timer]);
+  if (loading && !restartId) {
+    return (
+      <div className="tasks-list-page">
+        <div className="tasks-list-header">
+          <div className="header-content">
+            <h1>📝 Night Broker Restart Checklist</h1>
+            <p>Initializing restart session...</p>
+          </div>
+        </div>
+        <div className="loading-container">
+          <div className="loading-spinner"></div>
+          <p className="loading-text">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="tasks-list-page">
@@ -554,137 +426,98 @@ const TasksList = () => {
       <div className="tasks-list-header">
         <div className="header-content">
           <h1>📝 Night Broker Restart Checklist</h1>
-          <p>Click on a server set to begin the restart procedure</p>
+          <p>Restart ID: {restartId}</p>
         </div>
       </div>
 
-      {/* Server Sets Progress - Always visible */}
-      <section className="sets-section">
-        <h2>📊 Server Sets Progress</h2>
-        <div className="sets-grid">
-          {sets.map((set) => (
+      {/* Show set selection if no active set */}
+      {selectedSetIndex === null && (
+        <section className="sets-section">
+          <h2>📊 Start a New Set</h2>
+          <div className="sets-grid">
+            {brokerStatus?.currSet?.map((set, index) => (
+              <div
+                key={index}
+                className="set-card"
+                style={{ borderLeft: `4px solid ${getStatusColor(set.status)}` }}
+              >
+                <div className="set-header">
+                  <h3>Set {index + 1}</h3>
+                  <span className="set-status" style={{ color: getStatusColor(set.status) }}>
+                    {set.status.toUpperCase()}
+                  </span>
+                </div>
+                {set.status === 'started' && set.endTime === 'Present' && (
+                  <button
+                    onClick={() => {
+                      setSelectedSetIndex(index);
+                      setCurrentSubsetId(set.subSetsId);
+                      startTimer();
+                    }}
+                    className="complete-btn"
+                  >
+                    Resume This Set
+                  </button>
+                )}
+              </div>
+            ))}
+            
+            {/* Button to start new set */}
             <button
-              key={set.id}
-              onClick={() => handleSetCardClick(set.id)}
-              disabled={set.status === 'completed'}
-              className={`set-card ${currentSet === set.id ? 'active' : ''} ${set.status}`}
-              style={{ borderLeft: `4px solid ${getStatusColor(set.status)}` }}
+              onClick={() => handleSetStart(brokerStatus?.currSet?.length || 0)}
+              className="set-card click-prompt"
+              style={{ borderLeft: '4px solid #74b9ff' }}
             >
-              <div className="set-header">
-                <h3>{set.name}</h3>
-                <span className="set-status" style={{ color: getStatusColor(set.status) }}>
-                  {set.status.toUpperCase()}
-                </span>
-              </div>
-              <div className="set-servers">
-                <strong>Servers:</strong> {set.servers}
-              </div>
-
-              {set.restartId && (
-                <div className="set-restart-id">
-                  <strong>🔄 Restart ID:</strong> {set.restartId}
-                </div>
-              )}
-
-              {set.brokerData && (
-                <div className="broker-status-display">
-                  <strong>📊 Broker Status:</strong>
-                  <div className="broker-info">
-                    <small>Start Time: {set.brokerData.startTiming || 'N/A'}</small>
-                    {set.brokerData.currSet && set.brokerData.currSet.length > 0 && (
-                      <small>Current Subsets: {set.brokerData.currSet.length}</small>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {set.apiCallMade && (
-                <div className="api-indicator">
-                  <span className="api-success">✅ API Call Made</span>
-                </div>
-              )}
-
-              {set.supportAck && (
-                <div className="set-support-ack">
-                  <strong>🛡️ Support Acknowledgment:</strong>
-                  <div>{set.supportAck.name} (ID: {set.supportAck.id})</div>
-                  <small>{format(new Date(set.supportAck.time), 'MMM d, h:mm:ss a')}</small>
-                </div>
-              )}
-
-              {set.completedBy && (
-                <div className="set-completion-info">
-                  <strong>✅ Completed by:</strong>
-                  <div>{set.completedBy}</div>
-                  <small>{format(new Date(set.completedTime), 'MMM d, h:mm:ss a')}</small>
-                </div>
-              )}
-
-              {set.status === 'pending' && (
-                <div className="set-start-hint">
-                  👆 Click to start this set
-                </div>
-              )}
+              <h3>➕ Start New Set {(brokerStatus?.currSet?.length || 0) + 1}</h3>
+              <p>Click to begin</p>
             </button>
-          ))}
-        </div>
-      </section>
+          </div>
+        </section>
+      )}
 
-      {/* Operator Authentication Modal */}
-      {operatorAuth.selectedSet && !operatorAuth.isAuthenticated && (
+      {/* Set Start Modal */}
+      {showSetModal && (
         <div className="modal-overlay">
           <div className="modal-container">
             <div className="modal-header">
-              <h2>🔐 Operator Authentication Required</h2>
-              <p>Starting work on {sets[operatorAuth.selectedSet - 1].name}</p>
+              <h2>🔐 Start Set {selectedSetIndex + 1}</h2>
+              <p>Enter infrastructure details to begin</p>
             </div>
-
-            <div className="api-info-note">
-              <p>📝 <strong>All Sets:</strong> Will get restart ID first, then call API with restart ID + infraID + infraName</p>
-            </div>
-
-            <form onSubmit={handleOperatorAuth} className="modal-form">
+            <form onSubmit={handleSetStartSubmit} className="modal-form">
               <div className="form-group">
-                <label htmlFor="operatorName">Your Name (Operator)</label>
+                <label htmlFor="infraName">Infrastructure Name</label>
                 <input
                   type="text"
-                  id="operatorName"
-                  value={operatorAuth.name}
-                  onChange={(e) => setOperatorAuth({...operatorAuth, name: e.target.value})}
-                  placeholder="Enter your full name"
+                  id="infraName"
+                  value={setStartData.infraName}
+                  onChange={(e) => setSetStartData({...setStartData, infraName: e.target.value})}
+                  placeholder="Enter infra name"
                   required
                   className="form-input"
-                  disabled={operatorAuth.loading}
                 />
               </div>
               <div className="form-group">
-                <label htmlFor="operatorId">Your ADID / Employee ID</label>
+                <label htmlFor="infraId">Infrastructure ID</label>
                 <input
                   type="text"
-                  id="operatorId"
-                  value={operatorAuth.id}
-                  onChange={(e) => setOperatorAuth({...operatorAuth, id: e.target.value})}
-                  placeholder="Enter your ADID"
+                  id="infraId"
+                  value={setStartData.infraId}
+                  onChange={(e) => setSetStartData({...setStartData, infraId: e.target.value})}
+                  placeholder="Enter infra ID"
                   required
                   className="form-input"
-                  disabled={operatorAuth.loading}
                 />
               </div>
               <div className="modal-actions">
                 <button 
                   type="button" 
-                  onClick={() => setOperatorAuth({
-                    ...operatorAuth,
-                    selectedSet: null,
-                    loading: false
-                  })}
+                  onClick={() => setShowSetModal(false)}
                   className="btn-secondary"
-                  disabled={operatorAuth.loading}
                 >
                   Cancel
                 </button>
-                <button type="submit" className="btn-primary" disabled={operatorAuth.loading}>
-                  {operatorAuth.loading ? 'Starting Task...' : 'Start Task'}
+                <button type="submit" className="btn-primary">
+                  Start Set
                 </button>
               </div>
             </form>
@@ -692,146 +525,70 @@ const TasksList = () => {
         </div>
       )}
 
-      {/* Active Work Section - Only shown when authenticated */}
-      {operatorAuth.isAuthenticated && currentSet && (
+      {/* Support Acknowledgment Modal */}
+      {supportAckModal && (
+        <div className="modal-overlay">
+          <div className="modal-container">
+            <div className="modal-header">
+              <h2>🛡️ Support Team Acknowledgment</h2>
+              <p>Enter support team member details</p>
+            </div>
+            <form onSubmit={handleSupportAckSubmit} className="modal-form">
+              <div className="form-group">
+                <label htmlFor="supportName">Support Team Member Name</label>
+                <input
+                  type="text"
+                  id="supportName"
+                  value={supportAckData.name}
+                  onChange={(e) => setSupportAckData({...supportAckData, name: e.target.value})}
+                  placeholder="Enter support member name"
+                  required
+                  className="form-input"
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="supportId">Support Member ID</label>
+                <input
+                  type="text"
+                  id="supportId"
+                  value={supportAckData.id}
+                  onChange={(e) => setSupportAckData({...supportAckData, id: e.target.value})}
+                  placeholder="Enter support member ID"
+                  required
+                  className="form-input"
+                />
+              </div>
+              <div className="modal-actions">
+                <button 
+                  type="button" 
+                  onClick={() => setSupportAckModal(false)}
+                  className="btn-secondary"
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="btn-primary">
+                  Acknowledge & Continue
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Active Work Section */}
+      {selectedSetIndex !== null && (
         <>
-          {/* Operator Info Banner */}
+          {/* Timer Banner */}
           <div className="user-info-banner">
             <div className="user-info-content">
-              <span className="user-label">👤 Current Operator:</span>
-              <span className="user-name">{operatorAuth.name}</span>
-              <span className="user-id">(ADID: {operatorAuth.id})</span>
-              <span className="user-time">
-                Started: {format(operatorAuth.authTime, 'MMM d, h:mm a')}
-              </span>
+              <span className="user-label">📍 Current Set:</span>
+              <span className="user-name">Set {selectedSetIndex + 1}</span>
+              <span className="user-id">Subset ID: {currentSubsetId || 'N/A'}</span>
             </div>
             <div className="current-timer">
-              ⏱️ Current Step Time: {formatTime(timeElapsed)}
+              ⏱️ Step Time: {formatTime(timeElapsed)}
             </div>
           </div>
-
-          <div className="current-set-info">
-            <h3>Currently Working On: <span className="set-highlight">{sets[currentSet - 1].name}</span></h3>
-            {sets[currentSet - 1].restartId && (
-              <div className="restart-id-display">
-                <strong>Restart ID:</strong> {sets[currentSet - 1].restartId}
-              </div>
-            )}
-            <div className="set-progress-info">
-              <span>Set {currentSet} of {sets.length}</span>
-              <span>•</span>
-              <span>Step {currentStep} of {checklistSteps.length}</span>
-            </div>
-          </div>
-
-          {/* Support Acknowledgment Modal */}
-          {supportAckModal && (
-            <div className="modal-overlay">
-              <div className="modal-container">
-                <div className="modal-header">
-                  <h2>🛡️ Support Team Acknowledgment Required</h2>
-                  <p>Step 2 requires support team acknowledgment before proceeding</p>
-                </div>
-
-                <div className="modal-instructions">
-                  <p>Please enter the support team member's details who acknowledged the activity start:</p>
-                </div>
-
-                <form onSubmit={handleSupportAckSubmit} className="modal-form">
-                  <div className="form-group">
-                    <label htmlFor="supportName">Support Team Member Name</label>
-                    <input
-                      type="text"
-                      id="supportName"
-                      value={supportAckData.name}
-                      onChange={(e) => setSupportAckData({...supportAckData, name: e.target.value})}
-                      placeholder="Enter support team member name"
-                      required
-                      className="form-input"
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label htmlFor="supportId">Support Team Member ADID/Employee ID</label>
-                    <input
-                      type="text"
-                      id="supportId"
-                      value={supportAckData.id}
-                      onChange={(e) => setSupportAckData({...supportAckData, id: e.target.value})}
-                      placeholder="Enter support team member ID"
-                      required
-                      className="form-input"
-                    />
-                  </div>
-                  <div className="modal-actions">
-                    <button type="button" onClick={() => setSupportAckModal(false)} className="btn-secondary">
-                      Cancel
-                    </button>
-                    <button type="submit" className="btn-primary">
-                      Acknowledge & Continue
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          )}
-
-          {/* Set Completion Verification Modal */}
-          {setCompleteModal && (
-            <div className="modal-overlay">
-              <div className="modal-container">
-                <div className="modal-header">
-                  <h2>✅ Set Completion Verification</h2>
-                  <p>Set {currentSet} completed. Please verify completion.</p>
-                </div>
-
-                <div className="modal-instructions">
-                  <p>Enter your name and ADID to verify set completion:</p>
-                  <div className="set-info">
-                    <strong>Set {currentSet}:</strong> {sets[currentSet - 1].name}
-                  </div>
-                </div>
-
-                <form onSubmit={handleSetCompleteSubmit} className="modal-form">
-                  <div className="form-group">
-                    <label htmlFor="completeName">Your Name</label>
-                    <input
-                      type="text"
-                      id="completeName"
-                      value={setCompleteData.name}
-                      onChange={(e) => setSetCompleteData({...setCompleteData, name: e.target.value})}
-                      placeholder="Enter your name"
-                      required
-                      className="form-input"
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label htmlFor="completeId">Your ADID / Employee ID</label>
-                    <input
-                      type="text"
-                      id="completeId"
-                      value={setCompleteData.id}
-                      onChange={(e) => setSetCompleteData({...setCompleteData, id: e.target.value})}
-                      placeholder="Enter your ADID"
-                      required
-                      className="form-input"
-                    />
-                  </div>
-                  <div className="modal-actions">
-                    <button type="button" onClick={() => setSetCompleteModal(false)} className="btn-secondary">
-                      Cancel
-                    </button>
-                    <button type="submit" className="btn-primary">
-                      Verify & Complete Set
-                    </button>
-                  </div>
-                </form>
-
-                <div className="modal-note">
-                  <small>💡 Note: Different operators can verify different sets. This allows multiple people to work on the same task.</small>
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* Checklist Timeline */}
           <section className="checklist-section">
@@ -866,14 +623,11 @@ const TasksList = () => {
                     {step.completed && (
                       <div className="step-details">
                         <div className="detail-item">
-                          <strong>Completed by:</strong> {step.completedBy}
-                        </div>
-                        <div className="detail-item">
-                          <strong>Time:</strong> {format(new Date(step.completedTime), 'MMM d, h:mm:ss a')}
+                          <strong>Completed at:</strong> {format(new Date(step.completedTime), 'MMM d, h:mm:ss a')}
                         </div>
                         {step.requiresAck && step.ackBy && (
                           <div className="detail-item ack-info">
-                            <strong>✅ Support Acknowledgment by:</strong> {step.ackBy}
+                            <strong>✅ Support Ack by:</strong> {step.ackBy}
                             <br />
                             <small>{format(new Date(step.ackTime), 'MMM d, h:mm:ss a')}</small>
                           </div>
@@ -883,12 +637,8 @@ const TasksList = () => {
 
                     {currentStep === step.id && !step.completed && (
                       <div className="step-actions">
-                        {step.id === 1 ? (
-                          <button onClick={completeStep1} className="complete-btn">
-                            Mark as Complete
-                          </button>
-                        ) : step.id === 2 ? (
-                          <button onClick={completeStep2} className="complete-btn">
+                        {step.id === 2 ? (
+                          <button onClick={handleSupportAckClick} className="complete-btn">
                             Enter Support Acknowledgment
                           </button>
                         ) : (
@@ -927,52 +677,7 @@ const TasksList = () => {
               </div>
             </section>
           )}
-
-          {/* Progress Summary */}
-          <section className="progress-section">
-            <h2>📈 Progress Summary</h2>
-            <div className="progress-stats">
-              <div className="progress-stat">
-                <span className="stat-label">Current Set</span>
-                <span className="stat-value">{currentSet} of {sets.length}</span>
-              </div>
-              <div className="progress-stat">
-                <span className="stat-label">Completed Steps</span>
-                <span className="stat-value">
-                  {checklistSteps.filter(s => s.completed).length} of {checklistSteps.length}
-                </span>
-              </div>
-              <div className="progress-stat">
-                <span className="stat-label">Current Step Time</span>
-                <span className="stat-value">{formatTime(timeElapsed)}</span>
-              </div>
-              <div className="progress-stat">
-                <span className="stat-label">Completed Sets</span>
-                <span className="stat-value">
-                  {sets.filter(s => s.status === 'completed').length} of {sets.length}
-                </span>
-              </div>
-            </div>
-          </section>
         </>
-      )}
-
-      {/* Completion Summary */}
-      {sets.every(set => set.status === 'completed') && (
-        <div className="completion-message">
-          <h3>🎉 All Tasks Completed Successfully!</h3>
-          <p>All 4 server sets have been processed. Night Broker Restart procedure is complete.</p>
-          <div className="completion-summary">
-            <h4>Completion Summary:</h4>
-            <ul>
-              {sets.map(set => (
-                <li key={set.id}>
-                  <strong>{set.name}:</strong> Completed by {set.completedBy} at {format(new Date(set.completedTime), 'h:mm a')}
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
       )}
     </div>
   );
