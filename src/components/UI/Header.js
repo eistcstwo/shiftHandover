@@ -120,48 +120,28 @@ const Header = ({ onLogout }) => {
     navigate('/tasks-bucket');
   };
 
+// Update handleListClick so it writes brokerRestartId instead of restartId
 const handleListClick = async () => {
   try {
-    // Call getRestartId API
     const response = await getRestartId();
-    
-    // Extract restartId based on possible response structures
-    let extractedRestartId = null;
-    
-    if (response) {
-      // Check different possible response structures
-      if (response.restartId) {
-        extractedRestartId = response.restartId;
-      } else if (response.data && response.data.restartId) {
-        extractedRestartId = response.data.restartId;
-      } else if (response.id) {
-        extractedRestartId = response.id;
-      }
-      
-      // Save restartId to localStorage if found
-      if (extractedRestartId) {
-        localStorage.setItem('restartId', extractedRestartId.toString());
-        console.log('Restart ID saved to localStorage:', extractedRestartId);
-        
-        // Optionally save timestamp for expiration tracking
-        localStorage.setItem('restartId_timestamp', new Date().toISOString());
-      } else {
-        console.warn('Could not find restartId in API response');
-      }
+    const extractedRestartId = response && response.restartId ? response.restartId : (response && response.raw && (response.raw.brokerRestartId ?? response.raw.restartId)) || null;
+
+    if (extractedRestartId) {
+      // Use the canonical key used by TaskList
+      localStorage.setItem('brokerRestartId', String(extractedRestartId));
+      console.log('brokerRestartId saved to localStorage:', extractedRestartId);
+      localStorage.setItem('brokerRestartId_timestamp', new Date().toISOString());
+    } else {
+      console.warn('Could not find restartId in API response');
     }
-    
-    // Navigate to the checklist page
+
     navigate('/tasks-checklist');
   } catch (error) {
     console.error('Error getting restartId:', error);
-    
-    // Check if we already have a restartId in localStorage
-    const existingRestartId = localStorage.getItem('restartId');
+    const existingRestartId = localStorage.getItem('brokerRestartId');
     if (!existingRestartId) {
-      console.log('No existing restartId found, API call failed');
+      console.log('No existing brokerRestartId found, API call failed');
     }
-    
-    // Still navigate to checklist page
     navigate('/tasks-checklist');
   }
 };
