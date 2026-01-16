@@ -187,8 +187,15 @@ export const getRestartId = async () => {
         'Content-Type': 'application/json',
       }
     });
+
     console.log('getRestartId response:', response);
-    return response.data;
+
+    const data = response && response.data ? response.data : {};
+    // Support multiple possible keys returned by the backend
+    const restartId = data.restartId ?? data.brokerRestartId ?? data.id ?? null;
+
+    // Return a normalized object so callers can rely on response.restartId
+    return { restartId, raw: data };
   } catch (error) {
     console.error('getRestartId error:', error);
     throw error;
@@ -291,3 +298,4 @@ export const updateSupportAck = async (supportId, supportName, subSetsId) => {
     throw error;
   }
 };
+
