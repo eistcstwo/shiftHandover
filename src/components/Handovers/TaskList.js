@@ -37,7 +37,7 @@ const TasksList = () => {
   const [timeElapsed, setTimeElapsed] = useState(0);
   const [activityLog, setActivityLog] = useState([]);
 
-  // Checklist steps definition
+  // Checklist steps definition - SUPPORT ACKNOWLEDGMENT MOVED TO LAST
   const [checklistSteps, setChecklistSteps] = useState([
     {
       id: 1,
@@ -48,76 +48,76 @@ const TasksList = () => {
     },
     {
       id: 2,
-      title: 'INFORM START OF ACTIVITY TO SUPPORT TEAM',
-      description: 'Notify support team about activity start',
-      completed: false,
-      completedTime: null,
-      requiresAck: true,
-      ackBy: null,
-      ackTime: null
-    },
-    {
-      id: 3,
       title: 'SETS READY FOR RESTART',
       description: 'Prepare all server sets for restart',
       completed: false,
       completedTime: null
     },
     {
-      id: 4,
+      id: 3,
       title: 'ISOLATOR DOWN',
       description: 'Bring isolator down for maintenance',
       completed: false,
       completedTime: null
     },
     {
-      id: 5,
+      id: 4,
       title: 'BROKER STOPPED',
       description: 'Stop all broker services',
       completed: false,
       completedTime: null
     },
     {
-      id: 6,
+      id: 5,
       title: 'HEARTBEAT & CACHE BROKER STARTED',
       description: 'Start heartbeat and cache broker services',
       completed: false,
       completedTime: null
     },
     {
-      id: 7,
+      id: 6,
       title: 'ALL BROKER STARTED',
       description: 'Start all broker services',
       completed: false,
       completedTime: null
     },
     {
-      id: 8,
+      id: 7,
       title: 'CACHE HIT & WORKLOAD DONE',
       description: 'Verify cache hits and complete workload',
       completed: false,
       completedTime: null
     },
     {
-      id: 9,
+      id: 8,
       title: 'UDP CHANGES (TIMEOUT & URL CHANGES)',
       description: 'Apply UDP configuration changes',
       completed: false,
       completedTime: null
     },
     {
-      id: 10,
+      id: 9,
       title: 'LOGS VERIFICATION DONE',
       description: 'Verify all system logs',
       completed: false,
       completedTime: null
     },
     {
-      id: 11,
+      id: 10,
       title: 'ISOLATOR UP',
       description: 'Bring isolator back online',
       completed: false,
       completedTime: null
+    },
+    {
+      id: 11,
+      title: 'INFORM START OF ACTIVITY TO SUPPORT TEAM',
+      description: 'Notify support team about activity completion',
+      completed: false,
+      completedTime: null,
+      requiresAck: true,
+      ackBy: null,
+      ackTime: null
     }
   ]);
 
@@ -170,7 +170,13 @@ const TasksList = () => {
         // If the last set is started but not ended, resume from there
         if (lastSet.status === 'started' && lastSet.endTime === 'Present') {
           setSelectedSetIndex(statusResponse.currSet.length - 1);
-          setCurrentSubsetId(lastSet.subSetsId);
+          
+          // Extract subSetsId - THIS IS THE KEY FIX
+          const subsetId = lastSet.subSetsId;
+          if (subsetId) {
+            setCurrentSubsetId(subsetId);
+            logActivity('INFO', `Found active subset ID: ${subsetId}`);
+          }
 
           // Determine which step we're on based on subtasks
           if (lastSet.subTasks && lastSet.subTasks.length > 0) {
@@ -225,10 +231,17 @@ const TasksList = () => {
 
       logActivity('API_SUCCESS', `Set ${selectedSetIndex + 1} started successfully`, response);
 
-      // Extract subSetsId from the last item in currSet
+      // Extract subSetsId from the response - THIS IS CRITICAL
       if (response.currSet && response.currSet.length > 0) {
         const latestSet = response.currSet[response.currSet.length - 1];
-        setCurrentSubsetId(latestSet.subSetsId || null);
+        const subsetId = latestSet.subSetsId;
+        
+        if (subsetId) {
+          setCurrentSubsetId(subsetId);
+          logActivity('INFO', `Subset ID set: ${subsetId}`);
+        } else {
+          logActivity('WARNING', 'No subSetsId found in response');
+        }
       }
 
       setBrokerStatus(response);
@@ -246,15 +259,19 @@ const TasksList = () => {
 
   // STEP 5: Mark step as complete
   const completeStep = async (stepId) => {
-    if (stepId !== currentStep || stepId === 2) return; // Step 2 handled separately
+    // Skip if not the current step OR if it's the last step (support ack)
+    if (stepId !== currentStep || stepId === 11) return;
 
     if (!currentSubsetId) {
       logActivity('ERROR', 'No active subset ID. Cannot complete step.');
+      alert('Error: No active subset ID found. Please start a set first.');
       return;
     }
 
     try {
       const step = checklistSteps[stepId - 1];
+
+      logActivity('API_CALL', `Calling updateSubRestart for step ${stepId}: ${step.title}`);
 
       // Call updateSubRestart API
       await updateSubRestart(step.title, currentSubsetId);
@@ -285,10 +302,11 @@ const TasksList = () => {
     } catch (error) {
       console.error('Error completing step:', error);
       logActivity('API_ERROR', `Failed to complete step ${stepId}: ${error.message}`);
+      alert(`Failed to complete step: ${error.message}`);
     }
   };
 
-  // STEP 6: Handle support acknowledgment (Step 2)
+  // STEP 6: Handle support acknowledgment (Last Step - Step 11)
   const handleSupportAckClick = () => {
     setSupportAckModal(true);
     setSupportAckData({ name: '', id: '' });
@@ -299,6 +317,7 @@ const TasksList = () => {
 
     if (!currentSubsetId) {
       logActivity('ERROR', 'No active subset ID. Cannot acknowledge support.');
+      alert('Error: No active subset ID found.');
       return;
     }
 
@@ -308,10 +327,10 @@ const TasksList = () => {
 
       logActivity('API_SUCCESS', `Support acknowledgment by ${supportAckData.name} (${supportAckData.id})`);
 
-      // Update step 2 as completed
+      // Update step 11 as completed
       const updatedSteps = [...checklistSteps];
-      updatedSteps[1] = {
-        ...updatedSteps[1],
+      updatedSteps[10] = {
+        ...updatedSteps[10],
         completed: true,
         completedTime: new Date().toISOString(),
         ackBy: supportAckData.name,
@@ -322,15 +341,15 @@ const TasksList = () => {
       setSupportAckModal(false);
       setSupportAckData({ name: '', id: '' });
 
-      // Move to step 3
+      // All steps complete - refresh and start again
       setTimeout(() => {
-        setCurrentStep(3);
-        setTimeElapsed(0);
-      }, 500);
+        handleSetComplete();
+      }, 1000);
 
     } catch (error) {
       console.error('Error submitting support acknowledgment:', error);
       logActivity('API_ERROR', `Failed to submit support ack: ${error.message}`);
+      alert(`Failed to submit support acknowledgment: ${error.message}`);
     }
   };
 
@@ -451,7 +470,11 @@ const TasksList = () => {
                   <button
                     onClick={() => {
                       setSelectedSetIndex(index);
-                      setCurrentSubsetId(set.subSetsId);
+                      const subsetId = set.subSetsId;
+                      if (subsetId) {
+                        setCurrentSubsetId(subsetId);
+                        logActivity('INFO', `Resuming with subset ID: ${subsetId}`);
+                      }
                       startTimer();
                     }}
                     className="complete-btn"
@@ -637,7 +660,7 @@ const TasksList = () => {
 
                     {currentStep === step.id && !step.completed && (
                       <div className="step-actions">
-                        {step.id === 2 ? (
+                        {step.id === 11 ? (
                           <button onClick={handleSupportAckClick} className="complete-btn">
                             Enter Support Acknowledgment
                           </button>
