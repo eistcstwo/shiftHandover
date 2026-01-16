@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { format } from 'date-fns';
 import './TasksList.css';
 import {
@@ -15,6 +15,9 @@ const TasksList = () => {
   const [brokerStatus, setBrokerStatus] = useState(null);
   const [currentSubsetId, setCurrentSubsetId] = useState(null);
   const [loading, setLoading] = useState(true);
+  
+  // Ref to track if we're initializing
+  const isInitializing = useRef(true);
 
   // State for set selection modal
   const [showSetModal, setShowSetModal] = useState(false);
@@ -29,6 +32,12 @@ const TasksList = () => {
   const [supportAckData, setSupportAckData] = useState({
     name: '',
     id: ''
+  });
+
+  // State for next set data
+  const [nextSetData, setNextSetData] = useState({
+    infraName: '',
+    infraId: ''
   });
 
   // State for current step tracking
@@ -124,6 +133,9 @@ const TasksList = () => {
   // STEP 1: Initialize - Get restart ID on component mount
   useEffect(() => {
     initializeRestartId();
+    return () => {
+      if (timer) clearInterval(timer);
+    };
   }, []);
 
   const initializeRestartId = async () => {
@@ -153,6 +165,7 @@ const TasksList = () => {
       logActivity('API_ERROR', `Failed to initialize: ${error.message}`);
     } finally {
       setLoading(false);
+      isInitializing.current = false;
     }
   };
 
@@ -176,13 +189,18 @@ const TasksList = () => {
           const setIndex = statusResponse.currSet.indexOf(lastActiveSet);
           setSelectedSetIndex(setIndex);
           
-          // Extract subSetsId - THIS IS THE KEY FIX
+          // Extract subSetsId - Ensure we always have it
           const subsetId = lastActiveSet.subSetsId;
           if (subsetId) {
             setCurrentSubsetId(subsetId);
             logActivity('INFO', `Found active subset ID: ${subsetId} for set ${setIndex + 1}`);
           } else {
             logActivity('WARNING', 'No subSetsId found in active set');
+            // If no subsetId, we need to create a new set
+            if (!isInitializing.current) {
+              handleSetStart(statusResponse.currSet.length);
+              return;
+            }
           }
 
           // Determine which step we're on based on subtasks
@@ -210,9 +228,13 @@ const TasksList = () => {
         } else {
           // No active sets found
           logActivity('INFO', 'No active set found. Ready to start a new set.');
+          setSelectedSetIndex(null);
+          setCurrentSubsetId(null);
         }
       } else {
         logActivity('INFO', 'No sets started yet. Ready to begin.');
+        setSelectedSetIndex(null);
+        setCurrentSubsetId(null);
       }
     } catch (error) {
       console.error('Error fetching broker status:', error);
@@ -243,39 +265,59 @@ const TasksList = () => {
 
       logActivity('API_SUCCESS', `Set ${selectedSetIndex + 1} started successfully`, response);
 
-      // Extract the most recent subSetsId from the response
-      if (response.currSet && response.currSet.length > 0) {
-        // Find the most recent set that is started but not ended
+      // Extract the subSetsId from the response
+      let subsetId = null;
+      
+      if (response.subSetsId) {
+        // Check root level first
+        subsetId = response.subSetsId;
+        logActivity('INFO', `Using root subset ID: ${subsetId}`);
+      } else if (response.currSet && response.currSet.length > 0) {
+        // Find the most recent set that is started
         const activeSets = response.currSet.filter(
           set => set.status === 'started' && set.endTime === 'Present'
         );
         
         if (activeSets.length > 0) {
           const latestSet = activeSets[activeSets.length - 1];
-          const subsetId = latestSet.subSetsId;
+          subsetId = latestSet.subSetsId;
           
           if (subsetId) {
-            setCurrentSubsetId(subsetId);
-            logActivity('INFO', `Subset ID set: ${subsetId} for set ${selectedSetIndex + 1}`);
-          } else {
-            logActivity('WARNING', 'No subSetsId found in response');
-            // Try alternative: check if subsetId is in the response root
-            if (response.subSetsId) {
-              setCurrentSubsetId(response.subSetsId);
-              logActivity('INFO', `Using root subset ID: ${response.subSetsId}`);
-            }
+            logActivity('INFO', `Using set subset ID: ${subsetId} for set ${selectedSetIndex + 1}`);
           }
         }
+      }
+
+      if (subsetId) {
+        setCurrentSubsetId(subsetId);
+        localStorage.setItem(`currentSubsetId_${restartId}_${selectedSetIndex}`, subsetId);
+      } else {
+        logActivity('ERROR', 'No subset ID returned from API');
+        throw new Error('No subset ID received from server');
       }
 
       setBrokerStatus(response);
       setShowSetModal(false);
       setCurrentStep(1);
+      
+      // Reset checklist
+      const resetSteps = checklistSteps.map(step => ({
+        ...step,
+        completed: false,
+        completedTime: null,
+        ackBy: null,
+        ackTime: null
+      }));
+      setChecklistSteps(resetSteps);
+      
       startTimer();
+
+      logActivity('SET_INIT', `Set ${selectedSetIndex + 1} initialized with subset ID: ${subsetId}`);
 
     } catch (error) {
       console.error('Error starting set:', error);
       logActivity('API_ERROR', `Failed to start set: ${error.message}`);
+      alert(`Failed to start set: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -295,7 +337,10 @@ const TasksList = () => {
     try {
       const step = checklistSteps[stepId - 1];
 
-      logActivity('API_CALL', `Calling updateSubRestart for step ${stepId}: ${step.title}`);
+      logActivity('API_CALL', `Calling updateSubRestart for step ${stepId}: ${step.title}`, {
+        subsetId: currentSubsetId,
+        stepTitle: step.title
+      });
 
       // Call updateSubRestart API
       await updateSubRestart(step.title, currentSubsetId);
@@ -317,11 +362,6 @@ const TasksList = () => {
           setCurrentStep(stepId + 1);
           setTimeElapsed(0);
         }, 500);
-      } else {
-        // All steps complete - refresh and start again
-        setTimeout(() => {
-          handleSetComplete();
-        }, 1000);
       }
     } catch (error) {
       console.error('Error completing step:', error);
@@ -332,9 +372,10 @@ const TasksList = () => {
 
   // STEP 6: Handle support acknowledgment (Last Step - Step 11)
   const handleSupportAckClick = () => {
+    // First show support acknowledgment modal
     setSupportAckModal(true);
     setSupportAckData({ name: '', id: '' });
-    setSetStartData({ infraName: '', infraId: '' });
+    setNextSetData({ infraName: '', infraId: '' });
   };
 
   const handleSupportAckSubmit = async (e) => {
@@ -346,6 +387,7 @@ const TasksList = () => {
       return;
     }
 
+    setLoading(true);
     try {
       // FIRST: Call updateSupportAck API to complete current set
       logActivity('API_CALL', `Completing set ${selectedSetIndex + 1} with support acknowledgment`, {
@@ -371,42 +413,48 @@ const TasksList = () => {
 
       // SECOND: Call startBrokerRestartTask API to start next set
       logActivity('API_CALL', `Starting next set ${selectedSetIndex + 2}`, {
-        infraId: setStartData.infraId,
-        infraName: setStartData.infraName,
+        infraId: nextSetData.infraId,
+        infraName: nextSetData.infraName,
         restartId: restartId
       });
       
       const response = await startBrokerRestartTask(
-        setStartData.infraId,
-        setStartData.infraName,
+        nextSetData.infraId,
+        nextSetData.infraName,
         restartId
       );
 
       logActivity('API_SUCCESS', `Set ${selectedSetIndex + 2} started successfully`, response);
 
       // Extract new subSetsId for the next set
-      if (response.currSet && response.currSet.length > 0) {
+      let newSubsetId = null;
+      
+      if (response.subSetsId) {
+        newSubsetId = response.subSetsId;
+      } else if (response.currSet && response.currSet.length > 0) {
         const activeSets = response.currSet.filter(
           set => set.status === 'started' && set.endTime === 'Present'
         );
         
         if (activeSets.length > 0) {
           const latestSet = activeSets[activeSets.length - 1];
-          const newSubsetId = latestSet.subSetsId;
-          
-          if (newSubsetId) {
-            setCurrentSubsetId(newSubsetId);
-            logActivity('INFO', `New subset ID set: ${newSubsetId} for set ${selectedSetIndex + 2}`);
-          } else {
-            logActivity('WARNING', 'No subSetsId found in next set response');
-          }
+          newSubsetId = latestSet.subSetsId;
         }
+      }
+
+      if (newSubsetId) {
+        setCurrentSubsetId(newSubsetId);
+        localStorage.setItem(`currentSubsetId_${restartId}_${selectedSetIndex + 1}`, newSubsetId);
+        logActivity('INFO', `New subset ID set: ${newSubsetId} for set ${selectedSetIndex + 2}`);
+      } else {
+        logActivity('ERROR', 'No subset ID returned for next set');
+        throw new Error('No subset ID received for next set');
       }
 
       setBrokerStatus(response);
       setSupportAckModal(false);
       setSupportAckData({ name: '', id: '' });
-      setSetStartData({ infraName: '', infraId: '' });
+      setNextSetData({ infraName: '', infraId: '' });
 
       // Reset checklist for next set
       const resetSteps = checklistSteps.map(step => ({
@@ -420,7 +468,7 @@ const TasksList = () => {
       
       setCurrentStep(1);
       setTimeElapsed(0);
-      setSelectedSetIndex(selectedSetIndex + 1);
+      setSelectedSetIndex(prev => prev + 1);
       startTimer();
 
       logActivity('SET_COMPLETE', `Set ${selectedSetIndex + 1} completed. Now working on set ${selectedSetIndex + 2}`);
@@ -429,48 +477,60 @@ const TasksList = () => {
       console.error('Error in support acknowledgment or starting next set:', error);
       logActivity('API_ERROR', `Failed: ${error.message}`);
       alert(`Failed: ${error.message}`);
+      // Refresh status to get current state
+      await fetchBrokerStatus(restartId);
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Handle set completion - refresh and start from step 2
-  const handleSetComplete = async () => {
-    logActivity('SET_COMPLETE', `Set ${selectedSetIndex + 1} completed`);
-
-    if (timer) clearInterval(timer);
-
-    // Reset checklist
-    const resetSteps = checklistSteps.map(step => ({
-      ...step,
-      completed: false,
-      completedTime: null,
-      ackBy: null,
-      ackTime: null
-    }));
-    setChecklistSteps(resetSteps);
-
-    setCurrentStep(1);
-    setTimeElapsed(0);
-    setSelectedSetIndex(null);
-    setCurrentSubsetId(null);
-
-    // Refresh status from step 2
-    await fetchBrokerStatus(restartId);
+  // Handle resume of existing set
+  const handleResumeSet = (setIndex, set) => {
+    setSelectedSetIndex(setIndex);
+    
+    const subsetId = set.subSetsId;
+    if (subsetId) {
+      setCurrentSubsetId(subsetId);
+      logActivity('INFO', `Resuming with subset ID: ${subsetId} for set ${setIndex + 1}`);
+    } else {
+      logActivity('WARNING', 'No subSetsId found in set, cannot resume');
+      alert('Cannot resume set: Missing subset ID');
+      return;
+    }
+    
+    // Determine current step based on subtasks
+    if (set.subTasks && set.subTasks.length > 0) {
+      const stepNumber = set.subTasks.length + 1;
+      setCurrentStep(stepNumber);
+      
+      // Update completed steps
+      const updatedSteps = [...checklistSteps];
+      set.subTasks.forEach((task, taskIndex) => {
+        if (updatedSteps[taskIndex]) {
+          updatedSteps[taskIndex].completed = true;
+          updatedSteps[taskIndex].completedTime = task.timestamp || new Date().toISOString();
+        }
+      });
+      setChecklistSteps(updatedSteps);
+      
+      logActivity('RESUME', `Resumed set ${setIndex + 1} at step ${stepNumber}`);
+    } else {
+      setCurrentStep(1);
+      logActivity('RESUME', `Starting set ${setIndex + 1} from beginning`);
+    }
+    
+    startTimer();
   };
 
   // Timer management
   const startTimer = () => {
     if (timer) clearInterval(timer);
+    setTimeElapsed(0);
     const newTimer = setInterval(() => {
       setTimeElapsed(prev => prev + 1);
     }, 1000);
     setTimer(newTimer);
   };
-
-  useEffect(() => {
-    return () => {
-      if (timer) clearInterval(timer);
-    };
-  }, [timer]);
 
   // Activity logging
   const logActivity = (type, message, data = null) => {
@@ -501,6 +561,18 @@ const TasksList = () => {
     }
   };
 
+  // Get the next available set index
+  const getNextSetIndex = () => {
+    if (!brokerStatus?.currSet) return 0;
+    
+    // Find the highest index of completed sets
+    const completedSets = brokerStatus.currSet.filter(set => 
+      set.status === 'completed' || (set.status === 'started' && set.endTime !== 'Present')
+    );
+    
+    return completedSets.length;
+  };
+
   if (loading && !restartId) {
     return (
       <div className="tasks-list-page">
@@ -524,14 +596,19 @@ const TasksList = () => {
       <div className="tasks-list-header">
         <div className="header-content">
           <h1>📝 Night Broker Restart Checklist</h1>
-          <p>Restart ID: {restartId}</p>
+          <div className="header-details">
+            <p>Restart ID: <strong>{restartId}</strong></p>
+            {currentSubsetId && selectedSetIndex !== null && (
+              <p>Current Subset ID: <strong>{currentSubsetId}</strong></p>
+            )}
+          </div>
         </div>
       </div>
 
       {/* Show set selection if no active set */}
       {selectedSetIndex === null && (
         <section className="sets-section">
-          <h2>📊 Start a New Set</h2>
+          <h2>📊 Available Sets</h2>
           <div className="sets-grid">
             {brokerStatus?.currSet?.map((set, index) => (
               <div
@@ -545,49 +622,46 @@ const TasksList = () => {
                     {set.status.toUpperCase()}
                   </span>
                 </div>
+                <div className="set-details">
+                  {set.subSetsId && (
+                    <p className="subset-id">Subset ID: {set.subSetsId}</p>
+                  )}
+                  {set.infraName && (
+                    <p className="infra-name">Infra: {set.infraName}</p>
+                  )}
+                </div>
                 {set.status === 'started' && set.endTime === 'Present' && (
                   <button
-                    onClick={() => {
-                      setSelectedSetIndex(index);
-                      const subsetId = set.subSetsId;
-                      if (subsetId) {
-                        setCurrentSubsetId(subsetId);
-                        logActivity('INFO', `Resuming with subset ID: ${subsetId} for set ${index + 1}`);
-                      }
-                      // Determine current step based on subtasks
-                      if (set.subTasks && set.subTasks.length > 0) {
-                        setCurrentStep(set.subTasks.length + 1);
-                        // Update completed steps
-                        const updatedSteps = [...checklistSteps];
-                        set.subTasks.forEach((task, taskIndex) => {
-                          if (updatedSteps[taskIndex]) {
-                            updatedSteps[taskIndex].completed = true;
-                            updatedSteps[taskIndex].completedTime = task.timestamp || new Date().toISOString();
-                          }
-                        });
-                        setChecklistSteps(updatedSteps);
-                      } else {
-                        setCurrentStep(1);
-                      }
-                      startTimer();
-                    }}
+                    onClick={() => handleResumeSet(index, set)}
                     className="complete-btn"
                   >
                     Resume This Set
                   </button>
                 )}
+                {set.status === 'completed' && (
+                  <div className="set-completed">
+                    <span>✅ Completed</span>
+                    {set.endTime && set.endTime !== 'Present' && (
+                      <small>at {format(new Date(set.endTime), 'HH:mm')}</small>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
 
             {/* Button to start new set */}
-            <button
-              onClick={() => handleSetStart(brokerStatus?.currSet?.length || 0)}
-              className="set-card click-prompt"
-              style={{ borderLeft: '4px solid #74b9ff' }}
-            >
-              <h3>➕ Start New Set {(brokerStatus?.currSet?.length || 0) + 1}</h3>
-              <p>Click to begin</p>
-            </button>
+            {brokerStatus?.currSet?.every(set => 
+              set.status === 'completed' || (set.status === 'started' && set.endTime !== 'Present')
+            ) && (
+              <button
+                onClick={() => handleSetStart(getNextSetIndex())}
+                className="set-card click-prompt"
+                style={{ borderLeft: '4px solid #74b9ff' }}
+              >
+                <h3>➕ Start New Set {getNextSetIndex() + 1}</h3>
+                <p>Click to begin</p>
+              </button>
+            )}
           </div>
         </section>
       )}
@@ -642,13 +716,13 @@ const TasksList = () => {
         </div>
       )}
 
-      {/* Support Acknowledgment Modal - NOW INCLUDES INFRA FIELDS */}
+      {/* Support Acknowledgment Modal */}
       {supportAckModal && (
         <div className="modal-overlay">
           <div className="modal-container">
             <div className="modal-header">
-              <h2>🛡️ Set Completion & Next Set Setup</h2>
-              <p>Complete current set and prepare for next set</p>
+              <h2>🛡️ Complete Current Set & Start Next</h2>
+              <p>Finalize current set and prepare the next one</p>
             </div>
             <form onSubmit={handleSupportAckSubmit} className="modal-form">
               <div style={{ marginBottom: '1.5rem', paddingBottom: '1.5rem', borderBottom: '1px solid rgba(46, 213, 255, 0.2)' }}>
@@ -680,14 +754,14 @@ const TasksList = () => {
               </div>
 
               <div>
-                <h3 style={{ color: '#2ed5ff', fontSize: '1.1rem', marginBottom: '1rem' }}>Next Set Infrastructure Details</h3>
+                <h3 style={{ color: '#2ed5ff', fontSize: '1.1rem', marginBottom: '1rem' }}>Next Set Details (Set {selectedSetIndex + 2})</h3>
                 <div className="form-group">
                   <label htmlFor="nextInfraName">Infrastructure Name</label>
                   <input
                     type="text"
                     id="nextInfraName"
-                    value={setStartData.infraName}
-                    onChange={(e) => setSetStartData({...setStartData, infraName: e.target.value})}
+                    value={nextSetData.infraName}
+                    onChange={(e) => setNextSetData({...nextSetData, infraName: e.target.value})}
                     placeholder="Enter infra name for next set"
                     required
                     className="form-input"
@@ -698,8 +772,8 @@ const TasksList = () => {
                   <input
                     type="text"
                     id="nextInfraId"
-                    value={setStartData.infraId}
-                    onChange={(e) => setSetStartData({...setStartData, infraId: e.target.value})}
+                    value={nextSetData.infraId}
+                    onChange={(e) => setNextSetData({...nextSetData, infraId: e.target.value})}
                     placeholder="Enter infra ID for next set"
                     required
                     className="form-input"
@@ -732,7 +806,10 @@ const TasksList = () => {
             <div className="user-info-content">
               <span className="user-label">📍 Current Set:</span>
               <span className="user-name">Set {selectedSetIndex + 1}</span>
-              <span className="user-id">Subset ID: {currentSubsetId || 'N/A'}</span>
+              <span className="user-id">Subset ID: {currentSubsetId || 'Loading...'}</span>
+              {brokerStatus?.currSet?.[selectedSetIndex]?.infraName && (
+                <span className="infra-info">Infra: {brokerStatus.currSet[selectedSetIndex].infraName}</span>
+              )}
             </div>
             <div className="current-timer">
               ⏱️ Step Time: {formatTime(timeElapsed)}
