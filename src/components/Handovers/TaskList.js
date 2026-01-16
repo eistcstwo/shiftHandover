@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import './TasksList.css';
-import { 
-  getRestartId, 
-  getBrokerRestartStatus, 
-  startBrokerRestartTask, 
+import {
+  getRestartId,
+  getBrokerRestartStatus,
+  startBrokerRestartTask,
   updateSubRestart,
-  updateSupportAck 
+  updateSupportAck
 } from '../../Api/HandOverApi';
 
 const TasksList = () => {
@@ -15,7 +15,7 @@ const TasksList = () => {
   const [brokerStatus, setBrokerStatus] = useState(null);
   const [currentSubsetId, setCurrentSubsetId] = useState(null);
   const [loading, setLoading] = useState(true);
-  
+
   // State for set selection modal
   const [showSetModal, setShowSetModal] = useState(false);
   const [selectedSetIndex, setSelectedSetIndex] = useState(null);
@@ -131,7 +131,7 @@ const TasksList = () => {
     try {
       // Check if we already have a restart ID in localStorage
       const storedRestartId = localStorage.getItem('brokerRestartId');
-      
+
       if (storedRestartId) {
         setRestartId(parseInt(storedRestartId));
         logActivity('INIT', `Using stored restart ID: ${storedRestartId}`);
@@ -144,7 +144,7 @@ const TasksList = () => {
         setRestartId(newRestartId);
         localStorage.setItem('brokerRestartId', newRestartId);
         logActivity('API_SUCCESS', `New restart ID obtained: ${newRestartId}`, response);
-        
+
         // STEP 2: Fetch current status
         await fetchBrokerStatus(newRestartId);
       }
@@ -166,16 +166,16 @@ const TasksList = () => {
       // Check if there's an ongoing set
       if (statusResponse.currSet && statusResponse.currSet.length > 0) {
         const lastSet = statusResponse.currSet[statusResponse.currSet.length - 1];
-        
+
         // If the last set is started but not ended, resume from there
         if (lastSet.status === 'started' && lastSet.endTime === 'Present') {
           setSelectedSetIndex(statusResponse.currSet.length - 1);
           setCurrentSubsetId(lastSet.subSetsId);
-          
+
           // Determine which step we're on based on subtasks
           if (lastSet.subTasks && lastSet.subTasks.length > 0) {
             setCurrentStep(lastSet.subTasks.length + 1);
-            
+
             // Update completed steps
             const updatedSteps = [...checklistSteps];
             lastSet.subTasks.forEach((task, index) => {
@@ -186,7 +186,7 @@ const TasksList = () => {
             });
             setChecklistSteps(updatedSteps);
           }
-          
+
           logActivity('RESUME', `Resuming set ${statusResponse.currSet.length} from step ${currentStep}`);
           startTimer();
         } else {
@@ -255,10 +255,10 @@ const TasksList = () => {
 
     try {
       const step = checklistSteps[stepId - 1];
-      
+
       // Call updateSubRestart API
       await updateSubRestart(step.title, currentSubsetId);
-      
+
       logActivity('API_SUCCESS', `Step ${stepId} completed: ${step.title}`);
 
       // Update local state
@@ -305,7 +305,7 @@ const TasksList = () => {
     try {
       // Call updateSupportAck API
       await updateSupportAck(supportAckData.id, supportAckData.name, currentSubsetId);
-      
+
       logActivity('API_SUCCESS', `Support acknowledgment by ${supportAckData.name} (${supportAckData.id})`);
 
       // Update step 2 as completed
@@ -337,9 +337,9 @@ const TasksList = () => {
   // Handle set completion - refresh and start from step 2
   const handleSetComplete = async () => {
     logActivity('SET_COMPLETE', `Set ${selectedSetIndex + 1} completed`);
-    
+
     if (timer) clearInterval(timer);
-    
+
     // Reset checklist
     const resetSteps = checklistSteps.map(step => ({
       ...step,
@@ -349,12 +349,12 @@ const TasksList = () => {
       ackTime: null
     }));
     setChecklistSteps(resetSteps);
-    
+
     setCurrentStep(1);
     setTimeElapsed(0);
     setSelectedSetIndex(null);
     setCurrentSubsetId(null);
-    
+
     // Refresh status from step 2
     await fetchBrokerStatus(restartId);
   };
@@ -461,7 +461,7 @@ const TasksList = () => {
                 )}
               </div>
             ))}
-            
+
             {/* Button to start new set */}
             <button
               onClick={() => handleSetStart(brokerStatus?.currSet?.length || 0)}
@@ -509,8 +509,8 @@ const TasksList = () => {
                 />
               </div>
               <div className="modal-actions">
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   onClick={() => setShowSetModal(false)}
                   className="btn-secondary"
                 >
@@ -559,8 +559,8 @@ const TasksList = () => {
                 />
               </div>
               <div className="modal-actions">
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   onClick={() => setSupportAckModal(false)}
                   className="btn-secondary"
                 >
