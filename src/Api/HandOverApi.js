@@ -178,7 +178,7 @@ export const getHistoryHandovers = async () => {
 
 // ========== BROKER RESTART TASK APIs ==========
 
-// Get restart ID for sets 2, 3, 4
+// STEP 1: Get initial restart ID (no payload)
 export const getRestartId = async () => {
   try {
     const response = await api.post('/getRestartId', {}, {
@@ -195,23 +195,38 @@ export const getRestartId = async () => {
   }
 };
 
-// Start broker restart task
-export const startBrokerRestartTask = async (infraId, infraName, restartId = null) => {
+// STEP 2: Get broker restart status
+export const getBrokerRestartStatus = async (restartId) => {
+  try {
+    const payload = { restartId };
+    
+    const response = await api.post('/statusBrokerRestart/', payload, {
+      timeout: 30000,
+      headers: {
+        'Content-Type': 'application/json',
+      }
+    });
+    
+    console.log('getBrokerRestartStatus response:', response);
+    return response.data;
+  } catch (error) {
+    console.error('getBrokerRestartStatus error:', error);
+    throw error;
+  }
+};
+
+// STEP 3 & 4: Start broker restart task (creates subset if restartId provided)
+export const startBrokerRestartTask = async (infraId, infraName, restartId) => {
   try {
     const payload = {
       infraId: infraId,
-      infraName: infraName
+      infraName: infraName,
+      restartId: restartId
     };
 
-    let url = '/startBrokerRestartTask/';
-    if (restartId) {
-      url += restartId;
-      console.log('Starting broker restart task with restart ID:', restartId);
-    } else {
-      console.log('Starting broker restart task for Set 1 (no restart ID)');
-    }
+    console.log('Starting broker restart task with payload:', payload);
 
-    const response = await api.post(url, payload, {
+    const response = await api.post('/startBrokerRestartTask/', payload, {
       timeout: 30000,
       headers: {
         'Content-Type': 'application/json',
@@ -226,22 +241,53 @@ export const startBrokerRestartTask = async (infraId, infraName, restartId = nul
   }
 };
 
-// NEW: Get broker restart task status
-export const getBrokerRestartStatus = async (restartId) => {
+// STEP 5: Update sub-restart (mark step as complete)
+export const updateSubRestart = async (description, subSetsId) => {
   try {
-    const payload = restartId ? { restartId } : {};
-    
-    const response = await api.post('/startBrokerRestartTask/', payload, {
+    const payload = {
+      description: description,
+      subSetsId: subSetsId
+    };
+
+    console.log('Updating sub-restart with payload:', payload);
+
+    const response = await api.post('/updateSubRestart/', payload, {
       timeout: 30000,
       headers: {
         'Content-Type': 'application/json',
       }
     });
     
-    console.log('getBrokerRestartStatus response:', response);
+    console.log('updateSubRestart response:', response);
     return response.data;
   } catch (error) {
-    console.error('getBrokerRestartStatus error:', error);
+    console.error('updateSubRestart error:', error);
+    throw error;
+  }
+};
+
+// STEP 6: Update support acknowledgment
+export const updateSupportAck = async (supportId, supportName, subSetsId) => {
+  try {
+    const payload = {
+      supportId: supportId,
+      supportName: supportName,
+      subSetsId: subSetsId
+    };
+
+    console.log('Updating support acknowledgment with payload:', payload);
+
+    const response = await api.post('/updateSupportAck/', payload, {
+      timeout: 30000,
+      headers: {
+        'Content-Type': 'application/json',
+      }
+    });
+    
+    console.log('updateSupportAck response:', response);
+    return response.data;
+  } catch (error) {
+    console.error('updateSupportAck error:', error);
     throw error;
   }
 };
