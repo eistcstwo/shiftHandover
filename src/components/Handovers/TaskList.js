@@ -331,7 +331,6 @@ const TasksList = () => {
   };
 
   // STEP 6: Handle support acknowledgment (Last Step - Step 11)
-  // This now opens a modal that collects support info AND infra info for next set
   const handleSupportAckClick = () => {
     setSupportAckModal(true);
     setSupportAckData({ name: '', id: '' });
@@ -348,9 +347,16 @@ const TasksList = () => {
     }
 
     try {
-      // FIRST: Call updateSupportAck API
+      // FIRST: Call updateSupportAck API to complete current set
+      logActivity('API_CALL', `Completing set ${selectedSetIndex + 1} with support acknowledgment`, {
+        supportId: supportAckData.id,
+        supportName: supportAckData.name,
+        subSetsId: currentSubsetId
+      });
+
       await updateSupportAck(supportAckData.id, supportAckData.name, currentSubsetId);
-      logActivity('API_SUCCESS', `Support acknowledgment by ${supportAckData.name} (${supportAckData.id})`);
+      
+      logActivity('API_SUCCESS', `Support acknowledgment by ${supportAckData.name} (${supportAckData.id}) - Set ${selectedSetIndex + 1} completed`);
 
       // Update step 11 as completed
       const updatedSteps = [...checklistSteps];
@@ -364,7 +370,11 @@ const TasksList = () => {
       setChecklistSteps(updatedSteps);
 
       // SECOND: Call startBrokerRestartTask API to start next set
-      logActivity('API_CALL', 'Starting next set after support acknowledgment', setStartData);
+      logActivity('API_CALL', `Starting next set ${selectedSetIndex + 2}`, {
+        infraId: setStartData.infraId,
+        infraName: setStartData.infraName,
+        restartId: restartId
+      });
       
       const response = await startBrokerRestartTask(
         setStartData.infraId,
@@ -372,9 +382,9 @@ const TasksList = () => {
         restartId
       );
 
-      logActivity('API_SUCCESS', 'Next set started successfully', response);
+      logActivity('API_SUCCESS', `Set ${selectedSetIndex + 2} started successfully`, response);
 
-      // Extract new subSetsId
+      // Extract new subSetsId for the next set
       if (response.currSet && response.currSet.length > 0) {
         const activeSets = response.currSet.filter(
           set => set.status === 'started' && set.endTime === 'Present'
@@ -386,7 +396,9 @@ const TasksList = () => {
           
           if (newSubsetId) {
             setCurrentSubsetId(newSubsetId);
-            logActivity('INFO', `New subset ID set: ${newSubsetId}`);
+            logActivity('INFO', `New subset ID set: ${newSubsetId} for set ${selectedSetIndex + 2}`);
+          } else {
+            logActivity('WARNING', 'No subSetsId found in next set response');
           }
         }
       }
@@ -396,7 +408,7 @@ const TasksList = () => {
       setSupportAckData({ name: '', id: '' });
       setSetStartData({ infraName: '', infraId: '' });
 
-      // Reset for next set
+      // Reset checklist for next set
       const resetSteps = checklistSteps.map(step => ({
         ...step,
         completed: false,
@@ -411,11 +423,11 @@ const TasksList = () => {
       setSelectedSetIndex(selectedSetIndex + 1);
       startTimer();
 
-      logActivity('SET_COMPLETE', `Set ${selectedSetIndex + 1} completed. Starting set ${selectedSetIndex + 2}`);
+      logActivity('SET_COMPLETE', `Set ${selectedSetIndex + 1} completed. Now working on set ${selectedSetIndex + 2}`);
 
     } catch (error) {
-      console.error('Error submitting support acknowledgment:', error);
-      logActivity('API_ERROR', `Failed to submit support ack or start next set: ${error.message}`);
+      console.error('Error in support acknowledgment or starting next set:', error);
+      logActivity('API_ERROR', `Failed: ${error.message}`);
       alert(`Failed: ${error.message}`);
     }
   };
@@ -805,7 +817,7 @@ const TasksList = () => {
                       {log.message}
                     </div>
                     {log.type.includes('API') && (
-                      <div className={`log-type ${log.type.includes('SUCCESS') ? 'api-success' : log.type.includes('ERROR') ? 'api-error' : 'api-call'}`}>
+                      <div className={`log-type ${log.type.includes('SUCCESS') ? 'api-success' : log.type.includes('ERROR')  ? 'api-error' : 'api-call'}`}>
                         {log.type.includes('SUCCESS') ? 'SUCCESS' : log.type.includes('ERROR') ? 'ERROR' : 'API'}
                       </div>
                     )}
