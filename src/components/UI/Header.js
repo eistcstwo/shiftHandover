@@ -73,6 +73,7 @@ const Header = ({ onLogout }) => {
     uid: '',
     initials: ''
   });
+  const [restartId, setRestartId] = useState('');
   const [showTooltip, setShowTooltip] = useState(false);
 
   useEffect(() => {
@@ -146,7 +147,7 @@ const handleListClick = async () => {
   }
 };
 
-  
+
   return (
     <header className="app-header">
       <div className="header-left">
