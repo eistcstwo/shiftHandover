@@ -1,21 +1,7 @@
-Header.js
--rwxrwxrwx 1 root root 4549 Nov 24 15:13 Header.js_02122025
--rwxrwxrwx 1 root root  403 Oct  3 17:27 Header.js_081025
--rwxrwxrwx 1 root root 1736 Oct 31 18:25 Header.js_081125
--rwxrwxrwx 1 root root 3921 Nov 24 15:08 Header.js_24112025
--rwxrwxrwx 1 root root 5495 Nov 27 18:17 Modal.css
--rwxrwxrwx 1 root root  646 Nov 24 13:48 Modal.js
--rwxrwxrwx 1 root root  687 Oct 22 14:30 Sidebar.css
--rwxrwxrwx 1 root root 1431 Nov  3 13:39 Sidebar.js
-[root@eispr-prt1-01 UI]#
-[root@eispr-prt1-01 UI]#
-[root@eispr-prt1-01 UI]#
-[root@eispr-prt1-01 UI]#
-[root@eispr-prt1-01 UI]#
-[root@eispr-prt1-01 UI]# cat Header.js
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import './Header.css';
+import { getRestartId } from '../../Api/HandOverApi'
 
 // Robust function to clear all cookies (within JS limitations)
 function clearAllCookies() {
@@ -109,30 +95,78 @@ const Header = ({ onLogout }) => {
     });
   }, []);
 
-  const handleLogout = async () => {
-    await callLogoutAPI(userInfo.username);
+ const handleLogout = async () => {
+  await callLogoutAPI(userInfo.username);
 
-    // Clear local and session storage after the API call finishes (or fails)
-    localStorage.clear();
-    sessionStorage.clear();
-    clearAllCookies();
+  // Clear local and session storage after the API call finishes
+  localStorage.clear();
+  sessionStorage.clear();
+  clearAllCookies();
 
-    if (onLogout) {
-      onLogout();
-    }
+  // Clear any restartId state if using state
+  if (restartId) {
+    setRestartId('');
+  }
 
-    // Use the robust redirectToLogin function to handle the final redirection
-    redirectToLogin();
-  };
+  if (onLogout) {
+    onLogout();
+  }
+
+  // Use the robust redirectToLogin function
+  redirectToLogin();
+};
 
   const handleBucketClick = () => {
     navigate('/tasks-bucket');
   };
 
-  const handleListClick = () => {
+const handleListClick = async () => {
+  try {
+    // Call getRestartId API
+    const response = await getRestartId();
+    
+    // Extract restartId based on possible response structures
+    let extractedRestartId = null;
+    
+    if (response) {
+      // Check different possible response structures
+      if (response.restartId) {
+        extractedRestartId = response.restartId;
+      } else if (response.data && response.data.restartId) {
+        extractedRestartId = response.data.restartId;
+      } else if (response.id) {
+        extractedRestartId = response.id;
+      }
+      
+      // Save restartId to localStorage if found
+      if (extractedRestartId) {
+        localStorage.setItem('restartId', extractedRestartId.toString());
+        console.log('Restart ID saved to localStorage:', extractedRestartId);
+        
+        // Optionally save timestamp for expiration tracking
+        localStorage.setItem('restartId_timestamp', new Date().toISOString());
+      } else {
+        console.warn('Could not find restartId in API response');
+      }
+    }
+    
+    // Navigate to the checklist page
     navigate('/tasks-checklist');
-  };
+  } catch (error) {
+    console.error('Error getting restartId:', error);
+    
+    // Check if we already have a restartId in localStorage
+    const existingRestartId = localStorage.getItem('restartId');
+    if (!existingRestartId) {
+      console.log('No existing restartId found, API call failed');
+    }
+    
+    // Still navigate to checklist page
+    navigate('/tasks-checklist');
+  }
+};
 
+  
   return (
     <header className="app-header">
       <div className="header-left">
