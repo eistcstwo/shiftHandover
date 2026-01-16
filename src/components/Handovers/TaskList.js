@@ -331,9 +331,11 @@ const TasksList = () => {
   };
 
   // STEP 6: Handle support acknowledgment (Last Step - Step 11)
+  // This now opens a modal that collects support info AND infra info for next set
   const handleSupportAckClick = () => {
     setSupportAckModal(true);
     setSupportAckData({ name: '', id: '' });
+    setSetStartData({ infraName: '', infraId: '' });
   };
 
   const handleSupportAckSubmit = async (e) => {
@@ -346,9 +348,8 @@ const TasksList = () => {
     }
 
     try {
-      // Call updateSupportAck API
+      // FIRST: Call updateSupportAck API
       await updateSupportAck(supportAckData.id, supportAckData.name, currentSubsetId);
-
       logActivity('API_SUCCESS', `Support acknowledgment by ${supportAckData.name} (${supportAckData.id})`);
 
       // Update step 11 as completed
@@ -362,18 +363,60 @@ const TasksList = () => {
       };
       setChecklistSteps(updatedSteps);
 
+      // SECOND: Call startBrokerRestartTask API to start next set
+      logActivity('API_CALL', 'Starting next set after support acknowledgment', setStartData);
+      
+      const response = await startBrokerRestartTask(
+        setStartData.infraId,
+        setStartData.infraName,
+        restartId
+      );
+
+      logActivity('API_SUCCESS', 'Next set started successfully', response);
+
+      // Extract new subSetsId
+      if (response.currSet && response.currSet.length > 0) {
+        const activeSets = response.currSet.filter(
+          set => set.status === 'started' && set.endTime === 'Present'
+        );
+        
+        if (activeSets.length > 0) {
+          const latestSet = activeSets[activeSets.length - 1];
+          const newSubsetId = latestSet.subSetsId;
+          
+          if (newSubsetId) {
+            setCurrentSubsetId(newSubsetId);
+            logActivity('INFO', `New subset ID set: ${newSubsetId}`);
+          }
+        }
+      }
+
+      setBrokerStatus(response);
       setSupportAckModal(false);
       setSupportAckData({ name: '', id: '' });
+      setSetStartData({ infraName: '', infraId: '' });
 
-      // All steps complete - refresh and start again
-      setTimeout(() => {
-        handleSetComplete();
-      }, 1000);
+      // Reset for next set
+      const resetSteps = checklistSteps.map(step => ({
+        ...step,
+        completed: false,
+        completedTime: null,
+        ackBy: null,
+        ackTime: null
+      }));
+      setChecklistSteps(resetSteps);
+      
+      setCurrentStep(1);
+      setTimeElapsed(0);
+      setSelectedSetIndex(selectedSetIndex + 1);
+      startTimer();
+
+      logActivity('SET_COMPLETE', `Set ${selectedSetIndex + 1} completed. Starting set ${selectedSetIndex + 2}`);
 
     } catch (error) {
       console.error('Error submitting support acknowledgment:', error);
-      logActivity('API_ERROR', `Failed to submit support ack: ${error.message}`);
-      alert(`Failed to submit support acknowledgment: ${error.message}`);
+      logActivity('API_ERROR', `Failed to submit support ack or start next set: ${error.message}`);
+      alert(`Failed: ${error.message}`);
     }
   };
 
@@ -587,39 +630,71 @@ const TasksList = () => {
         </div>
       )}
 
-      {/* Support Acknowledgment Modal */}
+      {/* Support Acknowledgment Modal - NOW INCLUDES INFRA FIELDS */}
       {supportAckModal && (
         <div className="modal-overlay">
           <div className="modal-container">
             <div className="modal-header">
-              <h2>🛡️ Support Team Acknowledgment</h2>
-              <p>Enter support team member details</p>
+              <h2>🛡️ Set Completion & Next Set Setup</h2>
+              <p>Complete current set and prepare for next set</p>
             </div>
             <form onSubmit={handleSupportAckSubmit} className="modal-form">
-              <div className="form-group">
-                <label htmlFor="supportName">Support Team Member Name</label>
-                <input
-                  type="text"
-                  id="supportName"
-                  value={supportAckData.name}
-                  onChange={(e) => setSupportAckData({...supportAckData, name: e.target.value})}
-                  placeholder="Enter support member name"
-                  required
-                  className="form-input"
-                />
+              <div style={{ marginBottom: '1.5rem', paddingBottom: '1.5rem', borderBottom: '1px solid rgba(46, 213, 255, 0.2)' }}>
+                <h3 style={{ color: '#2ed5ff', fontSize: '1.1rem', marginBottom: '1rem' }}>Support Team Acknowledgment</h3>
+                <div className="form-group">
+                  <label htmlFor="supportName">Support Team Member Name</label>
+                  <input
+                    type="text"
+                    id="supportName"
+                    value={supportAckData.name}
+                    onChange={(e) => setSupportAckData({...supportAckData, name: e.target.value})}
+                    placeholder="Enter support member name"
+                    required
+                    className="form-input"
+                  />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="supportId">Support Member ID</label>
+                  <input
+                    type="text"
+                    id="supportId"
+                    value={supportAckData.id}
+                    onChange={(e) => setSupportAckData({...supportAckData, id: e.target.value})}
+                    placeholder="Enter support member ID"
+                    required
+                    className="form-input"
+                  />
+                </div>
               </div>
-              <div className="form-group">
-                <label htmlFor="supportId">Support Member ID</label>
-                <input
-                  type="text"
-                  id="supportId"
-                  value={supportAckData.id}
-                  onChange={(e) => setSupportAckData({...supportAckData, id: e.target.value})}
-                  placeholder="Enter support member ID"
-                  required
-                  className="form-input"
-                />
+
+              <div>
+                <h3 style={{ color: '#2ed5ff', fontSize: '1.1rem', marginBottom: '1rem' }}>Next Set Infrastructure Details</h3>
+                <div className="form-group">
+                  <label htmlFor="nextInfraName">Infrastructure Name</label>
+                  <input
+                    type="text"
+                    id="nextInfraName"
+                    value={setStartData.infraName}
+                    onChange={(e) => setSetStartData({...setStartData, infraName: e.target.value})}
+                    placeholder="Enter infra name for next set"
+                    required
+                    className="form-input"
+                  />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="nextInfraId">Infrastructure ID</label>
+                  <input
+                    type="text"
+                    id="nextInfraId"
+                    value={setStartData.infraId}
+                    onChange={(e) => setSetStartData({...setStartData, infraId: e.target.value})}
+                    placeholder="Enter infra ID for next set"
+                    required
+                    className="form-input"
+                  />
+                </div>
               </div>
+
               <div className="modal-actions">
                 <button
                   type="button"
@@ -629,7 +704,7 @@ const TasksList = () => {
                   Cancel
                 </button>
                 <button type="submit" className="btn-primary">
-                  Acknowledge & Continue
+                  Complete Set & Start Next
                 </button>
               </div>
             </form>
@@ -701,7 +776,7 @@ const TasksList = () => {
                       <div className="step-actions">
                         {step.id === 11 ? (
                           <button onClick={handleSupportAckClick} className="complete-btn">
-                            Enter Support Acknowledgment
+                            Complete Set & Start Next
                           </button>
                         ) : (
                           <button onClick={() => completeStep(step.id)} className="complete-btn">
