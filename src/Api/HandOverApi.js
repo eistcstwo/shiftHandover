@@ -181,7 +181,7 @@ export const getHistoryHandovers = async () => {
 // STEP 1: Get initial restart ID (no payload)
 export const getRestartId = async () => {
   try {
-    const response = await api.post('/getRestartId', {}, {
+    const response = await api.post('/getRestartId/', {}, {
       timeout: 30000,
       headers: {
         'Content-Type': 'application/json',
@@ -206,14 +206,14 @@ export const getRestartId = async () => {
 export const getBrokerRestartStatus = async (restartId) => {
   try {
     const payload = { restartId };
-    
+
     const response = await api.post('/statusBrokerRestart/', payload, {
       timeout: 30000,
       headers: {
         'Content-Type': 'application/json',
       }
     });
-    
+
     console.log('getBrokerRestartStatus response:', response);
     return response.data;
   } catch (error) {
@@ -239,7 +239,7 @@ export const startBrokerRestartTask = async (infraId, infraName, restartId) => {
         'Content-Type': 'application/json',
       }
     });
-    
+
     console.log('startBrokerRestartTask response:', response);
     return response.data;
   } catch (error) {
@@ -264,7 +264,7 @@ export const updateSubRestart = async (description, subSetsId) => {
         'Content-Type': 'application/json',
       }
     });
-    
+
     console.log('updateSubRestart response:', response);
     return response.data;
   } catch (error) {
@@ -290,7 +290,7 @@ export const updateSupportAck = async (supportId, supportName, subSetsId) => {
         'Content-Type': 'application/json',
       }
     });
-    
+
     console.log('updateSupportAck response:', response);
     return response.data;
   } catch (error) {
@@ -298,4 +298,3 @@ export const updateSupportAck = async (supportId, supportName, subSetsId) => {
     throw error;
   }
 };
-
