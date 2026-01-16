@@ -165,38 +165,50 @@ const TasksList = () => {
 
       // Check if there's an ongoing set
       if (statusResponse.currSet && statusResponse.currSet.length > 0) {
-        const lastSet = statusResponse.currSet[statusResponse.currSet.length - 1];
-
-        // If the last set is started but not ended, resume from there
-        if (lastSet.status === 'started' && lastSet.endTime === 'Present') {
-          setSelectedSetIndex(statusResponse.currSet.length - 1);
+        // Find the most recent set that is started but not ended
+        const activeSets = statusResponse.currSet.filter(
+          set => set.status === 'started' && set.endTime === 'Present'
+        );
+        
+        if (activeSets.length > 0) {
+          // Get the most recent active set (last one in the array)
+          const lastActiveSet = activeSets[activeSets.length - 1];
+          const setIndex = statusResponse.currSet.indexOf(lastActiveSet);
+          setSelectedSetIndex(setIndex);
           
           // Extract subSetsId - THIS IS THE KEY FIX
-          const subsetId = lastSet.subSetsId;
+          const subsetId = lastActiveSet.subSetsId;
           if (subsetId) {
             setCurrentSubsetId(subsetId);
-            logActivity('INFO', `Found active subset ID: ${subsetId}`);
+            logActivity('INFO', `Found active subset ID: ${subsetId} for set ${setIndex + 1}`);
+          } else {
+            logActivity('WARNING', 'No subSetsId found in active set');
           }
 
           // Determine which step we're on based on subtasks
-          if (lastSet.subTasks && lastSet.subTasks.length > 0) {
-            setCurrentStep(lastSet.subTasks.length + 1);
+          if (lastActiveSet.subTasks && lastActiveSet.subTasks.length > 0) {
+            const completedStepsCount = lastActiveSet.subTasks.length;
+            setCurrentStep(completedStepsCount + 1);
 
             // Update completed steps
             const updatedSteps = [...checklistSteps];
-            lastSet.subTasks.forEach((task, index) => {
+            lastActiveSet.subTasks.forEach((task, index) => {
               if (updatedSteps[index]) {
                 updatedSteps[index].completed = true;
                 updatedSteps[index].completedTime = task.timestamp || new Date().toISOString();
               }
             });
             setChecklistSteps(updatedSteps);
+            
+            logActivity('RESUME', `Resuming set ${setIndex + 1} from step ${completedStepsCount + 1}`);
+          } else {
+            logActivity('RESUME', `Starting new set ${setIndex + 1} from step 1`);
+            setCurrentStep(1);
           }
-
-          logActivity('RESUME', `Resuming set ${statusResponse.currSet.length} from step ${currentStep}`);
+          
           startTimer();
         } else {
-          // All sets are complete or we need to start a new one
+          // No active sets found
           logActivity('INFO', 'No active set found. Ready to start a new set.');
         }
       } else {
@@ -231,16 +243,28 @@ const TasksList = () => {
 
       logActivity('API_SUCCESS', `Set ${selectedSetIndex + 1} started successfully`, response);
 
-      // Extract subSetsId from the response - THIS IS CRITICAL
+      // Extract the most recent subSetsId from the response
       if (response.currSet && response.currSet.length > 0) {
-        const latestSet = response.currSet[response.currSet.length - 1];
-        const subsetId = latestSet.subSetsId;
+        // Find the most recent set that is started but not ended
+        const activeSets = response.currSet.filter(
+          set => set.status === 'started' && set.endTime === 'Present'
+        );
         
-        if (subsetId) {
-          setCurrentSubsetId(subsetId);
-          logActivity('INFO', `Subset ID set: ${subsetId}`);
-        } else {
-          logActivity('WARNING', 'No subSetsId found in response');
+        if (activeSets.length > 0) {
+          const latestSet = activeSets[activeSets.length - 1];
+          const subsetId = latestSet.subSetsId;
+          
+          if (subsetId) {
+            setCurrentSubsetId(subsetId);
+            logActivity('INFO', `Subset ID set: ${subsetId} for set ${selectedSetIndex + 1}`);
+          } else {
+            logActivity('WARNING', 'No subSetsId found in response');
+            // Try alternative: check if subsetId is in the response root
+            if (response.subSetsId) {
+              setCurrentSubsetId(response.subSetsId);
+              logActivity('INFO', `Using root subset ID: ${response.subSetsId}`);
+            }
+          }
         }
       }
 
@@ -473,7 +497,22 @@ const TasksList = () => {
                       const subsetId = set.subSetsId;
                       if (subsetId) {
                         setCurrentSubsetId(subsetId);
-                        logActivity('INFO', `Resuming with subset ID: ${subsetId}`);
+                        logActivity('INFO', `Resuming with subset ID: ${subsetId} for set ${index + 1}`);
+                      }
+                      // Determine current step based on subtasks
+                      if (set.subTasks && set.subTasks.length > 0) {
+                        setCurrentStep(set.subTasks.length + 1);
+                        // Update completed steps
+                        const updatedSteps = [...checklistSteps];
+                        set.subTasks.forEach((task, taskIndex) => {
+                          if (updatedSteps[taskIndex]) {
+                            updatedSteps[taskIndex].completed = true;
+                            updatedSteps[taskIndex].completedTime = task.timestamp || new Date().toISOString();
+                          }
+                        });
+                        setChecklistSteps(updatedSteps);
+                      } else {
+                        setCurrentStep(1);
                       }
                       startTimer();
                     }}
