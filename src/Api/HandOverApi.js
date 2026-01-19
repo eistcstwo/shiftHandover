@@ -222,14 +222,20 @@ export const getBrokerRestartStatus = async (restartId) => {
   }
 };
 
-// STEP 3 & 4: Start broker restart task (creates subset if restartId provided)
-export const startBrokerRestartTask = async (infraId, infraName, restartId) => {
+// STEP 3 & 4: Start broker restart task
+// If restartId is provided and currSet.length < 4, it creates a new subset
+// If restartId is NOT provided (undefined/null), it starts a completely new restart session
+export const startBrokerRestartTask = async (infraId, infraName, restartId = null) => {
   try {
     const payload = {
       infraId: infraId,
-      infraName: infraName,
-      restartId: restartId
+      infraName: infraName
     };
+
+    // Only include restartId if it's provided and we want to add to existing session
+    if (restartId !== null && restartId !== undefined) {
+      payload.restartId = restartId;
+    }
 
     console.log('Starting broker restart task with payload:', payload);
 
@@ -273,28 +279,31 @@ export const updateSubRestart = async (description, subSetsId) => {
   }
 };
 
-// STEP 6: Update support acknowledgment
-export const updateSupportAck = async (supportId, supportName, subSetsId) => {
+// STEP 6: Update support acknowledgment (REMOVED - replaced by updateSetRestart)
+
+// NEW: Update set restart with completion status
+export const updateSetRestart = async (supportId, supportName, subSetsId) => {
   try {
     const payload = {
-      supportId: supportId,
+      status: "completed",
+      suportId: supportId,  // Note: API uses 'suportId' (typo in backend)
       supportName: supportName,
       subSetsId: subSetsId
     };
 
-    console.log('Updating support acknowledgment with payload:', payload);
+    console.log('Updating set restart with payload:', payload);
 
-    const response = await api.post('/updateSupportAck/', payload, {
+    const response = await api.post('/updateSetRestart/', payload, {
       timeout: 30000,
       headers: {
         'Content-Type': 'application/json',
       }
     });
 
-    console.log('updateSupportAck response:', response);
+    console.log('updateSetRestart response:', response);
     return response.data;
   } catch (error) {
-    console.error('updateSupportAck error:', error);
+    console.error('updateSetRestart error:', error);
     throw error;
   }
 };
