@@ -133,30 +133,73 @@ const TasksList = () => {
     };
   }, []);
 
-  // Helper function to extract subSetsId from various response formats
+  // Enhanced helper function to extract subSetsId from various response formats
   const extractSubsetId = (response) => {
-    if (!response) return null;
-
-    // 1. Check root level properties (handle variations)
-    if (response.subSetsId) return response.subSetsId;
-    if (response.subSetId) return response.subSetId;
-    if (response.subsetId) return response.subsetId;
+    console.log('Extracting subsetId from response:', response);
     
-    // 2. Check inside currSet array (most recent set)
-    if (response.currSet && Array.isArray(response.currSet) && response.currSet.length > 0) {
-      // Look at the last element (most recently added set)
-      const latestSet = response.currSet[response.currSet.length - 1];
-      
-      if (latestSet.subSetsId) return latestSet.subSetsId;
-      if (latestSet.subSetId) return latestSet.subSetId;
-      if (latestSet.subsetId) return latestSet.subsetId;
-    }
-    
-    // 3. Fallback: Check if response itself is the set object
-    if (response.status === 'started' && response.subSetsId) {
+    // If response is a set object (from currSet array)
+    if (response && typeof response === 'object' && !Array.isArray(response)) {
+      // Check direct properties first
+      if (response.subSetsId) {
+        console.log('Found subSetsId in set object:', response.subSetsId);
         return response.subSetsId;
+      }
+      if (response.subSetId) {
+        console.log('Found subSetId in set object:', response.subSetId);
+        return response.subSetId;
+      }
+      if (response.subsetId) {
+        console.log('Found subsetId in set object:', response.subsetId);
+        return response.subsetId;
+      }
     }
     
+    // If response is the main API response with currSet array
+    if (response && response.currSet && Array.isArray(response.currSet)) {
+      console.log('Checking currSet array:', response.currSet);
+      
+      // If we're starting a new set, get the latest set (last in array)
+      const latestSet = response.currSet[response.currSet.length - 1];
+      console.log('Latest set:', latestSet);
+      
+      if (latestSet && latestSet.subSetsId) {
+        console.log('Found subSetsId in latest set:', latestSet.subSetsId);
+        return latestSet.subSetsId;
+      }
+      if (latestSet && latestSet.subSetId) {
+        console.log('Found subSetId in latest set:', latestSet.subSetId);
+        return latestSet.subSetId;
+      }
+      if (latestSet && latestSet.subsetId) {
+        console.log('Found subsetId in latest set:', latestSet.subsetId);
+        return latestSet.subsetId;
+      }
+      
+      // If we're resuming, find active set
+      const activeSets = response.currSet.filter(
+        set => set.status === 'started' && (!set.endTime || set.endTime === 'Present')
+      );
+      
+      if (activeSets.length > 0) {
+        const lastActiveSet = activeSets[activeSets.length - 1];
+        console.log('Last active set:', lastActiveSet);
+        
+        if (lastActiveSet.subSetsId) {
+          console.log('Found subSetsId in active set:', lastActiveSet.subSetsId);
+          return lastActiveSet.subSetsId;
+        }
+        if (lastActiveSet.subSetId) {
+          console.log('Found subSetId in active set:', lastActiveSet.subSetId);
+          return lastActiveSet.subSetId;
+        }
+        if (lastActiveSet.subsetId) {
+          console.log('Found subsetId in active set:', lastActiveSet.subsetId);
+          return lastActiveSet.subsetId;
+        }
+      }
+    }
+    
+    console.log('No subsetId found in response');
     return null;
   };
 
@@ -193,9 +236,9 @@ const TasksList = () => {
 
   // STEP 2: Fetch broker status to check if any set is in progress
   const fetchBrokerStatus = async (rid) => {
-    if (!rid) return;
     try {
       const statusResponse = await getBrokerRestartStatus(rid);
+      console.log('Broker status response:', statusResponse);
       setBrokerStatus(statusResponse);
       logActivity('API_SUCCESS', 'Broker status fetched', statusResponse);
 
@@ -204,6 +247,8 @@ const TasksList = () => {
         const completedCount = statusResponse.currSet.filter(
           set => set.status === 'completed' || (set.endTime && set.endTime !== 'Present')
         ).length;
+        
+        console.log(`Completed sets: ${completedCount}/4`);
         
         if (completedCount >= 4) {
           setAllSetsCompleted(true);
@@ -218,8 +263,10 @@ const TasksList = () => {
       if (statusResponse.currSet && statusResponse.currSet.length > 0) {
         // Find the most recent set that is started but not ended
         const activeSets = statusResponse.currSet.filter(
-          set => set.status === 'started' && set.endTime === 'Present'
+          set => set.status === 'started' && (!set.endTime || set.endTime === 'Present')
         );
+        
+        console.log('Active sets found:', activeSets.length);
         
         if (activeSets.length > 0) {
           // Get the most recent active set (last one in the array)
@@ -232,12 +279,15 @@ const TasksList = () => {
           
           if (subsetId) {
             setCurrentSubsetId(subsetId);
+            localStorage.setItem(`currentSubsetId_${rid}_${setIndex}`, subsetId);
             logActivity('INFO', `Found active subset ID: ${subsetId} for set ${setIndex + 1}`);
           } else {
             logActivity('WARNING', 'No subSetsId found in active set');
-            if (!isInitializing.current) {
-              handleSetStart(statusResponse.currSet.length);
-              return;
+            // Check localStorage for stored subsetId
+            const storedSubsetId = localStorage.getItem(`currentSubsetId_${rid}_${setIndex}`);
+            if (storedSubsetId) {
+              setCurrentSubsetId(storedSubsetId);
+              logActivity('INFO', `Using stored subset ID: ${storedSubsetId} for set ${setIndex + 1}`);
             }
           }
 
@@ -294,21 +344,18 @@ const TasksList = () => {
     try {
       logActivity('SET_START', `Starting set ${selectedSetIndex + 1}`, setStartData);
 
-      // CRITICAL LOGIC: Determine if we should pass the restartId
-      // If it's the FIRST set (index 0) or we are starting fresh (brokerStatus null/empty),
-      // we must pass NULL as restartId to force the backend to initialize correctly and return subsetId.
-      let restartIdToPass = restartId;
-      const isFirstSet = !brokerStatus?.currSet || brokerStatus.currSet.length === 0;
-
-      if (isFirstSet) {
-        restartIdToPass = null;
-        logActivity('INFO', 'Starting first set: Sending restartId as NULL to generate new session/subset data');
-      } else if (!allSetsCompleted && brokerStatus?.currSet?.length < 4) {
-        // For sets 2, 3, 4 we pass the existing ID
+      // Determine if we should pass restartId
+      let restartIdToPass = null;
+      
+      // Only pass restartId if:
+      // 1. We have a restartId from previous session
+      // 2. We're not in "all sets completed" state
+      // 3. This is not the first set in a new session
+      if (restartId && !allSetsCompleted && brokerStatus?.currSet?.length > 0) {
         restartIdToPass = restartId;
       }
       
-      logActivity('INFO', `API Call Params: infraId=${setStartData.infraId}, infraName=${setStartData.infraName}, restartId=${restartIdToPass}`);
+      logActivity('INFO', `Calling API ${restartIdToPass ? 'with' : 'without'} restartId: ${restartIdToPass || 'null'}`);
 
       // Call startBrokerRestartTask
       const response = await startBrokerRestartTask(
@@ -317,49 +364,58 @@ const TasksList = () => {
         restartIdToPass
       );
 
+      console.log('Start broker restart task response:', response);
       logActivity('API_SUCCESS', `Set ${selectedSetIndex + 1} started successfully`, response);
 
-      // 1. Capture the Restart ID if we didn't have it or if it changed
-      // The response usually contains the ID at root or inside the object
-      const returnedRestartId = response.restartId || response.brokerRestartId || response.id;
-      if (returnedRestartId) {
-        setRestartId(returnedRestartId);
-        localStorage.setItem('brokerRestartId', returnedRestartId);
-        logActivity('INFO', `Restart ID updated from response: ${returnedRestartId}`);
-      }
+      // Extract subSetsId from the response
+      let subsetId = extractSubsetId(response);
 
-      // 2. Extract the subSetsId aggressively using helper function
-      const subsetId = extractSubsetId(response);
+      // If not found, check the specific set in currSet
+      if (!subsetId && response.currSet && response.currSet[selectedSetIndex]) {
+        const set = response.currSet[selectedSetIndex];
+        if (set.subSetsId) {
+          subsetId = set.subSetsId;
+          logActivity('INFO', `Found subSetsId in set[${selectedSetIndex}]: ${subsetId}`);
+        }
+      }
 
       if (subsetId) {
         setCurrentSubsetId(subsetId);
-        // Backup specific subset ID
-        if (returnedRestartId || restartId) {
-            localStorage.setItem(`currentSubsetId_${returnedRestartId || restartId}_${selectedSetIndex}`, subsetId);
-        }
         logActivity('INFO', `Subset ID obtained: ${subsetId} for set ${selectedSetIndex + 1}`);
+        
+        // Store in localStorage with the new restartId
+        const newRestartId = response.brokerRestartId || restartId;
+        if (newRestartId) {
+          localStorage.setItem(`currentSubsetId_${newRestartId}_${selectedSetIndex}`, subsetId);
+        }
       } else {
-        logActivity('ERROR', 'No subset ID returned from API in any expected format', response);
-        // Even if failed, we try to proceed, but log error.
-        // Usually throwing here is safer to prevent user from clicking checkmarks that will fail.
-        throw new Error('No subset ID received from server. Please check logs.');
+        logActivity('ERROR', 'No subset ID returned from API');
+        // Try to get from localStorage as fallback
+        const storedSubsetId = localStorage.getItem(`currentSubsetId_${restartId}_${selectedSetIndex}`);
+        if (storedSubsetId) {
+          setCurrentSubsetId(storedSubsetId);
+          logActivity('INFO', `Using stored subset ID: ${storedSubsetId}`);
+        } else {
+          throw new Error('No subset ID received from server');
+        }
       }
 
-      // If this was a new session (all sets completed), update the restart state
+      // Update restartId from response if provided
+      if (response.brokerRestartId && response.brokerRestartId !== restartId) {
+        const newRestartId = response.brokerRestartId;
+        setRestartId(newRestartId);
+        localStorage.setItem('brokerRestartId', newRestartId);
+        logActivity('INFO', `New restart ID obtained from response: ${newRestartId}`);
+      }
+
+      // If this was a new session (all sets completed), update the state
       if (allSetsCompleted) {
         setAllSetsCompleted(false);
+        logActivity('INFO', `New session started`);
       }
 
-      // 3. Update Status State immediately
-      // If response is the full status object, use it. If not, we might need to fetch status.
-      // Usually startBrokerRestartTask returns the updated status object.
-      if (response.currSet) {
-          setBrokerStatus(response);
-      } else if (returnedRestartId) {
-          // If response is just a success message, fetch full status
-           await fetchBrokerStatus(returnedRestartId);
-      }
-
+      // Update broker status
+      setBrokerStatus(response);
       setShowSetModal(false);
       setCurrentStep(1);
       
@@ -373,9 +429,10 @@ const TasksList = () => {
       }));
       setChecklistSteps(resetSteps);
       
+      // Start timer for the new set
       startTimer();
 
-      logActivity('SET_INIT', `Set ${selectedSetIndex + 1} initialized with subset ID: ${subsetId}`);
+      logActivity('SET_INIT', `Set ${selectedSetIndex + 1} initialized successfully`);
 
     } catch (error) {
       console.error('Error starting set:', error);
@@ -547,9 +604,16 @@ const TasksList = () => {
       setCurrentSubsetId(subsetId);
       logActivity('INFO', `Resuming with subset ID: ${subsetId} for set ${setIndex + 1}`);
     } else {
-      logActivity('WARNING', 'No subSetsId found in set, cannot resume');
-      alert('Cannot resume set: Missing subset ID');
-      return;
+      // Try to get from localStorage
+      const storedSubsetId = localStorage.getItem(`currentSubsetId_${restartId}_${setIndex}`);
+      if (storedSubsetId) {
+        setCurrentSubsetId(storedSubsetId);
+        logActivity('INFO', `Using stored subset ID: ${storedSubsetId} for set ${setIndex + 1}`);
+      } else {
+        logActivity('WARNING', 'No subSetsId found in set, cannot resume');
+        alert('Cannot resume set: Missing subset ID');
+        return;
+      }
     }
     
     // Determine current step based on subtasks
@@ -578,23 +642,43 @@ const TasksList = () => {
 
   // Handle starting new session when all sets are completed
   const handleStartNewSession = () => {
-    // Clear stored data
+    logActivity('NEW_SESSION', 'Starting new broker restart session from completion page');
+    
+    // Clear all localStorage entries for this session
+    if (restartId) {
+      for (let i = 0; i < 4; i++) {
+        localStorage.removeItem(`currentSubsetId_${restartId}_${i}`);
+      }
+    }
     localStorage.removeItem('brokerRestartId');
     
-    // Reset all state to clean slate
+    // Reset all state
     setAllSetsCompleted(false);
     setRestartId(null);
     setBrokerStatus(null);
     setSelectedSetIndex(null);
     setCurrentSubsetId(null);
+    setCurrentStep(1);
     setActivityLog([]);
     
-    // CRITICAL FIX: Do NOT call initializeRestartId(). 
-    // Simply set loading to false so the UI renders the "Start Set 1" view.
-    // The user wants to start the session only when they actually start the first task.
-    setLoading(false);
+    // Reset checklist
+    const resetSteps = checklistSteps.map(step => ({
+      ...step,
+      completed: false,
+      completedTime: null,
+      ackBy: null,
+      ackTime: null
+    }));
+    setChecklistSteps(resetSteps);
     
-    logActivity('INFO', 'Cleaned session state. Ready for fresh Set 1 start.');
+    // Clear timer
+    if (timer) {
+      clearInterval(timer);
+      setTimer(null);
+    }
+    
+    // Show sets grid directly - component will re-initialize without restartId
+    logActivity('INFO', 'Showing sets grid for new session');
   };
 
   // Timer management
@@ -642,9 +726,7 @@ const TasksList = () => {
     return brokerStatus.currSet.length;
   };
 
-  // Loading state check - only show loading if we are truly waiting and have no ID
-  // If we manually cleared the ID (handleStartNewSession), we set loading false, so this skips.
-  if (loading && !restartId) {
+  if (loading && !restartId && !allSetsCompleted) {
     return (
       <div className="tasks-list-page">
         <div className="tasks-list-header">
@@ -755,7 +837,7 @@ const TasksList = () => {
         <div className="header-content">
           <h1>📝 Night Broker Restart Checklist</h1>
           <div className="header-details">
-            <p>Restart ID: <strong>{restartId || ''}</strong></p>
+            {restartId && <p>Restart ID: <strong>{restartId}</strong></p>}
             <p>Completed Sets: <strong>{brokerStatus?.currSet?.filter(s => s.status === 'completed').length || 0}/4</strong></p>
             {currentSubsetId && selectedSetIndex !== null && (
               <p>Current Subset ID: <strong>{currentSubsetId}</strong></p>
@@ -764,7 +846,7 @@ const TasksList = () => {
         </div>
       </div>
 
-      {/* Show set selection if no active set */}
+      {/* Show set selection - always visible when no active set */}
       {selectedSetIndex === null && (
         <section className="sets-section">
           <h2>📊 Available Sets ({brokerStatus?.currSet?.length || 0}/4)</h2>
@@ -782,8 +864,8 @@ const TasksList = () => {
                   </span>
                 </div>
                 <div className="set-details">
-                  {(set.subSetsId || set.subSetId) && (
-                    <p className="subset-id">Subset ID: {set.subSetsId || set.subSetId}</p>
+                  {set.subSetsId && (
+                    <p className="subset-id">Subset ID: {set.subSetsId}</p>
                   )}
                   {set.infraName && (
                     <p className="infra-name">Infra: {set.infraName}</p>
@@ -794,7 +876,7 @@ const TasksList = () => {
                     </div>
                   )}
                 </div>
-                {set.status === 'started' && set.endTime === 'Present' && (
+                {set.status === 'started' && (!set.endTime || set.endTime === 'Present') && (
                   <button
                     onClick={() => handleResumeSet(index, set)}
                     className="complete-btn"
