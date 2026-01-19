@@ -1,4 +1,34 @@
-Failed: No subset ID received for next set
+
+
+i want to first let user enter support acknowledgement details after that hit this curl is for updating sub restart tasks
+
+curl -k -X POST -L  "https://10.191.171.12:5443/EISHOME_TEST/shiftHandover/updateSetRestart/" -d '{"status" :"completed","suportId":"234848","supportName" :"sushma","subSetsId":39}'
+
+will give me status: 'updated and set completed confiremd '
+
+after that hit 
+
+this is for getting the status of the broker restart thread
+
+ curl -k -X POST -L -H "Content-Type: application/json" -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoidjEwMTk0NjgiLCJleHAiOjE3Njg1NTg3MzgsImlhdCI6MTc2ODQ3MjMzOH0.l1ANnofq-O5kre95C-XJXGTi2ZjF1t_kkkFgJNYUPSQ"  "https://10.191.171.12:5443/EISHOME_TEST/shiftHandover/statusBrokerRestart/" -d '{"restartId":37}'
+
+{"brokerRestartId": 38, "startTiming": "2026-01-15 18:08:06.575419", "currSet": [{"status": "started", "startTime": "2026-01-15 17:04:51.047754", "endTime": "Present", "supportTime": "Pending", "supportId": "pending", "subTasks": []}, {"status": "started", "startTime": "2026-01-15 17:19:15.285086", "endTime": "Present", "supportTime": "Pending", "supportId": "pending", "subTasks": []}, {"status": "started", "startTime": "2026-01-15 17:19:56.389222", "endTime": "Present", "supportTime": "Pending", "supportId": "pending", "subTasks": []}]}
+
+if response has 4  in currSet it means 4 sets are coompleted and broker restart activty has been done and then show user a page where there are 4 sets
+
+and  when user clicks on the set 1 hit 
+
+https://10.191.171.12:5443/EISHOME_TEST/shiftHandover/startBrokerRestartTask/ without a restatrt id 
+
+but if 
+
+https://10.191.171.12:5443/EISHOME_TEST/shiftHandover/statusBrokerRestart/ have less than 4 entries hit then hit https://10.191.171.12:5443/EISHOME_TEST/shiftHandover/startBrokerRestartTask/ with restartId
+
+i have also attached response of apis for better understanding
+
+
+
+
 
 
 https://10.191.171.12:5443/EISHOME_TEST/shiftHandover/statusBrokerRestart/
