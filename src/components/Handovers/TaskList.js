@@ -135,24 +135,26 @@ const TasksList = () => {
 
   // Helper function to extract subSetsId from various response formats
   const extractSubsetId = (response) => {
-    // Try multiple possible locations for subSetsId
-    if (response.subSetsId) {
-      return response.subSetsId;
-    }
-    if (response.subSetId) {
-      return response.subSetId;
+    if (!response) return null;
+
+    // 1. Check root level properties (handle variations)
+    if (response.subSetsId) return response.subSetsId;
+    if (response.subSetId) return response.subSetId;
+    if (response.subsetId) return response.subsetId;
+    
+    // 2. Check inside currSet array (most recent set)
+    if (response.currSet && Array.isArray(response.currSet) && response.currSet.length > 0) {
+      // Look at the last element (most recently added set)
+      const latestSet = response.currSet[response.currSet.length - 1];
+      
+      if (latestSet.subSetsId) return latestSet.subSetsId;
+      if (latestSet.subSetId) return latestSet.subSetId;
+      if (latestSet.subsetId) return latestSet.subsetId;
     }
     
-    // Check in currSet array
-    if (response.currSet && response.currSet.length > 0) {
-      const activeSets = response.currSet.filter(
-        set => set.status === 'started' && set.endTime === 'Present'
-      );
-      
-      if (activeSets.length > 0) {
-        const latestSet = activeSets[activeSets.length - 1];
-        return latestSet.subSetsId || latestSet.subSetId || null;
-      }
+    // 3. Fallback: Check if response itself is the set object
+    if (response.status === 'started' && response.subSetsId) {
+        return response.subSetsId;
     }
     
     return null;
@@ -191,6 +193,7 @@ const TasksList = () => {
 
   // STEP 2: Fetch broker status to check if any set is in progress
   const fetchBrokerStatus = async (rid) => {
+    if (!rid) return;
     try {
       const statusResponse = await getBrokerRestartStatus(rid);
       setBrokerStatus(statusResponse);
@@ -291,47 +294,72 @@ const TasksList = () => {
     try {
       logActivity('SET_START', `Starting set ${selectedSetIndex + 1}`, setStartData);
 
-      // If all sets are completed, start fresh without restartId
-      // Otherwise, check if we should pass restartId based on currSet length
-      let shouldPassRestartId = false;
-      
-      if (!allSetsCompleted && brokerStatus?.currSet?.length < 4) {
-        shouldPassRestartId = true;
+      // CRITICAL LOGIC: Determine if we should pass the restartId
+      // If it's the FIRST set (index 0) or we are starting fresh (brokerStatus null/empty),
+      // we must pass NULL as restartId to force the backend to initialize correctly and return subsetId.
+      let restartIdToPass = restartId;
+      const isFirstSet = !brokerStatus?.currSet || brokerStatus.currSet.length === 0;
+
+      if (isFirstSet) {
+        restartIdToPass = null;
+        logActivity('INFO', 'Starting first set: Sending restartId as NULL to generate new session/subset data');
+      } else if (!allSetsCompleted && brokerStatus?.currSet?.length < 4) {
+        // For sets 2, 3, 4 we pass the existing ID
+        restartIdToPass = restartId;
       }
       
-      logActivity('INFO', `All sets completed: ${allSetsCompleted}, Current sets count: ${brokerStatus?.currSet?.length || 0}, Will ${shouldPassRestartId ? 'include' : 'exclude'} restartId`);
+      logActivity('INFO', `API Call Params: infraId=${setStartData.infraId}, infraName=${setStartData.infraName}, restartId=${restartIdToPass}`);
 
       // Call startBrokerRestartTask
       const response = await startBrokerRestartTask(
         setStartData.infraId,
         setStartData.infraName,
-        shouldPassRestartId ? restartId : null
+        restartIdToPass
       );
 
       logActivity('API_SUCCESS', `Set ${selectedSetIndex + 1} started successfully`, response);
 
-      // Extract the subSetsId from the response using helper function
+      // 1. Capture the Restart ID if we didn't have it or if it changed
+      // The response usually contains the ID at root or inside the object
+      const returnedRestartId = response.restartId || response.brokerRestartId || response.id;
+      if (returnedRestartId) {
+        setRestartId(returnedRestartId);
+        localStorage.setItem('brokerRestartId', returnedRestartId);
+        logActivity('INFO', `Restart ID updated from response: ${returnedRestartId}`);
+      }
+
+      // 2. Extract the subSetsId aggressively using helper function
       const subsetId = extractSubsetId(response);
 
       if (subsetId) {
         setCurrentSubsetId(subsetId);
-        localStorage.setItem(`currentSubsetId_${restartId}_${selectedSetIndex}`, subsetId);
+        // Backup specific subset ID
+        if (returnedRestartId || restartId) {
+            localStorage.setItem(`currentSubsetId_${returnedRestartId || restartId}_${selectedSetIndex}`, subsetId);
+        }
         logActivity('INFO', `Subset ID obtained: ${subsetId} for set ${selectedSetIndex + 1}`);
       } else {
-        logActivity('ERROR', 'No subset ID returned from API');
-        throw new Error('No subset ID received from server');
+        logActivity('ERROR', 'No subset ID returned from API in any expected format', response);
+        // Even if failed, we try to proceed, but log error.
+        // Usually throwing here is safer to prevent user from clicking checkmarks that will fail.
+        throw new Error('No subset ID received from server. Please check logs.');
       }
 
       // If this was a new session (all sets completed), update the restart state
       if (allSetsCompleted) {
-        const newRestartId = response.restartId || restartId;
-        setRestartId(newRestartId);
-        localStorage.setItem('brokerRestartId', newRestartId);
         setAllSetsCompleted(false);
-        logActivity('INFO', `New session started with restart ID: ${newRestartId}`);
       }
 
-      setBrokerStatus(response);
+      // 3. Update Status State immediately
+      // If response is the full status object, use it. If not, we might need to fetch status.
+      // Usually startBrokerRestartTask returns the updated status object.
+      if (response.currSet) {
+          setBrokerStatus(response);
+      } else if (returnedRestartId) {
+          // If response is just a success message, fetch full status
+           await fetchBrokerStatus(returnedRestartId);
+      }
+
       setShowSetModal(false);
       setCurrentStep(1);
       
@@ -553,7 +581,7 @@ const TasksList = () => {
     // Clear stored data
     localStorage.removeItem('brokerRestartId');
     
-    // Reset all state
+    // Reset all state to clean slate
     setAllSetsCompleted(false);
     setRestartId(null);
     setBrokerStatus(null);
@@ -561,8 +589,12 @@ const TasksList = () => {
     setCurrentSubsetId(null);
     setActivityLog([]);
     
-    // Re-initialize
-    initializeRestartId();
+    // CRITICAL FIX: Do NOT call initializeRestartId(). 
+    // Simply set loading to false so the UI renders the "Start Set 1" view.
+    // The user wants to start the session only when they actually start the first task.
+    setLoading(false);
+    
+    logActivity('INFO', 'Cleaned session state. Ready for fresh Set 1 start.');
   };
 
   // Timer management
@@ -610,6 +642,8 @@ const TasksList = () => {
     return brokerStatus.currSet.length;
   };
 
+  // Loading state check - only show loading if we are truly waiting and have no ID
+  // If we manually cleared the ID (handleStartNewSession), we set loading false, so this skips.
   if (loading && !restartId) {
     return (
       <div className="tasks-list-page">
@@ -721,7 +755,7 @@ const TasksList = () => {
         <div className="header-content">
           <h1>📝 Night Broker Restart Checklist</h1>
           <div className="header-details">
-            <p>Restart ID: <strong>{restartId}</strong></p>
+            <p>Restart ID: <strong>{restartId || ''}</strong></p>
             <p>Completed Sets: <strong>{brokerStatus?.currSet?.filter(s => s.status === 'completed').length || 0}/4</strong></p>
             {currentSubsetId && selectedSetIndex !== null && (
               <p>Current Subset ID: <strong>{currentSubsetId}</strong></p>
