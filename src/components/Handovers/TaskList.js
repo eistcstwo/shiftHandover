@@ -133,6 +133,31 @@ const TasksList = () => {
     };
   }, []);
 
+  // Helper function to extract subSetsId from various response formats
+  const extractSubsetId = (response) => {
+    // Try multiple possible locations for subSetsId
+    if (response.subSetsId) {
+      return response.subSetsId;
+    }
+    if (response.subSetId) {
+      return response.subSetId;
+    }
+    
+    // Check in currSet array
+    if (response.currSet && response.currSet.length > 0) {
+      const activeSets = response.currSet.filter(
+        set => set.status === 'started' && set.endTime === 'Present'
+      );
+      
+      if (activeSets.length > 0) {
+        const latestSet = activeSets[activeSets.length - 1];
+        return latestSet.subSetsId || latestSet.subSetId || null;
+      }
+    }
+    
+    return null;
+  };
+
   const initializeRestartId = async () => {
     setLoading(true);
     try {
@@ -179,7 +204,9 @@ const TasksList = () => {
         
         if (completedCount >= 4) {
           setAllSetsCompleted(true);
-          logActivity('INFO', 'All 4 sets completed. Broker restart activity finished.');
+          setSelectedSetIndex(null);
+          setCurrentSubsetId(null);
+          logActivity('INFO', 'All 4 sets completed. Ready to start new session.');
           return;
         }
       }
@@ -197,8 +224,9 @@ const TasksList = () => {
           const setIndex = statusResponse.currSet.indexOf(lastActiveSet);
           setSelectedSetIndex(setIndex);
           
-          // Extract subSetsId
-          const subsetId = lastActiveSet.subSetId || lastActiveSet.subSetsId;
+          // Extract subSetsId using helper function
+          const subsetId = extractSubsetId(lastActiveSet);
+          
           if (subsetId) {
             setCurrentSubsetId(subsetId);
             logActivity('INFO', `Found active subset ID: ${subsetId} for set ${setIndex + 1}`);
@@ -263,14 +291,17 @@ const TasksList = () => {
     try {
       logActivity('SET_START', `Starting set ${selectedSetIndex + 1}`, setStartData);
 
-      // Determine if we should pass restartId based on currSet length
-      const shouldPassRestartId = brokerStatus?.currSet?.length < 4;
+      // If all sets are completed, start fresh without restartId
+      // Otherwise, check if we should pass restartId based on currSet length
+      let shouldPassRestartId = false;
       
-      logActivity('INFO', `Current sets count: ${brokerStatus?.currSet?.length || 0}, Will ${shouldPassRestartId ? 'include' : 'exclude'} restartId`);
+      if (!allSetsCompleted && brokerStatus?.currSet?.length < 4) {
+        shouldPassRestartId = true;
+      }
+      
+      logActivity('INFO', `All sets completed: ${allSetsCompleted}, Current sets count: ${brokerStatus?.currSet?.length || 0}, Will ${shouldPassRestartId ? 'include' : 'exclude'} restartId`);
 
       // Call startBrokerRestartTask
-      // If currSet.length < 4, pass restartId to add to existing session
-      // If currSet.length >= 4, don't pass restartId to start new session
       const response = await startBrokerRestartTask(
         setStartData.infraId,
         setStartData.infraName,
@@ -279,33 +310,25 @@ const TasksList = () => {
 
       logActivity('API_SUCCESS', `Set ${selectedSetIndex + 1} started successfully`, response);
 
-      // Extract the subSetsId from the response
-      let subsetId = null;
-      
-      if (response.subSetsId || response.subSetId) {
-        subsetId = response.subSetsId || response.subSetId;
-        logActivity('INFO', `Using root subset ID: ${subsetId}`);
-      } else if (response.currSet && response.currSet.length > 0) {
-        const activeSets = response.currSet.filter(
-          set => set.status === 'started' && set.endTime === 'Present'
-        );
-        
-        if (activeSets.length > 0) {
-          const latestSet = activeSets[activeSets.length - 1];
-          subsetId = latestSet.subSetsId || latestSet.subSetId;
-          
-          if (subsetId) {
-            logActivity('INFO', `Using set subset ID: ${subsetId} for set ${selectedSetIndex + 1}`);
-          }
-        }
-      }
+      // Extract the subSetsId from the response using helper function
+      const subsetId = extractSubsetId(response);
 
       if (subsetId) {
         setCurrentSubsetId(subsetId);
         localStorage.setItem(`currentSubsetId_${restartId}_${selectedSetIndex}`, subsetId);
+        logActivity('INFO', `Subset ID obtained: ${subsetId} for set ${selectedSetIndex + 1}`);
       } else {
         logActivity('ERROR', 'No subset ID returned from API');
         throw new Error('No subset ID received from server');
+      }
+
+      // If this was a new session (all sets completed), update the restart state
+      if (allSetsCompleted) {
+        const newRestartId = response.restartId || restartId;
+        setRestartId(newRestartId);
+        localStorage.setItem('brokerRestartId', newRestartId);
+        setAllSetsCompleted(false);
+        logActivity('INFO', `New session started with restart ID: ${newRestartId}`);
       }
 
       setBrokerStatus(response);
@@ -490,7 +513,8 @@ const TasksList = () => {
   const handleResumeSet = (setIndex, set) => {
     setSelectedSetIndex(setIndex);
     
-    const subsetId = set.subSetId || set.subSetsId;
+    const subsetId = extractSubsetId(set);
+    
     if (subsetId) {
       setCurrentSubsetId(subsetId);
       logActivity('INFO', `Resuming with subset ID: ${subsetId} for set ${setIndex + 1}`);
@@ -522,6 +546,23 @@ const TasksList = () => {
     }
     
     startTimer();
+  };
+
+  // Handle starting new session when all sets are completed
+  const handleStartNewSession = () => {
+    // Clear stored data
+    localStorage.removeItem('brokerRestartId');
+    
+    // Reset all state
+    setAllSetsCompleted(false);
+    setRestartId(null);
+    setBrokerStatus(null);
+    setSelectedSetIndex(null);
+    setCurrentSubsetId(null);
+    setActivityLog([]);
+    
+    // Re-initialize
+    initializeRestartId();
   };
 
   // Timer management
@@ -638,11 +679,7 @@ const TasksList = () => {
           </div>
 
           <button
-            onClick={() => {
-              // Clear stored data and reload
-              localStorage.removeItem('brokerRestartId');
-              window.location.reload();
-            }}
+            onClick={handleStartNewSession}
             className="btn-primary"
             style={{ marginTop: '2rem' }}
           >
@@ -711,8 +748,8 @@ const TasksList = () => {
                   </span>
                 </div>
                 <div className="set-details">
-                  {(set.subSetId || set.subSetsId) && (
-                    <p className="subset-id">Subset ID: {set.subSetId || set.subSetsId}</p>
+                  {(set.subSetsId || set.subSetId) && (
+                    <p className="subset-id">Subset ID: {set.subSetsId || set.subSetId}</p>
                   )}
                   {set.infraName && (
                     <p className="infra-name">Infra: {set.infraName}</p>
