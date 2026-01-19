@@ -10,6 +10,10 @@ import {
 } from '../../Api/HandOverApi';
 
 const TasksList = () => {
+  // Get user level from localStorage
+  const userLevel = localStorage.getItem('userlevel') || '';
+  const isSupport = userLevel.toLowerCase() === 'support';
+
   // State for restart ID management
   const [restartId, setRestartId] = useState(null);
   const [brokerStatus, setBrokerStatus] = useState(null);
@@ -346,26 +350,41 @@ const TasksList = () => {
 
       // Determine if we should pass restartId
       let restartIdToPass = null;
+      let setNumber = selectedSetIndex + 1; // Set number is always index + 1
 
-      // Only pass restartId if:
-      // 1. We have a restartId from previous session
-      // 2. We're not in "all sets completed" state
-      // 3. This is not the first set in a new session
-      if (restartId && !allSetsCompleted && brokerStatus?.currSet?.length > 0) {
+      // Special case: If starting from zero (no existing sets), don't pass restartId
+      // This ensures we get a fresh session with proper subsetId
+      if (!brokerStatus?.currSet || brokerStatus.currSet.length === 0) {
+        restartIdToPass = null; // Start fresh
+        logActivity('INFO', 'Starting first set - creating new session');
+      } else if (!allSetsCompleted && brokerStatus?.currSet?.length > 0) {
+        // We have existing sets and not all completed - continue same session
         restartIdToPass = restartId;
+        logActivity('INFO', `Continuing session ${restartId} with set ${setNumber}`);
       }
 
-      logActivity('INFO', `Calling API ${restartIdToPass ? 'with' : 'without'} restartId: ${restartIdToPass || 'null'}`);
+      logActivity('INFO', `Calling API with restartId: ${restartIdToPass || 'null'}, setNumber: ${setNumber}`);
 
-      // Call startBrokerRestartTask
+      // Call startBrokerRestartTask with set number
       const response = await startBrokerRestartTask(
         setStartData.infraId,
         setStartData.infraName,
-        restartIdToPass
+        restartIdToPass,
+        setNumber
       );
 
       console.log('Start broker restart task response:', response);
       logActivity('API_SUCCESS', `Set ${selectedSetIndex + 1} started successfully`, response);
+
+      // Update restartId from response if provided (for new sessions)
+      if (response.brokerRestartId) {
+        const newRestartId = response.brokerRestartId;
+        if (newRestartId !== restartId) {
+          setRestartId(newRestartId);
+          localStorage.setItem('brokerRestartId', newRestartId);
+          logActivity('INFO', `New restart ID obtained from response: ${newRestartId}`);
+        }
+      }
 
       // Extract subSetsId from the response
       let subsetId = extractSubsetId(response);
@@ -373,8 +392,8 @@ const TasksList = () => {
       // If not found, check the specific set in currSet
       if (!subsetId && response.currSet && response.currSet[selectedSetIndex]) {
         const set = response.currSet[selectedSetIndex];
-        if (set.subSetsId) {
-          subsetId = set.subSetsId;
+        subsetId = extractSubsetId(set);
+        if (subsetId) {
           logActivity('INFO', `Found subSetsId in set[${selectedSetIndex}]: ${subsetId}`);
         }
       }
@@ -383,29 +402,14 @@ const TasksList = () => {
         setCurrentSubsetId(subsetId);
         logActivity('INFO', `Subset ID obtained: ${subsetId} for set ${selectedSetIndex + 1}`);
 
-        // Store in localStorage with the new restartId
-        const newRestartId = response.brokerRestartId || restartId;
-        if (newRestartId) {
-          localStorage.setItem(`currentSubsetId_${newRestartId}_${selectedSetIndex}`, subsetId);
+        // Store in localStorage with the current restartId
+        const currentRestartId = response.brokerRestartId || restartId;
+        if (currentRestartId) {
+          localStorage.setItem(`currentSubsetId_${currentRestartId}_${selectedSetIndex}`, subsetId);
         }
       } else {
         logActivity('ERROR', 'No subset ID returned from API');
-        // Try to get from localStorage as fallback
-        const storedSubsetId = localStorage.getItem(`currentSubsetId_${restartId}_${selectedSetIndex}`);
-        if (storedSubsetId) {
-          setCurrentSubsetId(storedSubsetId);
-          logActivity('INFO', `Using stored subset ID: ${storedSubsetId}`);
-        } else {
-          throw new Error('No subset ID received from server');
-        }
-      }
-
-      // Update restartId from response if provided
-      if (response.brokerRestartId && response.brokerRestartId !== restartId) {
-        const newRestartId = response.brokerRestartId;
-        setRestartId(newRestartId);
-        localStorage.setItem('brokerRestartId', newRestartId);
-        logActivity('INFO', `New restart ID obtained from response: ${newRestartId}`);
+        throw new Error('No subset ID received from server');
       }
 
       // If this was a new session (all sets completed), update the state
@@ -445,6 +449,12 @@ const TasksList = () => {
 
   // STEP 5: Mark step as complete
   const completeStep = async (stepId) => {
+    // Support users cannot mark steps as complete
+    if (isSupport) {
+      alert('Support users cannot mark steps as complete. Please contact operations team.');
+      return;
+    }
+
     // Skip if not the current step OR if it's the last step (support ack)
     if (stepId !== currentStep || stepId === 11) return;
 
@@ -492,6 +502,12 @@ const TasksList = () => {
 
   // STEP 6: Handle support acknowledgment (Last Step - Step 11)
   const handleSupportAckClick = () => {
+    // Only support users can acknowledge
+    if (!isSupport) {
+      alert('Only support team members can acknowledge completion. Please contact support team.');
+      return;
+    }
+
     setSupportAckModal(true);
     setSupportAckData({ name: '', id: '' });
   };
@@ -677,8 +693,8 @@ const TasksList = () => {
       setTimer(null);
     }
 
-    // Show sets grid directly - component will re-initialize without restartId
-    logActivity('INFO', 'Showing sets grid for new session');
+    // Re-initialize to get new restart ID
+    initializeRestartId();
   };
 
   // Timer management
@@ -724,6 +740,16 @@ const TasksList = () => {
   const getNextSetIndex = () => {
     if (!brokerStatus?.currSet) return 0;
     return brokerStatus.currSet.length;
+  };
+
+  // Handle numeric input only
+  const handleNumericInput = (e, field) => {
+    const value = e.target.value.replace(/\D/g, ''); // Remove non-digits
+    if (field === 'infraId') {
+      setSetStartData({...setStartData, infraId: value});
+    } else if (field === 'supportId') {
+      setSupportAckData({...supportAckData, id: value});
+    }
   };
 
   if (loading && !restartId && !allSetsCompleted) {
@@ -842,6 +868,7 @@ const TasksList = () => {
             {currentSubsetId && selectedSetIndex !== null && (
               <p>Current Subset ID: <strong>{currentSubsetId}</strong></p>
             )}
+            <p>User Level: <strong style={{ color: isSupport ? '#00b894' : '#74b9ff' }}>{userLevel || 'Unknown'}</strong></p>
           </div>
         </div>
       </div>
@@ -929,15 +956,17 @@ const TasksList = () => {
                 />
               </div>
               <div className="form-group">
-                <label htmlFor="infraId">Infrastructure ID</label>
+                <label htmlFor="infraId">Infrastructure ID (Numbers only)</label>
                 <input
                   type="text"
                   id="infraId"
                   value={setStartData.infraId}
-                  onChange={(e) => setSetStartData({...setStartData, infraId: e.target.value})}
-                  placeholder="Enter infra ID"
+                  onChange={(e) => handleNumericInput(e, 'infraId')}
+                  placeholder="Enter infra ID (numbers only)"
                   required
                   className="form-input"
+                  pattern="\d+"
+                  title="Please enter numbers only"
                 />
               </div>
               <div className="modal-actions">
@@ -957,8 +986,8 @@ const TasksList = () => {
         </div>
       )}
 
-      {/* Support Acknowledgment Modal */}
-      {supportAckModal && (
+      {/* Support Acknowledgment Modal - Only for Support users */}
+      {supportAckModal && isSupport && (
         <div className="modal-overlay">
           <div className="modal-container">
             <div className="modal-header">
@@ -979,15 +1008,17 @@ const TasksList = () => {
                 />
               </div>
               <div className="form-group">
-                <label htmlFor="supportId">Support Member ID</label>
+                <label htmlFor="supportId">Support Member ID (Numbers only)</label>
                 <input
                   type="text"
                   id="supportId"
                   value={supportAckData.id}
-                  onChange={(e) => setSupportAckData({...supportAckData, id: e.target.value})}
-                  placeholder="Enter support member ID"
+                  onChange={(e) => handleNumericInput(e, 'supportId')}
+                  placeholder="Enter support member ID (numbers only)"
                   required
                   className="form-input"
+                  pattern="\d+"
+                  title="Please enter numbers only"
                 />
               </div>
 
@@ -1074,9 +1105,16 @@ const TasksList = () => {
                     {currentStep === step.id && !step.completed && (
                       <div className="step-actions">
                         {step.id === 11 ? (
-                          <button onClick={handleSupportAckClick} className="complete-btn">
-                            Complete Set & Acknowledge
-                          </button>
+                          isSupport ? (
+                            <button onClick={handleSupportAckClick} className="complete-btn">
+                              Complete Set & Acknowledge
+                            </button>
+                          ) : (
+                            <div className="support-only-message">
+                              <p>⚠️ This step requires support team acknowledgment</p>
+                              <p style={{ fontSize: '0.9em', color: '#666' }}>Please contact a support team member to complete this set</p>
+                            </div>
+                          )
                         ) : (
                           <button onClick={() => completeStep(step.id)} className="complete-btn">
                             Mark as Complete
