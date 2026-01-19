@@ -9,58 +9,6 @@ import {
   updateSetRestart
 } from '../../Api/HandOverApi';
 
-// Helper function to extract subset ID from any object with multiple possible field names
-const extractSubsetId = (data) => {
-  if (!data) return null;
-  
-  // Check for all possible field names in order of priority
-  const possibleFields = ['subSetsId', 'subSetId', 'subsetId', 'subset_id', 'subsets_id'];
-  
-  // First, check in the root of the object
-  for (const field of possibleFields) {
-    if (data[field]) {
-      return data[field];
-    }
-  }
-  
-  // If not found in root, check nested structures
-  if (data.currSet && Array.isArray(data.currSet)) {
-    const activeSets = data.currSet.filter(
-      set => set.status === 'started' && set.endTime === 'Present'
-    );
-    
-    if (activeSets.length > 0) {
-      const latestSet = activeSets[activeSets.length - 1];
-      for (const field of possibleFields) {
-        if (latestSet[field]) {
-          return latestSet[field];
-        }
-      }
-    }
-    
-    // Also check all sets if no active ones
-    for (const set of data.currSet) {
-      for (const field of possibleFields) {
-        if (set[field]) {
-          return set[field];
-        }
-      }
-    }
-  }
-  
-  // Check in subTasks array if present
-  if (data.subTasks && Array.isArray(data.subTasks) && data.subTasks.length > 0) {
-    const lastTask = data.subTasks[data.subTasks.length - 1];
-    for (const field of possibleFields) {
-      if (lastTask[field]) {
-        return lastTask[field];
-      }
-    }
-  }
-  
-  return null;
-};
-
 const TasksList = () => {
   // State for restart ID management
   const [restartId, setRestartId] = useState(null);
@@ -185,6 +133,31 @@ const TasksList = () => {
     };
   }, []);
 
+  // Helper function to extract subSetsId from various response formats
+  const extractSubsetId = (response) => {
+    // Try multiple possible locations for subSetsId
+    if (response.subSetsId) {
+      return response.subSetsId;
+    }
+    if (response.subSetId) {
+      return response.subSetId;
+    }
+    
+    // Check in currSet array
+    if (response.currSet && response.currSet.length > 0) {
+      const activeSets = response.currSet.filter(
+        set => set.status === 'started' && set.endTime === 'Present'
+      );
+      
+      if (activeSets.length > 0) {
+        const latestSet = activeSets[activeSets.length - 1];
+        return latestSet.subSetsId || latestSet.subSetId || null;
+      }
+    }
+    
+    return null;
+  };
+
   const initializeRestartId = async () => {
     setLoading(true);
     try {
@@ -251,14 +224,14 @@ const TasksList = () => {
           const setIndex = statusResponse.currSet.indexOf(lastActiveSet);
           setSelectedSetIndex(setIndex);
           
-          // Extract subset ID using the robust helper function
+          // Extract subSetsId using helper function
           const subsetId = extractSubsetId(lastActiveSet);
           
           if (subsetId) {
             setCurrentSubsetId(subsetId);
             logActivity('INFO', `Found active subset ID: ${subsetId} for set ${setIndex + 1}`);
           } else {
-            logActivity('WARNING', 'No subset ID found in active set');
+            logActivity('WARNING', 'No subSetsId found in active set');
             if (!isInitializing.current) {
               handleSetStart(statusResponse.currSet.length);
               return;
@@ -337,7 +310,7 @@ const TasksList = () => {
 
       logActivity('API_SUCCESS', `Set ${selectedSetIndex + 1} started successfully`, response);
 
-      // Extract the subset ID from the response using the robust helper function
+      // Extract the subSetsId from the response using helper function
       const subsetId = extractSubsetId(response);
 
       if (subsetId) {
@@ -546,7 +519,7 @@ const TasksList = () => {
       setCurrentSubsetId(subsetId);
       logActivity('INFO', `Resuming with subset ID: ${subsetId} for set ${setIndex + 1}`);
     } else {
-      logActivity('WARNING', 'No subset ID found in set, cannot resume');
+      logActivity('WARNING', 'No subSetsId found in set, cannot resume');
       alert('Cannot resume set: Missing subset ID');
       return;
     }
