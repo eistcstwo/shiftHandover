@@ -10,297 +10,149 @@ import {
 } from '../../Api/HandOverApi';
 
 const TasksList = () => {
-  // Get user level from localStorage
   const userLevel = localStorage.getItem('userlevel') || '';
   const isSupport = userLevel.toLowerCase() === 'support';
+  const isOperations = ['l1', 'l2', 'admin'].includes(userLevel.toLowerCase());
 
-  // State for restart ID management
   const [restartId, setRestartId] = useState(null);
   const [brokerStatus, setBrokerStatus] = useState(null);
   const [currentSubsetId, setCurrentSubsetId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [allSetsCompleted, setAllSetsCompleted] = useState(false);
 
-  // Ref to track if we're initializing
-  const isInitializing = useRef(true);
+  const processingStep = useRef(false);
+  const statusPollingInterval = useRef(null);
 
-  // State for set selection modal
   const [showSetModal, setShowSetModal] = useState(false);
   const [selectedSetIndex, setSelectedSetIndex] = useState(null);
-  const [setStartData, setSetStartData] = useState({
-    infraName: '',
-    infraId: ''
-  });
+  const [setStartData, setSetStartData] = useState({ infraName: '', infraId: '' });
 
-  // State for support acknowledgment modal
   const [supportAckModal, setSupportAckModal] = useState(false);
-  const [supportAckData, setSupportAckData] = useState({
-    name: '',
-    id: ''
-  });
+  const [supportAckData, setSupportAckData] = useState({ name: '', id: '' });
 
-  // State for current step tracking
   const [currentStep, setCurrentStep] = useState(1);
   const [timer, setTimer] = useState(null);
   const [timeElapsed, setTimeElapsed] = useState(0);
   const [activityLog, setActivityLog] = useState([]);
 
-  // Checklist steps definition
   const [checklistSteps, setChecklistSteps] = useState([
-    {
-      id: 1,
-      title: 'CACHE UPDATED AFTER 12:00 A.M.',
-      description: 'Ensure cache is updated after midnight',
-      completed: false,
-      completedTime: null
-    },
-    {
-      id: 2,
-      title: 'SETS READY FOR RESTART',
-      description: 'Prepare all server sets for restart',
-      completed: false,
-      completedTime: null
-    },
-    {
-      id: 3,
-      title: 'ISOLATOR DOWN',
-      description: 'Bring isolator down for maintenance',
-      completed: false,
-      completedTime: null
-    },
-    {
-      id: 4,
-      title: 'BROKER STOPPED',
-      description: 'Stop all broker services',
-      completed: false,
-      completedTime: null
-    },
-    {
-      id: 5,
-      title: 'HEARTBEAT & CACHE BROKER STARTED',
-      description: 'Start heartbeat and cache broker services',
-      completed: false,
-      completedTime: null
-    },
-    {
-      id: 6,
-      title: 'ALL BROKER STARTED',
-      description: 'Start all broker services',
-      completed: false,
-      completedTime: null
-    },
-    {
-      id: 7,
-      title: 'CACHE HIT & WORKLOAD DONE',
-      description: 'Verify cache hits and complete workload',
-      completed: false,
-      completedTime: null
-    },
-    {
-      id: 8,
-      title: 'UDP CHANGES (TIMEOUT & URL CHANGES)',
-      description: 'Apply UDP configuration changes',
-      completed: false,
-      completedTime: null
-    },
-    {
-      id: 9,
-      title: 'LOGS VERIFICATION DONE',
-      description: 'Verify all system logs',
-      completed: false,
-      completedTime: null
-    },
-    {
-      id: 10,
-      title: 'ISOLATOR UP',
-      description: 'Bring isolator back online',
-      completed: false,
-      completedTime: null
-    },
-    {
-      id: 11,
-      title: 'INFORM START OF ACTIVITY TO SUPPORT TEAM',
-      description: 'Notify support team about activity completion',
-      completed: false,
-      completedTime: null,
-      requiresAck: true,
-      ackBy: null,
-      ackTime: null
-    }
+    { id: 1, title: 'CACHE UPDATED AFTER 12:00 A.M.', description: 'Ensure cache is updated after midnight', completed: false, completedTime: null },
+    { id: 2, title: 'SETS READY FOR RESTART', description: 'Prepare all server sets for restart', completed: false, completedTime: null },
+    { id: 3, title: 'ISOLATOR DOWN', description: 'Bring isolator down for maintenance', completed: false, completedTime: null },
+    { id: 4, title: 'BROKER STOPPED', description: 'Stop all broker services', completed: false, completedTime: null },
+    { id: 5, title: 'HEARTBEAT & CACHE BROKER STARTED', description: 'Start heartbeat and cache broker services', completed: false, completedTime: null },
+    { id: 6, title: 'ALL BROKER STARTED', description: 'Start all broker services', completed: false, completedTime: null },
+    { id: 7, title: 'CACHE HIT & WORKLOAD DONE', description: 'Verify cache hits and complete workload', completed: false, completedTime: null },
+    { id: 8, title: 'UDP CHANGES (TIMEOUT & URL CHANGES)', description: 'Apply UDP configuration changes', completed: false, completedTime: null },
+    { id: 9, title: 'LOGS VERIFICATION DONE', description: 'Verify all system logs', completed: false, completedTime: null },
+    { id: 10, title: 'ISOLATOR UP', description: 'Bring isolator back online', completed: false, completedTime: null },
+    { id: 11, title: 'INFORM START OF ACTIVITY TO SUPPORT TEAM', description: 'Notify support team about activity completion', completed: false, completedTime: null, requiresAck: true, ackBy: null, ackTime: null }
   ]);
 
-  // STEP 1: Initialize - Get restart ID on component mount
   useEffect(() => {
     initializeRestartId();
     return () => {
       if (timer) clearInterval(timer);
+      if (statusPollingInterval.current) clearInterval(statusPollingInterval.current);
     };
   }, []);
 
-  // Enhanced helper function to extract subSetsId from various response formats
-  const extractSubsetId = (response) => {
-    console.log('Extracting subsetId from response:', response);
-
-    // If response is a set object (from currSet array)
-    if (response && typeof response === 'object' && !Array.isArray(response)) {
-      // Check direct properties first
-      if (response.subSetsId) {
-        console.log('Found subSetsId in set object:', response.subSetsId);
-        return response.subSetsId;
-      }
-      if (response.subSetId) {
-        console.log('Found subSetId in set object:', response.subSetId);
-        return response.subSetId;
-      }
-      if (response.subsetId) {
-        console.log('Found subsetId in set object:', response.subsetId);
-        return response.subsetId;
-      }
+  useEffect(() => {
+    if (selectedSetIndex !== null && !allSetsCompleted && restartId) {
+      statusPollingInterval.current = setInterval(() => {
+        fetchBrokerStatus(restartId, true);
+      }, 30000);
     }
+    return () => {
+      if (statusPollingInterval.current) {
+        clearInterval(statusPollingInterval.current);
+        statusPollingInterval.current = null;
+      }
+    };
+  }, [selectedSetIndex, allSetsCompleted, restartId]);
 
-    // If response is the main API response with currSet array
+  const extractSubsetId = (response) => {
+    if (response && typeof response === 'object' && !Array.isArray(response)) {
+      if (response.subSetsId) return response.subSetsId;
+      if (response.subSetId) return response.subSetId;
+      if (response.subsetId) return response.subsetId;
+    }
     if (response && response.currSet && Array.isArray(response.currSet)) {
-      console.log('Checking currSet array:', response.currSet);
-
-      // If we're starting a new set, get the latest set (last in array)
       const latestSet = response.currSet[response.currSet.length - 1];
-      console.log('Latest set:', latestSet);
-
-      if (latestSet && latestSet.subSetsId) {
-        console.log('Found subSetsId in latest set:', latestSet.subSetsId);
-        return latestSet.subSetsId;
+      if (latestSet) {
+        if (latestSet.subSetsId) return latestSet.subSetsId;
+        if (latestSet.subSetId) return latestSet.subSetId;
+        if (latestSet.subsetId) return latestSet.subsetId;
       }
-      if (latestSet && latestSet.subSetId) {
-        console.log('Found subSetId in latest set:', latestSet.subSetId);
-        return latestSet.subSetId;
-      }
-      if (latestSet && latestSet.subsetId) {
-        console.log('Found subsetId in latest set:', latestSet.subsetId);
-        return latestSet.subsetId;
-      }
-
-      // If we're resuming, find active set
-      const activeSets = response.currSet.filter(
-        set => set.status === 'started' && (!set.endTime || set.endTime === 'Present')
-      );
-
+      const activeSets = response.currSet.filter(set => set.status === 'started' && (!set.endTime || set.endTime === 'Present'));
       if (activeSets.length > 0) {
         const lastActiveSet = activeSets[activeSets.length - 1];
-        console.log('Last active set:', lastActiveSet);
-
-        if (lastActiveSet.subSetsId) {
-          console.log('Found subSetsId in active set:', lastActiveSet.subSetsId);
-          return lastActiveSet.subSetsId;
-        }
-        if (lastActiveSet.subSetId) {
-          console.log('Found subSetId in active set:', lastActiveSet.subSetId);
-          return lastActiveSet.subSetId;
-        }
-        if (lastActiveSet.subsetId) {
-          console.log('Found subsetId in active set:', lastActiveSet.subsetId);
-          return lastActiveSet.subsetId;
-        }
+        if (lastActiveSet.subSetsId) return lastActiveSet.subSetsId;
+        if (lastActiveSet.subSetId) return lastActiveSet.subSetId;
+        if (lastActiveSet.subsetId) return lastActiveSet.subsetId;
       }
     }
-
-    console.log('No subsetId found in response');
     return null;
   };
 
   const initializeRestartId = async () => {
     setLoading(true);
     try {
-      // Check if we already have a restart ID in localStorage
       const storedRestartId = localStorage.getItem('brokerRestartId');
-
       if (storedRestartId) {
         setRestartId(parseInt(storedRestartId));
         logActivity('INIT', `Using stored restart ID: ${storedRestartId}`);
-        // STEP 2: Fetch current status
         await fetchBrokerStatus(parseInt(storedRestartId));
       } else {
-        // Get new restart ID from API
         const response = await getRestartId();
         const newRestartId = response.restartId;
         setRestartId(newRestartId);
         localStorage.setItem('brokerRestartId', newRestartId);
-        logActivity('API_SUCCESS', `New restart ID obtained: ${newRestartId}`, response);
-
-        // STEP 2: Fetch current status
+        logActivity('API_SUCCESS', `New restart ID obtained: ${newRestartId}`);
         await fetchBrokerStatus(newRestartId);
       }
     } catch (error) {
-      console.error('Error initializing restart ID:', error);
       logActivity('API_ERROR', `Failed to initialize: ${error.message}`);
     } finally {
       setLoading(false);
-      isInitializing.current = false;
     }
   };
 
-  // STEP 2: Fetch broker status to check if any set is in progress
-  const fetchBrokerStatus = async (rid) => {
+  const fetchBrokerStatus = async (rid, silent = false) => {
     try {
       const statusResponse = await getBrokerRestartStatus(rid);
-      console.log('Broker status response:', statusResponse);
       setBrokerStatus(statusResponse);
-      logActivity('API_SUCCESS', 'Broker status fetched', statusResponse);
+      if (!silent) logActivity('API_SUCCESS', 'Broker status fetched');
 
-      // Check if all 4 sets are completed
       if (statusResponse.currSet && statusResponse.currSet.length >= 4) {
-        const completedCount = statusResponse.currSet.filter(
-          set => set.status === 'completed' || (set.endTime && set.endTime !== 'Present')
-        ).length;
-
-        console.log(`Completed sets: ${completedCount}/4`);
-
+        const completedCount = statusResponse.currSet.filter(set => set.status === 'completed' || (set.endTime && set.endTime !== 'Present')).length;
         if (completedCount >= 4) {
           setAllSetsCompleted(true);
           setSelectedSetIndex(null);
           setCurrentSubsetId(null);
-          logActivity('INFO', 'All 4 sets completed. Ready to start new session.');
+          if (!silent) logActivity('INFO', 'All 4 sets completed');
           return;
         }
       }
 
-      // Check if there's an ongoing set
       if (statusResponse.currSet && statusResponse.currSet.length > 0) {
-        // Find the most recent set that is started but not ended
-        const activeSets = statusResponse.currSet.filter(
-          set => set.status === 'started' && (!set.endTime || set.endTime === 'Present')
-        );
-
-        console.log('Active sets found:', activeSets.length);
-
+        const activeSets = statusResponse.currSet.filter(set => set.status === 'started' && (!set.endTime || set.endTime === 'Present'));
         if (activeSets.length > 0) {
-          // Get the most recent active set (last one in the array)
           const lastActiveSet = activeSets[activeSets.length - 1];
           const setIndex = statusResponse.currSet.indexOf(lastActiveSet);
           setSelectedSetIndex(setIndex);
 
-          // Extract subSetsId using helper function
           const subsetId = extractSubsetId(lastActiveSet);
-
           if (subsetId) {
             setCurrentSubsetId(subsetId);
             localStorage.setItem(`currentSubsetId_${rid}_${setIndex}`, subsetId);
-            logActivity('INFO', `Found active subset ID: ${subsetId} for set ${setIndex + 1}`);
           } else {
-            logActivity('WARNING', 'No subSetsId found in active set');
-            // Check localStorage for stored subsetId
             const storedSubsetId = localStorage.getItem(`currentSubsetId_${rid}_${setIndex}`);
-            if (storedSubsetId) {
-              setCurrentSubsetId(storedSubsetId);
-              logActivity('INFO', `Using stored subset ID: ${storedSubsetId} for set ${setIndex + 1}`);
-            }
+            if (storedSubsetId) setCurrentSubsetId(storedSubsetId);
           }
 
-          // Determine which step we're on based on subtasks
           if (lastActiveSet.subTasks && lastActiveSet.subTasks.length > 0) {
-            const completedStepsCount = lastActiveSet.subTasks.length;
-            setCurrentStep(completedStepsCount + 1);
-
-            // Update completed steps
+            setCurrentStep(lastActiveSet.subTasks.length + 1);
             const updatedSteps = [...checklistSteps];
             lastActiveSet.subTasks.forEach((task, index) => {
               if (updatedSteps[index]) {
@@ -309,33 +161,25 @@ const TasksList = () => {
               }
             });
             setChecklistSteps(updatedSteps);
-
-            logActivity('RESUME', `Resuming set ${setIndex + 1} from step ${completedStepsCount + 1}`);
           } else {
-            logActivity('RESUME', `Starting new set ${setIndex + 1} from step 1`);
             setCurrentStep(1);
           }
-
-          startTimer();
+          if (!timer) startTimer();
         } else {
-          // No active sets found
-          logActivity('INFO', 'No active set found. Ready to start a new set.');
           setSelectedSetIndex(null);
           setCurrentSubsetId(null);
         }
-      } else {
-        logActivity('INFO', 'No sets started yet. Ready to begin.');
-        setSelectedSetIndex(null);
-        setCurrentSubsetId(null);
       }
     } catch (error) {
-      console.error('Error fetching broker status:', error);
-      logActivity('API_ERROR', `Failed to fetch status: ${error.message}`);
+      if (!silent) logActivity('API_ERROR', `Failed to fetch status: ${error.message}`);
     }
   };
 
-  // STEP 4: Handle set start
   const handleSetStart = (setIndex) => {
+    if (!isOperations) {
+      alert('Only Operations team can start new sets.');
+      return;
+    }
     setSelectedSetIndex(setIndex);
     setShowSetModal(true);
     setSetStartData({ infraName: '', infraId: '' });
@@ -343,150 +187,63 @@ const TasksList = () => {
 
   const handleSetStartSubmit = async (e) => {
     e.preventDefault();
+    if (processingStep.current) return;
+    processingStep.current = true;
     setLoading(true);
 
     try {
-      logActivity('SET_START', `Starting set ${selectedSetIndex + 1}`, setStartData);
-
-      // Determine if we should pass restartId
-      let restartIdToPass = null;
-      let setNumber = selectedSetIndex + 1; // Set number is always index + 1
-
-      // Special case: If starting from zero (no existing sets), don't pass restartId
-      // This ensures we get a fresh session with proper subsetId
-      if (!brokerStatus?.currSet || brokerStatus.currSet.length === 0) {
-        restartIdToPass = null; // Start fresh
-        logActivity('INFO', 'Starting first set - creating new session');
-      } else if (!allSetsCompleted && brokerStatus?.currSet?.length > 0) {
-        // We have existing sets and not all completed - continue same session
-        restartIdToPass = restartId;
-        logActivity('INFO', `Continuing session ${restartId} with set ${setNumber}`);
+      logActivity('SET_START', `Starting set ${selectedSetIndex + 1}`);
+      let restartIdToPass = (!brokerStatus?.currSet || brokerStatus.currSet.length === 0) ? null : restartId;
+      const response = await startBrokerRestartTask(setStartData.infraId, setStartData.infraName, restartIdToPass, selectedSetIndex + 1);
+      
+      if (response.brokerRestartId && response.brokerRestartId !== restartId) {
+        setRestartId(response.brokerRestartId);
+        localStorage.setItem('brokerRestartId', response.brokerRestartId);
       }
 
-      logActivity('INFO', `Calling API with restartId: ${restartIdToPass || 'null'}, setNumber: ${setNumber}`);
-
-      // Call startBrokerRestartTask with set number
-      const response = await startBrokerRestartTask(
-        setStartData.infraId,
-        setStartData.infraName,
-        restartIdToPass,
-        setNumber
-      );
-
-      console.log('Start broker restart task response:', response);
-      logActivity('API_SUCCESS', `Set ${selectedSetIndex + 1} started successfully`, response);
-
-      // Update restartId from response if provided (for new sessions)
-      if (response.brokerRestartId) {
-        const newRestartId = response.brokerRestartId;
-        if (newRestartId !== restartId) {
-          setRestartId(newRestartId);
-          localStorage.setItem('brokerRestartId', newRestartId);
-          logActivity('INFO', `New restart ID obtained from response: ${newRestartId}`);
-        }
-      }
-
-      // Extract subSetsId from the response
       let subsetId = extractSubsetId(response);
-
-      // If not found, check the specific set in currSet
       if (!subsetId && response.currSet && response.currSet[selectedSetIndex]) {
-        const set = response.currSet[selectedSetIndex];
-        subsetId = extractSubsetId(set);
-        if (subsetId) {
-          logActivity('INFO', `Found subSetsId in set[${selectedSetIndex}]: ${subsetId}`);
-        }
+        subsetId = extractSubsetId(response.currSet[selectedSetIndex]);
       }
 
-      if (subsetId) {
-        setCurrentSubsetId(subsetId);
-        logActivity('INFO', `Subset ID obtained: ${subsetId} for set ${selectedSetIndex + 1}`);
+      if (!subsetId) throw new Error('No subset ID received');
 
-        // Store in localStorage with the current restartId
-        const currentRestartId = response.brokerRestartId || restartId;
-        if (currentRestartId) {
-          localStorage.setItem(`currentSubsetId_${currentRestartId}_${selectedSetIndex}`, subsetId);
-        }
-      } else {
-        logActivity('ERROR', 'No subset ID returned from API');
-        throw new Error('No subset ID received from server');
-      }
+      setCurrentSubsetId(subsetId);
+      localStorage.setItem(`currentSubsetId_${response.brokerRestartId || restartId}_${selectedSetIndex}`, subsetId);
 
-      // If this was a new session (all sets completed), update the state
-      if (allSetsCompleted) {
-        setAllSetsCompleted(false);
-        logActivity('INFO', `New session started`);
-      }
-
-      // Update broker status
+      if (allSetsCompleted) setAllSetsCompleted(false);
       setBrokerStatus(response);
       setShowSetModal(false);
       setCurrentStep(1);
-
-      // Reset checklist
-      const resetSteps = checklistSteps.map(step => ({
-        ...step,
-        completed: false,
-        completedTime: null,
-        ackBy: null,
-        ackTime: null
-      }));
-      setChecklistSteps(resetSteps);
-
-      // Start timer for the new set
+      setChecklistSteps(checklistSteps.map(s => ({ ...s, completed: false, completedTime: null, ackBy: null, ackTime: null })));
       startTimer();
-
-      logActivity('SET_INIT', `Set ${selectedSetIndex + 1} initialized successfully`);
-
+      logActivity('SET_INIT', `Set ${selectedSetIndex + 1} initialized`);
     } catch (error) {
-      console.error('Error starting set:', error);
       logActivity('API_ERROR', `Failed to start set: ${error.message}`);
       alert(`Failed to start set: ${error.message}`);
     } finally {
       setLoading(false);
+      processingStep.current = false;
     }
   };
 
-  // STEP 5: Mark step as complete
   const completeStep = async (stepId) => {
-    // Support users cannot mark steps as complete
-    if (isSupport) {
-      alert('Support users cannot mark steps as complete. Please contact operations team.');
+    if (!isOperations) {
+      alert('Only Operations team can mark steps as complete.');
       return;
     }
+    if (stepId !== currentStep || stepId === 11 || !currentSubsetId || processingStep.current) return;
 
-    // Skip if not the current step OR if it's the last step (support ack)
-    if (stepId !== currentStep || stepId === 11) return;
-
-    if (!currentSubsetId) {
-      logActivity('ERROR', 'No active subset ID. Cannot complete step.');
-      alert('Error: No active subset ID found. Please start a set first.');
-      return;
-    }
-
+    processingStep.current = true;
     try {
       const step = checklistSteps[stepId - 1];
-
-      logActivity('API_CALL', `Calling updateSubRestart for step ${stepId}: ${step.title}`, {
-        subsetId: currentSubsetId,
-        stepTitle: step.title
-      });
-
-      // Call updateSubRestart API
       await updateSubRestart(step.title, currentSubsetId);
+      logActivity('API_SUCCESS', `Step ${stepId} completed`);
 
-      logActivity('API_SUCCESS', `Step ${stepId} completed: ${step.title}`);
-
-      // Update local state
       const updatedSteps = [...checklistSteps];
-      updatedSteps[stepId - 1] = {
-        ...updatedSteps[stepId - 1],
-        completed: true,
-        completedTime: new Date().toISOString()
-      };
+      updatedSteps[stepId - 1] = { ...updatedSteps[stepId - 1], completed: true, completedTime: new Date().toISOString() };
       setChecklistSteps(updatedSteps);
 
-      // Move to next step
       if (stepId < checklistSteps.length) {
         setTimeout(() => {
           setCurrentStep(stepId + 1);
@@ -494,181 +251,105 @@ const TasksList = () => {
         }, 500);
       }
     } catch (error) {
-      console.error('Error completing step:', error);
-      logActivity('API_ERROR', `Failed to complete step ${stepId}: ${error.message}`);
+      logActivity('API_ERROR', `Failed to complete step: ${error.message}`);
       alert(`Failed to complete step: ${error.message}`);
+    } finally {
+      processingStep.current = false;
     }
   };
 
-  // STEP 6: Handle support acknowledgment (Last Step - Step 11)
   const handleSupportAckClick = () => {
-    // Only support users can acknowledge
     if (!isSupport) {
-      alert('Only support team members can acknowledge completion. Please contact support team.');
+      alert('Only support team members can acknowledge completion.');
       return;
     }
-
+    if (currentStep !== 11) {
+      alert('Support acknowledgment is only available at step 11.');
+      return;
+    }
     setSupportAckModal(true);
     setSupportAckData({ name: '', id: '' });
   };
 
   const handleSupportAckSubmit = async (e) => {
     e.preventDefault();
+    if (!currentSubsetId || processingStep.current) return;
 
-    if (!currentSubsetId) {
-      logActivity('ERROR', 'No active subset ID. Cannot acknowledge support.');
-      alert('Error: No active subset ID found.');
-      return;
-    }
-
+    processingStep.current = true;
     setLoading(true);
+
     try {
-      // FIRST: Call updateSetRestart API to complete current set
-      logActivity('API_CALL', `Completing set ${selectedSetIndex + 1} with support acknowledgment`, {
-        supportId: supportAckData.id,
-        supportName: supportAckData.name,
-        subSetsId: currentSubsetId
-      });
+      await updateSetRestart(supportAckData.id, supportAckData.name, currentSubsetId);
+      logActivity('API_SUCCESS', `Support ack by ${supportAckData.name}`);
 
-      const updateResponse = await updateSetRestart(
-        supportAckData.id,
-        supportAckData.name,
-        currentSubsetId
-      );
-
-      logActivity('API_SUCCESS', `Support acknowledgment by ${supportAckData.name} (${supportAckData.id})`, updateResponse);
-
-      // Update step 11 as completed
       const updatedSteps = [...checklistSteps];
-      updatedSteps[10] = {
-        ...updatedSteps[10],
-        completed: true,
-        completedTime: new Date().toISOString(),
-        ackBy: supportAckData.name,
-        ackTime: new Date().toISOString()
-      };
+      updatedSteps[10] = { ...updatedSteps[10], completed: true, completedTime: new Date().toISOString(), ackBy: supportAckData.name, ackTime: new Date().toISOString() };
       setChecklistSteps(updatedSteps);
 
-      // SECOND: Fetch broker status to check how many sets are completed
-      logActivity('API_CALL', `Fetching broker status after set completion`);
-
       const statusResponse = await getBrokerRestartStatus(restartId);
-
-      logActivity('API_SUCCESS', `Broker status refreshed`, statusResponse);
       setBrokerStatus(statusResponse);
 
-      // Check if all 4 sets are now completed
-      const completedCount = statusResponse.currSet?.filter(
-        set => set.status === 'completed' || (set.endTime && set.endTime !== 'Present')
-      ).length || 0;
-
-      logActivity('INFO', `Total completed sets: ${completedCount}/4`);
+      const completedCount = statusResponse.currSet?.filter(set => set.status === 'completed' || (set.endTime && set.endTime !== 'Present')).length || 0;
 
       if (completedCount >= 4) {
-        // All sets completed - show completion page
         setAllSetsCompleted(true);
         setSupportAckModal(false);
-        setSupportAckData({ name: '', id: '' });
         setSelectedSetIndex(null);
         setCurrentSubsetId(null);
-
-        logActivity('COMPLETE', 'All 4 sets completed! Broker restart activity finished.');
-
         if (timer) clearInterval(timer);
-
+        logActivity('COMPLETE', 'All 4 sets completed!');
       } else {
-        // More sets to do - reset for next set
         setSupportAckModal(false);
-        setSupportAckData({ name: '', id: '' });
-
-        // Reset checklist for next set
-        const resetSteps = checklistSteps.map(step => ({
-          ...step,
-          completed: false,
-          completedTime: null,
-          ackBy: null,
-          ackTime: null
-        }));
-        setChecklistSteps(resetSteps);
-
+        setChecklistSteps(checklistSteps.map(s => ({ ...s, completed: false, completedTime: null, ackBy: null, ackTime: null })));
         setCurrentStep(1);
         setTimeElapsed(0);
         setSelectedSetIndex(null);
         setCurrentSubsetId(null);
-
-        logActivity('SET_COMPLETE', `Set ${selectedSetIndex + 1} completed. Ready to start next set (${completedCount + 1}/4)`);
+        logActivity('SET_COMPLETE', `Set completed. Ready for next (${completedCount + 1}/4)`);
       }
-
     } catch (error) {
-      console.error('Error in support acknowledgment:', error);
       logActivity('API_ERROR', `Failed: ${error.message}`);
       alert(`Failed: ${error.message}`);
-      // Refresh status to get current state
-      await fetchBrokerStatus(restartId);
     } finally {
       setLoading(false);
+      processingStep.current = false;
     }
   };
 
-  // Handle resume of existing set
   const handleResumeSet = (setIndex, set) => {
     setSelectedSetIndex(setIndex);
-
-    const subsetId = extractSubsetId(set);
-
-    if (subsetId) {
-      setCurrentSubsetId(subsetId);
-      logActivity('INFO', `Resuming with subset ID: ${subsetId} for set ${setIndex + 1}`);
-    } else {
-      // Try to get from localStorage
-      const storedSubsetId = localStorage.getItem(`currentSubsetId_${restartId}_${setIndex}`);
-      if (storedSubsetId) {
-        setCurrentSubsetId(storedSubsetId);
-        logActivity('INFO', `Using stored subset ID: ${storedSubsetId} for set ${setIndex + 1}`);
-      } else {
-        logActivity('WARNING', 'No subSetsId found in set, cannot resume');
-        alert('Cannot resume set: Missing subset ID');
-        return;
-      }
+    const subsetId = extractSubsetId(set) || localStorage.getItem(`currentSubsetId_${restartId}_${setIndex}`);
+    if (!subsetId) {
+      alert('Cannot resume: Missing subset ID');
+      return;
     }
+    setCurrentSubsetId(subsetId);
 
-    // Determine current step based on subtasks
     if (set.subTasks && set.subTasks.length > 0) {
-      const stepNumber = set.subTasks.length + 1;
-      setCurrentStep(stepNumber);
-
-      // Update completed steps
+      setCurrentStep(set.subTasks.length + 1);
       const updatedSteps = [...checklistSteps];
-      set.subTasks.forEach((task, taskIndex) => {
-        if (updatedSteps[taskIndex]) {
-          updatedSteps[taskIndex].completed = true;
-          updatedSteps[taskIndex].completedTime = task.completion || new Date().toISOString();
+      set.subTasks.forEach((task, i) => {
+        if (updatedSteps[i]) {
+          updatedSteps[i].completed = true;
+          updatedSteps[i].completedTime = task.completion || new Date().toISOString();
         }
       });
       setChecklistSteps(updatedSteps);
-
-      logActivity('RESUME', `Resumed set ${setIndex + 1} at step ${stepNumber}`);
     } else {
       setCurrentStep(1);
-      logActivity('RESUME', `Starting set ${setIndex + 1} from beginning`);
     }
-
     startTimer();
   };
 
-  // Handle starting new session when all sets are completed
   const handleStartNewSession = () => {
-    logActivity('NEW_SESSION', 'Starting new broker restart session from completion page');
-
-    // Clear all localStorage entries for this session
+    if (!isOperations) {
+      alert('Only Operations team can start new sessions.');
+      return;
+    }
     if (restartId) {
-      for (let i = 0; i < 4; i++) {
-        localStorage.removeItem(`currentSubsetId_${restartId}_${i}`);
-      }
+      for (let i = 0; i < 4; i++) localStorage.removeItem(`currentSubsetId_${restartId}_${i}`);
     }
     localStorage.removeItem('brokerRestartId');
-
-    // Reset all state
     setAllSetsCompleted(false);
     setRestartId(null);
     setBrokerStatus(null);
@@ -676,57 +357,33 @@ const TasksList = () => {
     setCurrentSubsetId(null);
     setCurrentStep(1);
     setActivityLog([]);
-
-    // Reset checklist
-    const resetSteps = checklistSteps.map(step => ({
-      ...step,
-      completed: false,
-      completedTime: null,
-      ackBy: null,
-      ackTime: null
-    }));
-    setChecklistSteps(resetSteps);
-
-    // Clear timer
+    setChecklistSteps(checklistSteps.map(s => ({ ...s, completed: false, completedTime: null, ackBy: null, ackTime: null })));
     if (timer) {
       clearInterval(timer);
       setTimer(null);
     }
-
-    // Re-initialize to get new restart ID
     initializeRestartId();
   };
 
-  // Timer management
   const startTimer = () => {
     if (timer) clearInterval(timer);
     setTimeElapsed(0);
-    const newTimer = setInterval(() => {
-      setTimeElapsed(prev => prev + 1);
-    }, 1000);
+    const newTimer = setInterval(() => setTimeElapsed(prev => prev + 1), 1000);
     setTimer(newTimer);
   };
 
-  // Activity logging
   const logActivity = (type, message, data = null) => {
-    const logEntry = {
-      timestamp: new Date(),
-      type,
-      message,
-      data
-    };
+    const logEntry = { timestamp: new Date(), type, message, data };
     console.log(`[${type}] ${message}`, data);
     setActivityLog(prev => [logEntry, ...prev].slice(0, 50));
   };
 
-  // Format time
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Get status color
   const getStatusColor = (status) => {
     switch (status) {
       case 'pending': return '#ff7675';
@@ -736,19 +393,21 @@ const TasksList = () => {
     }
   };
 
-  // Get the next available set index
-  const getNextSetIndex = () => {
-    if (!brokerStatus?.currSet) return 0;
-    return brokerStatus.currSet.length;
+  const getNextSetIndex = () => brokerStatus?.currSet?.length || 0;
+
+  const handleNumericInput = (e, field) => {
+    const value = e.target.value.replace(/\D/g, '');
+    if (field === 'infraId') setSetStartData({ ...setStartData, infraId: value });
+    else if (field === 'supportId') setSupportAckData({ ...supportAckData, id: value });
   };
 
-  // Handle numeric input only
-  const handleNumericInput = (e, field) => {
-    const value = e.target.value.replace(/\D/g, ''); // Remove non-digits
-    if (field === 'infraId') {
-      setSetStartData({...setStartData, infraId: value});
-    } else if (field === 'supportId') {
-      setSupportAckData({...supportAckData, id: value});
+  const handleRefreshStatus = async () => {
+    if (!restartId) return;
+    setLoading(true);
+    try {
+      await fetchBrokerStatus(restartId, false);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -769,79 +428,57 @@ const TasksList = () => {
     );
   }
 
-  // Show completion page when all 4 sets are done
   if (allSetsCompleted) {
     return (
       <div className="tasks-list-page">
-        <div className="tasks-list-header">
+        <div className="tasks-list-header completion-header">
           <div className="header-content">
-            <h1>🎉 Broker Restart Activity Completed!</h1>
+            <div className="completion-icon-large">🎉</div>
+            <h1>Broker Restart Activity Completed!</h1>
             <p>All 4 sets have been successfully completed</p>
           </div>
         </div>
 
-        <section className="completion-message">
-          <h3>✅ All Sets Completed Successfully</h3>
-          <p>The broker restart activity has been completed for all 4 sets.</p>
-
+        <section className="completion-section">
           <div className="completion-summary">
-            <h4>Completed Sets Summary:</h4>
+            <h3>✅ Completed Sets Summary</h3>
             <div className="sets-grid">
               {brokerStatus?.currSet?.slice(0, 4).map((set, index) => (
-                <div
-                  key={index}
-                  className="set-card"
-                  style={{ borderLeft: `4px solid ${getStatusColor(set.status)}` }}
-                >
+                <div key={index} className="set-card set-card-completed" style={{ borderLeft: `4px solid ${getStatusColor(set.status)}` }}>
                   <div className="set-header">
                     <h3>Set {index + 1}</h3>
-                    <span className="set-status" style={{ color: getStatusColor(set.status) }}>
-                      ✅ COMPLETED
-                    </span>
+                    <span className="set-status set-status-completed">✅ COMPLETED</span>
                   </div>
                   <div className="set-details">
-                    {set.infraName && (
-                      <p className="infra-name">Infra: {set.infraName}</p>
-                    )}
+                    {set.infraName && <p className="infra-name"><strong>Infrastructure:</strong> {set.infraName}</p>}
                     {set.supportName && (
                       <div className="set-support-ack">
-                        <strong>Support Ack by:</strong> {set.supportName}
-                        {set.supportTime && set.supportTime !== 'Pending' && (
-                          <><br /><small>{set.supportTime}</small></>
-                        )}
+                        <strong>Support Acknowledgment:</strong><br />{set.supportName}
+                        {set.supportTime && set.supportTime !== 'Pending' && <><br /><small>{format(new Date(set.supportTime), 'MMM d, h:mm:ss a')}</small></>}
                       </div>
                     )}
-                    <p className="set-progress-info">
-                      <span>Steps completed: {set.subTasks?.length || 0}/10</span>
-                    </p>
+                    <p className="set-progress-info"><span>Steps completed: {set.subTasks?.length || 0}/10</span></p>
                   </div>
                 </div>
               ))}
             </div>
           </div>
 
-          <button
-            onClick={handleStartNewSession}
-            className="btn-primary"
-            style={{ marginTop: '2rem' }}
-          >
-            Start New Broker Restart Session
-          </button>
+          {isOperations && (
+            <button onClick={handleStartNewSession} className="btn-primary btn-large">
+              🔄 Start New Broker Restart Session
+            </button>
+          )}
         </section>
 
-        {/* Activity Log */}
         {activityLog.length > 0 && (
           <section className="activity-log-section">
             <h2>📜 Activity Log</h2>
             <div className="activity-log-container">
               {activityLog.slice(0, 20).map((log, index) => (
                 <div key={index} className="log-entry">
-                  <div className="log-time">
-                    {format(new Date(log.timestamp), 'HH:mm:ss')}
-                  </div>
-                  <div className="log-message">
-                    {log.message}
-                  </div>
+                  <div className="log-time">{format(new Date(log.timestamp), 'HH:mm:ss')}</div>
+                  <div className="log-message">{log.message}</div>
                   {log.type.includes('API') && (
                     <div className={`log-type ${log.type.includes('SUCCESS') ? 'api-success' : log.type.includes('ERROR') ? 'api-error' : 'api-call'}`}>
                       {log.type.includes('SUCCESS') ? 'SUCCESS' : log.type.includes('ERROR') ? 'ERROR' : 'API'}
@@ -858,74 +495,51 @@ const TasksList = () => {
 
   return (
     <div className="tasks-list-page">
-      {/* Header */}
       <div className="tasks-list-header">
         <div className="header-content">
           <h1>📝 Night Broker Restart Checklist</h1>
           <div className="header-details">
             {restartId && <p>Restart ID: <strong>{restartId}</strong></p>}
             <p>Completed Sets: <strong>{brokerStatus?.currSet?.filter(s => s.status === 'completed').length || 0}/4</strong></p>
-            {currentSubsetId && selectedSetIndex !== null && (
-              <p>Current Subset ID: <strong>{currentSubsetId}</strong></p>
-            )}
-            <p>User Level: <strong style={{ color: isSupport ? '#00b894' : '#74b9ff' }}>{userLevel || 'Unknown'}</strong></p>
+            {currentSubsetId && selectedSetIndex !== null && <p>Current Subset ID: <strong>{currentSubsetId}</strong></p>}
+            <p>User Level: <strong style={{ color: isSupport ? '#00b894' : isOperations ? '#74b9ff' : '#ff7675' }}>
+              {isSupport ? 'Support Team' : isOperations ? 'Operations Team' : userLevel}
+            </strong></p>
+            <button onClick={handleRefreshStatus} className="btn-refresh" disabled={loading}>
+              {loading ? '🔄 Refreshing...' : '🔄 Refresh Status'}
+            </button>
           </div>
         </div>
       </div>
 
-      {/* Show set selection - always visible when no active set */}
       {selectedSetIndex === null && (
         <section className="sets-section">
           <h2>📊 Available Sets ({brokerStatus?.currSet?.length || 0}/4)</h2>
           <div className="sets-grid">
             {brokerStatus?.currSet?.map((set, index) => (
-              <div
-                key={index}
-                className="set-card"
-                style={{ borderLeft: `4px solid ${getStatusColor(set.status)}` }}
-              >
+              <div key={index} className="set-card" style={{ borderLeft: `4px solid ${getStatusColor(set.status)}` }}>
                 <div className="set-header">
                   <h3>Set {index + 1}</h3>
-                  <span className="set-status" style={{ color: getStatusColor(set.status) }}>
-                    {set.status.toUpperCase()}
-                  </span>
+                  <span className="set-status" style={{ color: getStatusColor(set.status) }}>{set.status.toUpperCase()}</span>
                 </div>
                 <div className="set-details">
-                  {set.subSetsId && (
-                    <p className="subset-id">Subset ID: {set.subSetsId}</p>
-                  )}
-                  {set.infraName && (
-                    <p className="infra-name">Infra: {set.infraName}</p>
-                  )}
+                  {set.subSetsId && <p className="subset-id">Subset ID: {set.subSetsId}</p>}
+                  {set.infraName && <p className="infra-name">Infra: {set.infraName}</p>}
                   {set.supportName && set.supportName !== 'pending' && (
-                    <div className="set-support-ack">
-                      <strong>Support Ack:</strong> {set.supportName}
-                    </div>
+                    <div className="set-support-ack"><strong>Support Ack:</strong> {set.supportName}</div>
                   )}
                 </div>
                 {set.status === 'started' && (!set.endTime || set.endTime === 'Present') && (
-                  <button
-                    onClick={() => handleResumeSet(index, set)}
-                    className="complete-btn"
-                  >
-                    Resume This Set
-                  </button>
+                  <button onClick={() => handleResumeSet(index, set)} className="complete-btn">Resume This Set</button>
                 )}
                 {set.status === 'completed' && (
-                  <div className="set-completed">
-                    <span>✅ Completed</span>
-                  </div>
+                  <div className="set-completed"><span>✅ Completed</span></div>
                 )}
               </div>
             ))}
 
-            {/* Button to start new set - only if less than 4 sets */}
-            {(!brokerStatus?.currSet || brokerStatus.currSet.length < 4) && (
-              <button
-                onClick={() => handleSetStart(getNextSetIndex())}
-                className="set-card click-prompt"
-                style={{ borderLeft: '4px solid #74b9ff' }}
-              >
+            {(!brokerStatus?.currSet || brokerStatus.currSet.length < 4) && isOperations && (
+              <button onClick={() => handleSetStart(getNextSetIndex())} className="set-card click-prompt" style={{ borderLeft: '4px solid #74b9ff' }}>
                 <h3>➕ Start Set {getNextSetIndex() + 1}</h3>
                 <p>Click to begin</p>
               </button>
@@ -934,10 +548,9 @@ const TasksList = () => {
         </section>
       )}
 
-      {/* Set Start Modal */}
       {showSetModal && (
-        <div className="modal-overlay">
-          <div className="modal-container">
+        <div className="modal-overlay" onClick={() => setShowSetModal(false)}>
+          <div className="modal-container" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h2>🔐 Start Set {selectedSetIndex + 1}</h2>
               <p>Enter infrastructure details to begin</p>
@@ -945,51 +558,24 @@ const TasksList = () => {
             <form onSubmit={handleSetStartSubmit} className="modal-form">
               <div className="form-group">
                 <label htmlFor="infraName">Infrastructure Name</label>
-                <input
-                  type="text"
-                  id="infraName"
-                  value={setStartData.infraName}
-                  onChange={(e) => setSetStartData({...setStartData, infraName: e.target.value})}
-                  placeholder="Enter infra name"
-                  required
-                  className="form-input"
-                />
+                <input type="text" id="infraName" value={setStartData.infraName} onChange={(e) => setSetStartData({ ...setStartData, infraName: e.target.value })} placeholder="Enter infra name" required className="form-input" />
               </div>
               <div className="form-group">
-                <label htmlFor="infraId">Infrastructure ID (Numbers only)</label>
-                <input
-                  type="text"
-                  id="infraId"
-                  value={setStartData.infraId}
-                  onChange={(e) => handleNumericInput(e, 'infraId')}
-                  placeholder="Enter infra ID (numbers only)"
-                  required
-                  className="form-input"
-                  pattern="\d+"
-                  title="Please enter numbers only"
-                />
+                <label htmlFor="infraId">Infrastructure ID</label>
+                <input type="text" id="infraId" value={setStartData.infraId} onChange={(e) => handleNumericInput(e, 'infraId')} placeholder="Enter infra ID" required className="form-input" pattern="\d+" />
               </div>
               <div className="modal-actions">
-                <button
-                  type="button"
-                  onClick={() => setShowSetModal(false)}
-                  className="btn-secondary"
-                >
-                  Cancel
-                </button>
-                <button type="submit" className="btn-primary" disabled={loading}>
-                  {loading ? 'Starting...' : 'Start Set'}
-                </button>
+                <button type="button" onClick={() => setShowSetModal(false)} className="btn-secondary">Cancel</button>
+                <button type="submit" className="btn-primary" disabled={loading}>{loading ? 'Starting...' : 'Start Set'}</button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* Support Acknowledgment Modal - Only for Support users */}
       {supportAckModal && isSupport && (
-        <div className="modal-overlay">
-          <div className="modal-container">
+        <div className="modal-overlay" onClick={() => setSupportAckModal(false)}>
+          <div className="modal-container" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h2>🛡️ Complete Set {selectedSetIndex + 1}</h2>
               <p>Enter support team acknowledgment details</p>
@@ -997,162 +583,148 @@ const TasksList = () => {
             <form onSubmit={handleSupportAckSubmit} className="modal-form">
               <div className="form-group">
                 <label htmlFor="supportName">Support Team Member Name</label>
-                <input
-                  type="text"
-                  id="supportName"
-                  value={supportAckData.name}
-                  onChange={(e) => setSupportAckData({...supportAckData, name: e.target.value})}
-                  placeholder="Enter support member name"
-                  required
-                  className="form-input"
-                />
+                <input type="text" id="supportName" value={supportAckData.name} onChange={(e) => setSupportAckData({ ...supportAckData, name: e.target.value })} placeholder="Enter name" required className="form-input" />
               </div>
               <div className="form-group">
-                <label htmlFor="supportId">Support Member ID (Numbers only)</label>
-                <input
-                  type="text"
-                  id="supportId"
-                  value={supportAckData.id}
-                  onChange={(e) => handleNumericInput(e, 'supportId')}
-                  placeholder="Enter support member ID (numbers only)"
-                  required
-                  className="form-input"
-                  pattern="\d+"
-                  title="Please enter numbers only"
-                />
+                <label htmlFor="supportId">Support Member ID</label>
+                <input type="text" id="supportId" value={supportAckData.id} onChange={(e) => handleNumericInput(e, 'supportId')} placeholder="Enter ID" required className="form-input" pattern="\d+" />
               </div>
-
               <div className="modal-actions">
-                <button
-                  type="button"
-                  onClick={() => setSupportAckModal(false)}
-                  className="btn-secondary"
-                >
-                  Cancel
-                </button>
-                <button type="submit" className="btn-primary" disabled={loading}>
-                  {loading ? 'Processing...' : 'Complete Set'}
-                </button>
+                <button type="button" onClick={() => setSupportAckModal(false)} className="btn-secondary">Cancel</button>
+                <button type="submit" className="btn-primary" disabled={loading}>{loading ? 'Processing...' : 'Complete Set'}</button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* Active Work Section */}
       {selectedSetIndex !== null && (
         <>
-          {/* Timer Banner */}
           <div className="user-info-banner">
             <div className="user-info-content">
               <span className="user-label">📍 Current Set:</span>
               <span className="user-name">Set {selectedSetIndex + 1} of 4</span>
               <span className="user-id">Subset ID: {currentSubsetId || 'Loading...'}</span>
-              {brokerStatus?.currSet?.[selectedSetIndex]?.infraName && (
-                <span className="infra-info">Infra: {brokerStatus.currSet[selectedSetIndex].infraName}</span>
-              )}
+              {brokerStatus?.currSet?.[selectedSetIndex]?.infraName && <span className="infra-info">Infra: {brokerStatus.currSet[selectedSetIndex].infraName}</span>}
             </div>
-            <div className="current-timer">
-              ⏱️ Step Time: {formatTime(timeElapsed)}
-            </div>
+            <div className="current-timer">⏱️ Step Time: {formatTime(timeElapsed)}</div>
           </div>
 
-          {/* Checklist Timeline */}
           <section className="checklist-section">
-            <h2>📋 Restart Procedure Checklist</h2>
+            <div className="checklist-header">
+              <h2>📋 Restart Procedure Checklist</h2>
+              {!isOperations && <span className="readonly-badge">👁️ Read-Only View</span>}
+            </div>
             <div className="timeline-container">
               {checklistSteps.map((step, index) => (
-                <div
-                  key={step.id}
-                  className={`timeline-step ${step.completed ? 'completed' : ''} ${currentStep === step.id ? 'current' : ''}`}
-                >
+                <div key={step.id} className={`timeline-step ${step.completed ? 'completed' : ''} ${currentStep === step.id ? 'current' : ''}`}>
                   <div className="step-marker">
                     <div className="step-number">{step.id}</div>
-                    {index < checklistSteps.length - 1 && (
-                      <div className="step-connector"></div>
-                    )}
+                    {index < checklistSteps.length - 1 && <div className="step-connector"></div>}
                   </div>
                   <div className="step-content">
-                    <div className="step-header">
-                      <h3>{step.title}</h3>
-                      <div className="step-status">
+                    <div className="step-title-container">
+                      <h3 className="step-title">{step.title}</h3>
+                      <div className="step-status-indicator">
                         {step.completed ? (
                           <span className="status-completed">✅ Completed</span>
                         ) : currentStep === step.id ? (
-                          <span className="status-current">⏳ In Progress</span>
+                          <span className="status-current">▶️ In Progress</span>
                         ) : (
-                          <span className="status-pending">⏱️ Pending</span>
+                          <span className="status-pending">⏳ Pending</span>
                         )}
                       </div>
                     </div>
                     <p className="step-description">{step.description}</p>
+                    
+                    {step.completedTime && (
+                      <div className="step-completed-time">
+                        <small>Completed at: {format(new Date(step.completedTime), 'h:mm:ss a')}</small>
+                      </div>
+                    )}
+                    
+                    {step.id === 11 && step.ackBy && (
+                      <div className="step-support-ack">
+                        <strong>Acknowledged by:</strong> {step.ackBy}
+                        {step.ackTime && <span> at {format(new Date(step.ackTime), 'h:mm:ss a')}</span>}
+                      </div>
+                    )}
 
-                    {step.completed && (
-                      <div className="step-details">
-                        <div className="detail-item">
-                          <strong>Completed at:</strong> {format(new Date(step.completedTime), 'MMM d, h:mm:ss a')}
+                    <div className="step-actions">
+                      {isOperations && currentStep === step.id && step.id !== 11 && !step.completed && (
+                        <button onClick={() => completeStep(step.id)} className="btn-complete-step" disabled={processingStep.current}>
+                          {processingStep.current ? 'Processing...' : 'Mark as Complete'}
+                        </button>
+                      )}
+                      
+                      {isSupport && currentStep === 11 && step.id === 11 && !step.completed && (
+                        <button onClick={handleSupportAckClick} className="btn-support-ack">
+                          Acknowledge as Support Team
+                        </button>
+                      )}
+                      
+                      {!isSupport && currentStep === 11 && step.id === 11 && !step.completed && (
+                        <div className="waiting-support">
+                          <span className="waiting-text">⏳ Waiting for Support team acknowledgment...</span>
                         </div>
-                        {step.requiresAck && step.ackBy && (
-                          <div className="detail-item ack-info">
-                            <strong>✅ Support Ack by:</strong> {step.ackBy}
-                            <br />
-                            <small>{format(new Date(step.ackTime), 'MMM d, h:mm:ss a')}</small>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {currentStep === step.id && !step.completed && (
-                      <div className="step-actions">
-                        {step.id === 11 ? (
-                          isSupport ? (
-                            <button onClick={handleSupportAckClick} className="complete-btn">
-                              Complete Set & Acknowledge
-                            </button>
-                          ) : (
-                            <div className="support-only-message">
-                              <p>⚠️ This step requires support team acknowledgment</p>
-                              <p style={{ fontSize: '0.9em', color: '#666' }}>Please contact a support team member to complete this set</p>
-                            </div>
-                          )
-                        ) : (
-                          <button onClick={() => completeStep(step.id)} className="complete-btn">
-                            Mark as Complete
-                          </button>
-                        )}
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}
             </div>
-          </section>
 
-          {/* Activity Log */}
-          {activityLog.length > 0 && (
-            <section className="activity-log-section">
-              <h2>📜 Activity Log</h2>
-              <div className="activity-log-container">
-                {activityLog.slice(0, 10).map((log, index) => (
-                  <div key={index} className="log-entry">
-                    <div className="log-time">
-                      {format(new Date(log.timestamp), 'HH:mm:ss')}
-                    </div>
-                    <div className="log-message">
-                      {log.message}
-                    </div>
-                    {log.type.includes('API') && (
-                      <div className={`log-type ${log.type.includes('SUCCESS') ? 'api-success' : log.type.includes('ERROR')  ? 'api-error' : 'api-call'}`}>
-                        {log.type.includes('SUCCESS') ? 'SUCCESS' : log.type.includes('ERROR') ? 'ERROR' : 'API'}
-                      </div>
-                    )}
-                  </div>
-                ))}
+            <div className="checklist-footer">
+              <div className="progress-summary">
+                <div className="progress-bar">
+                  <div className="progress-fill" style={{ width: `${((currentStep - 1) / 11) * 100}%` }}></div>
+                </div>
+                <div className="progress-text">
+                  Progress: {currentStep - 1} of 11 steps completed
+                </div>
               </div>
-            </section>
-          )}
+              <div className="current-step-info">
+                <span className="current-step-label">Current Step:</span>
+                <span className="current-step-number">{currentStep} - {checklistSteps[currentStep - 1]?.title}</span>
+              </div>
+            </div>
+          </section>
         </>
       )}
+
+      <section className="activity-log-section">
+        <div className="activity-log-header">
+          <h2>📜 Recent Activity Log</h2>
+          <button className="btn-clear-log" onClick={() => setActivityLog([])} disabled={activityLog.length === 0}>
+            Clear Log
+          </button>
+        </div>
+        <div className="activity-log-container">
+          {activityLog.length > 0 ? (
+            activityLog.map((log, index) => (
+              <div key={index} className={`log-entry ${log.type}`}>
+                <div className="log-time">{format(new Date(log.timestamp), 'HH:mm:ss')}</div>
+                <div className="log-message">{log.message}</div>
+                <div className={`log-type-tag ${log.type}`}>{log.type}</div>
+              </div>
+            ))
+          ) : (
+            <div className="no-logs">No activity logs yet.</div>
+          )}
+        </div>
+      </section>
+
+      <div className="footer-info">
+        <p>
+          <strong>Note:</strong> 
+          {isOperations 
+            ? " You are part of the Operations team. You can start sets and mark checklist steps as complete."
+            : isSupport
+            ? " You are part of the Support team. You can only acknowledge completion at Step 11."
+            : " You have limited access to view only."}
+        </p>
+        <p className="session-info">Session ID: {restartId || 'Not started'} | Total Sets: {brokerStatus?.currSet?.length || 0}/4</p>
+      </div>
     </div>
   );
 };
