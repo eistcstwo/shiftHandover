@@ -10,45 +10,129 @@ import {
 } from '../../Api/HandOverApi';
 
 const TasksList = () => {
+  // Get user level from localStorage
   const userLevel = localStorage.getItem('userlevel') || '';
   const isSupport = userLevel.toLowerCase() === 'support';
   const isOperations = ['l1', 'l2', 'admin'].includes(userLevel.toLowerCase());
 
+  // State for restart ID management
   const [restartId, setRestartId] = useState(null);
   const [brokerStatus, setBrokerStatus] = useState(null);
   const [currentSubsetId, setCurrentSubsetId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [allSetsCompleted, setAllSetsCompleted] = useState(false);
 
+  // Refs to track state and prevent race conditions
+  const isInitializing = useRef(true);
   const processingStep = useRef(false);
   const statusPollingInterval = useRef(null);
 
+  // State for set selection modal
   const [showSetModal, setShowSetModal] = useState(false);
   const [selectedSetIndex, setSelectedSetIndex] = useState(null);
-  const [setStartData, setSetStartData] = useState({ infraName: '', infraId: '' });
+  const [setStartData, setSetStartData] = useState({
+    infraName: '',
+    infraId: ''
+  });
 
+  // State for support acknowledgment modal
   const [supportAckModal, setSupportAckModal] = useState(false);
-  const [supportAckData, setSupportAckData] = useState({ name: '', id: '' });
+  const [supportAckData, setSupportAckData] = useState({
+    name: '',
+    id: ''
+  });
 
+  // State for current step tracking
   const [currentStep, setCurrentStep] = useState(1);
   const [timer, setTimer] = useState(null);
   const [timeElapsed, setTimeElapsed] = useState(0);
   const [activityLog, setActivityLog] = useState([]);
 
+  // Checklist steps definition
   const [checklistSteps, setChecklistSteps] = useState([
-    { id: 1, title: 'CACHE UPDATED AFTER 12:00 A.M.', description: 'Ensure cache is updated after midnight', completed: false, completedTime: null },
-    { id: 2, title: 'SETS READY FOR RESTART', description: 'Prepare all server sets for restart', completed: false, completedTime: null },
-    { id: 3, title: 'ISOLATOR DOWN', description: 'Bring isolator down for maintenance', completed: false, completedTime: null },
-    { id: 4, title: 'BROKER STOPPED', description: 'Stop all broker services', completed: false, completedTime: null },
-    { id: 5, title: 'HEARTBEAT & CACHE BROKER STARTED', description: 'Start heartbeat and cache broker services', completed: false, completedTime: null },
-    { id: 6, title: 'ALL BROKER STARTED', description: 'Start all broker services', completed: false, completedTime: null },
-    { id: 7, title: 'CACHE HIT & WORKLOAD DONE', description: 'Verify cache hits and complete workload', completed: false, completedTime: null },
-    { id: 8, title: 'UDP CHANGES (TIMEOUT & URL CHANGES)', description: 'Apply UDP configuration changes', completed: false, completedTime: null },
-    { id: 9, title: 'LOGS VERIFICATION DONE', description: 'Verify all system logs', completed: false, completedTime: null },
-    { id: 10, title: 'ISOLATOR UP', description: 'Bring isolator back online', completed: false, completedTime: null },
-    { id: 11, title: 'INFORM START OF ACTIVITY TO SUPPORT TEAM', description: 'Notify support team about activity completion', completed: false, completedTime: null, requiresAck: true, ackBy: null, ackTime: null }
+    {
+      id: 1,
+      title: 'CACHE UPDATED AFTER 12:00 A.M.',
+      description: 'Ensure cache is updated after midnight',
+      completed: false,
+      completedTime: null
+    },
+    {
+      id: 2,
+      title: 'SETS READY FOR RESTART',
+      description: 'Prepare all server sets for restart',
+      completed: false,
+      completedTime: null
+    },
+    {
+      id: 3,
+      title: 'ISOLATOR DOWN',
+      description: 'Bring isolator down for maintenance',
+      completed: false,
+      completedTime: null
+    },
+    {
+      id: 4,
+      title: 'BROKER STOPPED',
+      description: 'Stop all broker services',
+      completed: false,
+      completedTime: null
+    },
+    {
+      id: 5,
+      title: 'HEARTBEAT & CACHE BROKER STARTED',
+      description: 'Start heartbeat and cache broker services',
+      completed: false,
+      completedTime: null
+    },
+    {
+      id: 6,
+      title: 'ALL BROKER STARTED',
+      description: 'Start all broker services',
+      completed: false,
+      completedTime: null
+    },
+    {
+      id: 7,
+      title: 'CACHE HIT & WORKLOAD DONE',
+      description: 'Verify cache hits and complete workload',
+      completed: false,
+      completedTime: null
+    },
+    {
+      id: 8,
+      title: 'UDP CHANGES (TIMEOUT & URL CHANGES)',
+      description: 'Apply UDP configuration changes',
+      completed: false,
+      completedTime: null
+    },
+    {
+      id: 9,
+      title: 'LOGS VERIFICATION DONE',
+      description: 'Verify all system logs',
+      completed: false,
+      completedTime: null
+    },
+    {
+      id: 10,
+      title: 'ISOLATOR UP',
+      description: 'Bring isolator back online',
+      completed: false,
+      completedTime: null
+    },
+    {
+      id: 11,
+      title: 'INFORM START OF ACTIVITY TO SUPPORT TEAM',
+      description: 'Notify support team about activity completion',
+      completed: false,
+      completedTime: null,
+      requiresAck: true,
+      ackBy: null,
+      ackTime: null
+    }
   ]);
 
+  // STEP 1: Initialize - Get restart ID on component mount
   useEffect(() => {
     initializeRestartId();
     return () => {
@@ -57,12 +141,14 @@ const TasksList = () => {
     };
   }, []);
 
+  // Auto-refresh status every 30 seconds when viewing active work
   useEffect(() => {
     if (selectedSetIndex !== null && !allSetsCompleted && restartId) {
       statusPollingInterval.current = setInterval(() => {
-        fetchBrokerStatus(restartId, true);
+        fetchBrokerStatus(restartId, true); // silent refresh
       }, 30000);
     }
+
     return () => {
       if (statusPollingInterval.current) {
         clearInterval(statusPollingInterval.current);
@@ -71,27 +157,68 @@ const TasksList = () => {
     };
   }, [selectedSetIndex, allSetsCompleted, restartId]);
 
+  // Enhanced helper function to extract subSetsId from various response formats
   const extractSubsetId = (response) => {
+    console.log('Extracting subsetId from response:', response);
+
     if (response && typeof response === 'object' && !Array.isArray(response)) {
-      if (response.subSetsId) return response.subSetsId;
-      if (response.subSetId) return response.subSetId;
-      if (response.subsetId) return response.subsetId;
-    }
-    if (response && response.currSet && Array.isArray(response.currSet)) {
-      const latestSet = response.currSet[response.currSet.length - 1];
-      if (latestSet) {
-        if (latestSet.subSetsId) return latestSet.subSetsId;
-        if (latestSet.subSetId) return latestSet.subSetId;
-        if (latestSet.subsetId) return latestSet.subsetId;
+      if (response.subSetsId) {
+        console.log('Found subSetsId in set object:', response.subSetsId);
+        return response.subSetsId;
       }
-      const activeSets = response.currSet.filter(set => set.status === 'started' && (!set.endTime || set.endTime === 'Present'));
+      if (response.subSetId) {
+        console.log('Found subSetId in set object:', response.subSetId);
+        return response.subSetId;
+      }
+      if (response.subsetId) {
+        console.log('Found subsetId in set object:', response.subsetId);
+        return response.subsetId;
+      }
+    }
+
+    if (response && response.currSet && Array.isArray(response.currSet)) {
+      console.log('Checking currSet array:', response.currSet);
+
+      const latestSet = response.currSet[response.currSet.length - 1];
+      console.log('Latest set:', latestSet);
+
+      if (latestSet && latestSet.subSetsId) {
+        console.log('Found subSetsId in latest set:', latestSet.subSetsId);
+        return latestSet.subSetsId;
+      }
+      if (latestSet && latestSet.subSetId) {
+        console.log('Found subSetId in latest set:', latestSet.subSetId);
+        return latestSet.subSetId;
+      }
+      if (latestSet && latestSet.subsetId) {
+        console.log('Found subsetId in latest set:', latestSet.subsetId);
+        return latestSet.subsetId;
+      }
+
+      const activeSets = response.currSet.filter(
+        set => set.status === 'started' && (!set.endTime || set.endTime === 'Present')
+      );
+
       if (activeSets.length > 0) {
         const lastActiveSet = activeSets[activeSets.length - 1];
-        if (lastActiveSet.subSetsId) return lastActiveSet.subSetsId;
-        if (lastActiveSet.subSetId) return lastActiveSet.subSetId;
-        if (lastActiveSet.subsetId) return lastActiveSet.subsetId;
+        console.log('Last active set:', lastActiveSet);
+
+        if (lastActiveSet.subSetsId) {
+          console.log('Found subSetsId in active set:', lastActiveSet.subSetsId);
+          return lastActiveSet.subSetsId;
+        }
+        if (lastActiveSet.subSetId) {
+          console.log('Found subSetId in active set:', lastActiveSet.subSetId);
+          return lastActiveSet.subSetId;
+        }
+        if (lastActiveSet.subsetId) {
+          console.log('Found subsetId in active set:', lastActiveSet.subsetId);
+          return lastActiveSet.subsetId;
+        }
       }
     }
+
+    console.log('No subsetId found in response');
     return null;
   };
 
@@ -99,6 +226,7 @@ const TasksList = () => {
     setLoading(true);
     try {
       const storedRestartId = localStorage.getItem('brokerRestartId');
+
       if (storedRestartId) {
         setRestartId(parseInt(storedRestartId));
         logActivity('INIT', `Using stored restart ID: ${storedRestartId}`);
@@ -108,51 +236,89 @@ const TasksList = () => {
         const newRestartId = response.restartId;
         setRestartId(newRestartId);
         localStorage.setItem('brokerRestartId', newRestartId);
-        logActivity('API_SUCCESS', `New restart ID obtained: ${newRestartId}`);
+        logActivity('API_SUCCESS', `New restart ID obtained: ${newRestartId}`, response);
+
         await fetchBrokerStatus(newRestartId);
       }
     } catch (error) {
+      console.error('Error initializing restart ID:', error);
       logActivity('API_ERROR', `Failed to initialize: ${error.message}`);
     } finally {
       setLoading(false);
+      isInitializing.current = false;
     }
   };
 
+  // STEP 2: Fetch broker status to check if any set is in progress
   const fetchBrokerStatus = async (rid, silent = false) => {
     try {
       const statusResponse = await getBrokerRestartStatus(rid);
+      console.log('Broker status response:', statusResponse);
       setBrokerStatus(statusResponse);
-      if (!silent) logActivity('API_SUCCESS', 'Broker status fetched');
+      
+      if (!silent) {
+        logActivity('API_SUCCESS', 'Broker status fetched', statusResponse);
+      }
 
+      // Check if all 4 sets are completed
       if (statusResponse.currSet && statusResponse.currSet.length >= 4) {
-        const completedCount = statusResponse.currSet.filter(set => set.status === 'completed' || (set.endTime && set.endTime !== 'Present')).length;
+        const completedCount = statusResponse.currSet.filter(
+          set => set.status === 'completed' || (set.endTime && set.endTime !== 'Present')
+        ).length;
+
+        console.log(`Completed sets: ${completedCount}/4`);
+
         if (completedCount >= 4) {
           setAllSetsCompleted(true);
           setSelectedSetIndex(null);
           setCurrentSubsetId(null);
-          if (!silent) logActivity('INFO', 'All 4 sets completed');
+          if (!silent) {
+            logActivity('INFO', 'All 4 sets completed. Ready to start new session.');
+          }
           return;
         }
       }
 
+      // Check if there's an ongoing set
       if (statusResponse.currSet && statusResponse.currSet.length > 0) {
-        const activeSets = statusResponse.currSet.filter(set => set.status === 'started' && (!set.endTime || set.endTime === 'Present'));
+        const activeSets = statusResponse.currSet.filter(
+          set => set.status === 'started' && (!set.endTime || set.endTime === 'Present')
+        );
+
+        console.log('Active sets found:', activeSets.length);
+
         if (activeSets.length > 0) {
           const lastActiveSet = activeSets[activeSets.length - 1];
           const setIndex = statusResponse.currSet.indexOf(lastActiveSet);
           setSelectedSetIndex(setIndex);
 
           const subsetId = extractSubsetId(lastActiveSet);
+
           if (subsetId) {
             setCurrentSubsetId(subsetId);
             localStorage.setItem(`currentSubsetId_${rid}_${setIndex}`, subsetId);
+            if (!silent) {
+              logActivity('INFO', `Found active subset ID: ${subsetId} for set ${setIndex + 1}`);
+            }
           } else {
+            if (!silent) {
+              logActivity('WARNING', 'No subSetsId found in active set');
+            }
             const storedSubsetId = localStorage.getItem(`currentSubsetId_${rid}_${setIndex}`);
-            if (storedSubsetId) setCurrentSubsetId(storedSubsetId);
+            if (storedSubsetId) {
+              setCurrentSubsetId(storedSubsetId);
+              if (!silent) {
+                logActivity('INFO', `Using stored subset ID: ${storedSubsetId} for set ${setIndex + 1}`);
+              }
+            }
           }
 
+          // Determine which step we're on based on subtasks
           if (lastActiveSet.subTasks && lastActiveSet.subTasks.length > 0) {
-            setCurrentStep(lastActiveSet.subTasks.length + 1);
+            const completedStepsCount = lastActiveSet.subTasks.length;
+            setCurrentStep(completedStepsCount + 1);
+
+            // Update completed steps
             const updatedSteps = [...checklistSteps];
             lastActiveSet.subTasks.forEach((task, index) => {
               if (updatedSteps[index]) {
@@ -161,25 +327,49 @@ const TasksList = () => {
               }
             });
             setChecklistSteps(updatedSteps);
+
+            if (!silent) {
+              logActivity('RESUME', `Resuming set ${setIndex + 1} from step ${completedStepsCount + 1}`);
+            }
           } else {
+            if (!silent) {
+              logActivity('RESUME', `Starting new set ${setIndex + 1} from step 1`);
+            }
             setCurrentStep(1);
           }
-          if (!timer) startTimer();
+
+          if (!timer) {
+            startTimer();
+          }
         } else {
+          if (!silent) {
+            logActivity('INFO', 'No active set found. Ready to start a new set.');
+          }
           setSelectedSetIndex(null);
           setCurrentSubsetId(null);
         }
+      } else {
+        if (!silent) {
+          logActivity('INFO', 'No sets started yet. Ready to begin.');
+        }
+        setSelectedSetIndex(null);
+        setCurrentSubsetId(null);
       }
     } catch (error) {
-      if (!silent) logActivity('API_ERROR', `Failed to fetch status: ${error.message}`);
+      console.error('Error fetching broker status:', error);
+      if (!silent) {
+        logActivity('API_ERROR', `Failed to fetch status: ${error.message}`);
+      }
     }
   };
 
+  // STEP 4: Handle set start
   const handleSetStart = (setIndex) => {
     if (!isOperations) {
       alert('Only Operations team can start new sets.');
       return;
     }
+
     setSelectedSetIndex(setIndex);
     setShowSetModal(true);
     setSetStartData({ infraName: '', infraId: '' });
@@ -187,38 +377,97 @@ const TasksList = () => {
 
   const handleSetStartSubmit = async (e) => {
     e.preventDefault();
-    if (processingStep.current) return;
+    
+    if (processingStep.current) {
+      console.log('Already processing a request, please wait...');
+      return;
+    }
+
     processingStep.current = true;
     setLoading(true);
 
     try {
-      logActivity('SET_START', `Starting set ${selectedSetIndex + 1}`);
-      let restartIdToPass = (!brokerStatus?.currSet || brokerStatus.currSet.length === 0) ? null : restartId;
-      const response = await startBrokerRestartTask(setStartData.infraId, setStartData.infraName, restartIdToPass, selectedSetIndex + 1);
-      
-      if (response.brokerRestartId && response.brokerRestartId !== restartId) {
-        setRestartId(response.brokerRestartId);
-        localStorage.setItem('brokerRestartId', response.brokerRestartId);
+      logActivity('SET_START', `Starting set ${selectedSetIndex + 1}`, setStartData);
+
+      let restartIdToPass = null;
+      let setNumber = selectedSetIndex + 1;
+
+      if (!brokerStatus?.currSet || brokerStatus.currSet.length === 0) {
+        restartIdToPass = null;
+        logActivity('INFO', 'Starting first set - creating new session');
+      } else if (!allSetsCompleted && brokerStatus?.currSet?.length > 0) {
+        restartIdToPass = restartId;
+        logActivity('INFO', `Continuing session ${restartId} with set ${setNumber}`);
+      }
+
+      logActivity('INFO', `Calling API with restartId: ${restartIdToPass || 'null'}, setNumber: ${setNumber}`);
+
+      const response = await startBrokerRestartTask(
+        setStartData.infraId,
+        setStartData.infraName,
+        restartIdToPass,
+        setNumber
+      );
+
+      console.log('Start broker restart task response:', response);
+      logActivity('API_SUCCESS', `Set ${selectedSetIndex + 1} started successfully`, response);
+
+      if (response.brokerRestartId) {
+        const newRestartId = response.brokerRestartId;
+        if (newRestartId !== restartId) {
+          setRestartId(newRestartId);
+          localStorage.setItem('brokerRestartId', newRestartId);
+          logActivity('INFO', `New restart ID obtained from response: ${newRestartId}`);
+        }
       }
 
       let subsetId = extractSubsetId(response);
+
       if (!subsetId && response.currSet && response.currSet[selectedSetIndex]) {
-        subsetId = extractSubsetId(response.currSet[selectedSetIndex]);
+        const set = response.currSet[selectedSetIndex];
+        subsetId = extractSubsetId(set);
+        if (subsetId) {
+          logActivity('INFO', `Found subSetsId in set[${selectedSetIndex}]: ${subsetId}`);
+        }
       }
 
-      if (!subsetId) throw new Error('No subset ID received');
+      if (subsetId) {
+        setCurrentSubsetId(subsetId);
+        logActivity('INFO', `Subset ID obtained: ${subsetId} for set ${selectedSetIndex + 1}`);
 
-      setCurrentSubsetId(subsetId);
-      localStorage.setItem(`currentSubsetId_${response.brokerRestartId || restartId}_${selectedSetIndex}`, subsetId);
+        const currentRestartId = response.brokerRestartId || restartId;
+        if (currentRestartId) {
+          localStorage.setItem(`currentSubsetId_${currentRestartId}_${selectedSetIndex}`, subsetId);
+        }
+      } else {
+        logActivity('ERROR', 'No subset ID returned from API');
+        throw new Error('No subset ID received from server');
+      }
 
-      if (allSetsCompleted) setAllSetsCompleted(false);
+      if (allSetsCompleted) {
+        setAllSetsCompleted(false);
+        logActivity('INFO', `New session started`);
+      }
+
       setBrokerStatus(response);
       setShowSetModal(false);
       setCurrentStep(1);
-      setChecklistSteps(checklistSteps.map(s => ({ ...s, completed: false, completedTime: null, ackBy: null, ackTime: null })));
+
+      const resetSteps = checklistSteps.map(step => ({
+        ...step,
+        completed: false,
+        completedTime: null,
+        ackBy: null,
+        ackTime: null
+      }));
+      setChecklistSteps(resetSteps);
+
       startTimer();
-      logActivity('SET_INIT', `Set ${selectedSetIndex + 1} initialized`);
+
+      logActivity('SET_INIT', `Set ${selectedSetIndex + 1} initialized successfully`);
+
     } catch (error) {
+      console.error('Error starting set:', error);
       logActivity('API_ERROR', `Failed to start set: ${error.message}`);
       alert(`Failed to start set: ${error.message}`);
     } finally {
@@ -227,23 +476,51 @@ const TasksList = () => {
     }
   };
 
+  // STEP 5: Mark step as complete
   const completeStep = async (stepId) => {
+    // Only operations can mark steps as complete
     if (!isOperations) {
       alert('Only Operations team can mark steps as complete.');
       return;
     }
-    if (stepId !== currentStep || stepId === 11 || !currentSubsetId || processingStep.current) return;
+
+    // Skip if not the current step OR if it's the last step (support ack)
+    if (stepId !== currentStep || stepId === 11) return;
+
+    if (!currentSubsetId) {
+      logActivity('ERROR', 'No active subset ID. Cannot complete step.');
+      alert('Error: No active subset ID found. Please start a set first.');
+      return;
+    }
+
+    if (processingStep.current) {
+      console.log('Already processing a step, please wait...');
+      return;
+    }
 
     processingStep.current = true;
+
     try {
       const step = checklistSteps[stepId - 1];
+
+      logActivity('API_CALL', `Calling updateSubRestart for step ${stepId}: ${step.title}`, {
+        subsetId: currentSubsetId,
+        stepTitle: step.title
+      });
+
       await updateSubRestart(step.title, currentSubsetId);
-      logActivity('API_SUCCESS', `Step ${stepId} completed`);
+
+      logActivity('API_SUCCESS', `Step ${stepId} completed: ${step.title}`);
 
       const updatedSteps = [...checklistSteps];
-      updatedSteps[stepId - 1] = { ...updatedSteps[stepId - 1], completed: true, completedTime: new Date().toISOString() };
+      updatedSteps[stepId - 1] = {
+        ...updatedSteps[stepId - 1],
+        completed: true,
+        completedTime: new Date().toISOString()
+      };
       setChecklistSteps(updatedSteps);
 
+      // Move to next step
       if (stepId < checklistSteps.length) {
         setTimeout(() => {
           setCurrentStep(stepId + 1);
@@ -251,105 +528,188 @@ const TasksList = () => {
         }, 500);
       }
     } catch (error) {
-      logActivity('API_ERROR', `Failed to complete step: ${error.message}`);
+      console.error('Error completing step:', error);
+      logActivity('API_ERROR', `Failed to complete step ${stepId}: ${error.message}`);
       alert(`Failed to complete step: ${error.message}`);
     } finally {
       processingStep.current = false;
     }
   };
 
+  // STEP 6: Handle support acknowledgment (Last Step - Step 11)
   const handleSupportAckClick = () => {
+    // Only support users can acknowledge AND only when step 11 is current
     if (!isSupport) {
       alert('Only support team members can acknowledge completion.');
       return;
     }
+
     if (currentStep !== 11) {
       alert('Support acknowledgment is only available at step 11.');
       return;
     }
+
     setSupportAckModal(true);
     setSupportAckData({ name: '', id: '' });
   };
 
   const handleSupportAckSubmit = async (e) => {
     e.preventDefault();
-    if (!currentSubsetId || processingStep.current) return;
+
+    if (!currentSubsetId) {
+      logActivity('ERROR', 'No active subset ID. Cannot acknowledge support.');
+      alert('Error: No active subset ID found.');
+      return;
+    }
+
+    if (processingStep.current) {
+      console.log('Already processing a request, please wait...');
+      return;
+    }
 
     processingStep.current = true;
     setLoading(true);
 
     try {
-      await updateSetRestart(supportAckData.id, supportAckData.name, currentSubsetId);
-      logActivity('API_SUCCESS', `Support ack by ${supportAckData.name}`);
+      logActivity('API_CALL', `Completing set ${selectedSetIndex + 1} with support acknowledgment`, {
+        supportId: supportAckData.id,
+        supportName: supportAckData.name,
+        subSetsId: currentSubsetId
+      });
+
+      const updateResponse = await updateSetRestart(
+        supportAckData.id,
+        supportAckData.name,
+        currentSubsetId
+      );
+
+      logActivity('API_SUCCESS', `Support acknowledgment by ${supportAckData.name} (${supportAckData.id})`, updateResponse);
 
       const updatedSteps = [...checklistSteps];
-      updatedSteps[10] = { ...updatedSteps[10], completed: true, completedTime: new Date().toISOString(), ackBy: supportAckData.name, ackTime: new Date().toISOString() };
+      updatedSteps[10] = {
+        ...updatedSteps[10],
+        completed: true,
+        completedTime: new Date().toISOString(),
+        ackBy: supportAckData.name,
+        ackTime: new Date().toISOString()
+      };
       setChecklistSteps(updatedSteps);
 
+      logActivity('API_CALL', `Fetching broker status after set completion`);
+
       const statusResponse = await getBrokerRestartStatus(restartId);
+
+      logActivity('API_SUCCESS', `Broker status refreshed`, statusResponse);
       setBrokerStatus(statusResponse);
 
-      const completedCount = statusResponse.currSet?.filter(set => set.status === 'completed' || (set.endTime && set.endTime !== 'Present')).length || 0;
+      const completedCount = statusResponse.currSet?.filter(
+        set => set.status === 'completed' || (set.endTime && set.endTime !== 'Present')
+      ).length || 0;
+
+      logActivity('INFO', `Total completed sets: ${completedCount}/4`);
 
       if (completedCount >= 4) {
         setAllSetsCompleted(true);
         setSupportAckModal(false);
+        setSupportAckData({ name: '', id: '' });
         setSelectedSetIndex(null);
         setCurrentSubsetId(null);
+
+        logActivity('COMPLETE', 'All 4 sets completed! Broker restart activity finished.');
+
         if (timer) clearInterval(timer);
-        logActivity('COMPLETE', 'All 4 sets completed!');
+
       } else {
         setSupportAckModal(false);
-        setChecklistSteps(checklistSteps.map(s => ({ ...s, completed: false, completedTime: null, ackBy: null, ackTime: null })));
+        setSupportAckData({ name: '', id: '' });
+
+        const resetSteps = checklistSteps.map(step => ({
+          ...step,
+          completed: false,
+          completedTime: null,
+          ackBy: null,
+          ackTime: null
+        }));
+        setChecklistSteps(resetSteps);
+
         setCurrentStep(1);
         setTimeElapsed(0);
         setSelectedSetIndex(null);
         setCurrentSubsetId(null);
-        logActivity('SET_COMPLETE', `Set completed. Ready for next (${completedCount + 1}/4)`);
+
+        logActivity('SET_COMPLETE', `Set ${selectedSetIndex + 1} completed. Ready to start next set (${completedCount + 1}/4)`);
       }
+
     } catch (error) {
+      console.error('Error in support acknowledgment:', error);
       logActivity('API_ERROR', `Failed: ${error.message}`);
       alert(`Failed: ${error.message}`);
+      await fetchBrokerStatus(restartId);
     } finally {
       setLoading(false);
       processingStep.current = false;
     }
   };
 
+  // Handle resume of existing set
   const handleResumeSet = (setIndex, set) => {
     setSelectedSetIndex(setIndex);
-    const subsetId = extractSubsetId(set) || localStorage.getItem(`currentSubsetId_${restartId}_${setIndex}`);
-    if (!subsetId) {
-      alert('Cannot resume: Missing subset ID');
-      return;
+
+    const subsetId = extractSubsetId(set);
+
+    if (subsetId) {
+      setCurrentSubsetId(subsetId);
+      logActivity('INFO', `Resuming with subset ID: ${subsetId} for set ${setIndex + 1}`);
+    } else {
+      const storedSubsetId = localStorage.getItem(`currentSubsetId_${restartId}_${setIndex}`);
+      if (storedSubsetId) {
+        setCurrentSubsetId(storedSubsetId);
+        logActivity('INFO', `Using stored subset ID: ${storedSubsetId} for set ${setIndex + 1}`);
+      } else {
+        logActivity('WARNING', 'No subSetsId found in set, cannot resume');
+        alert('Cannot resume set: Missing subset ID');
+        return;
+      }
     }
-    setCurrentSubsetId(subsetId);
 
     if (set.subTasks && set.subTasks.length > 0) {
-      setCurrentStep(set.subTasks.length + 1);
+      const stepNumber = set.subTasks.length + 1;
+      setCurrentStep(stepNumber);
+
       const updatedSteps = [...checklistSteps];
-      set.subTasks.forEach((task, i) => {
-        if (updatedSteps[i]) {
-          updatedSteps[i].completed = true;
-          updatedSteps[i].completedTime = task.completion || new Date().toISOString();
+      set.subTasks.forEach((task, taskIndex) => {
+        if (updatedSteps[taskIndex]) {
+          updatedSteps[taskIndex].completed = true;
+          updatedSteps[taskIndex].completedTime = task.completion || new Date().toISOString();
         }
       });
       setChecklistSteps(updatedSteps);
+
+      logActivity('RESUME', `Resumed set ${setIndex + 1} at step ${stepNumber}`);
     } else {
       setCurrentStep(1);
+      logActivity('RESUME', `Starting set ${setIndex + 1} from beginning`);
     }
+
     startTimer();
   };
 
+  // Handle starting new session when all sets are completed
   const handleStartNewSession = () => {
     if (!isOperations) {
       alert('Only Operations team can start new sessions.');
       return;
     }
+
+    logActivity('NEW_SESSION', 'Starting new broker restart session from completion page');
+
     if (restartId) {
-      for (let i = 0; i < 4; i++) localStorage.removeItem(`currentSubsetId_${restartId}_${i}`);
+      for (let i = 0; i < 4; i++) {
+        localStorage.removeItem(`currentSubsetId_${restartId}_${i}`);
+      }
     }
     localStorage.removeItem('brokerRestartId');
+
     setAllSetsCompleted(false);
     setRestartId(null);
     setBrokerStatus(null);
@@ -357,33 +717,54 @@ const TasksList = () => {
     setCurrentSubsetId(null);
     setCurrentStep(1);
     setActivityLog([]);
-    setChecklistSteps(checklistSteps.map(s => ({ ...s, completed: false, completedTime: null, ackBy: null, ackTime: null })));
+
+    const resetSteps = checklistSteps.map(step => ({
+      ...step,
+      completed: false,
+      completedTime: null,
+      ackBy: null,
+      ackTime: null
+    }));
+    setChecklistSteps(resetSteps);
+
     if (timer) {
       clearInterval(timer);
       setTimer(null);
     }
+
     initializeRestartId();
   };
 
+  // Timer management
   const startTimer = () => {
     if (timer) clearInterval(timer);
     setTimeElapsed(0);
-    const newTimer = setInterval(() => setTimeElapsed(prev => prev + 1), 1000);
+    const newTimer = setInterval(() => {
+      setTimeElapsed(prev => prev + 1);
+    }, 1000);
     setTimer(newTimer);
   };
 
+  // Activity logging
   const logActivity = (type, message, data = null) => {
-    const logEntry = { timestamp: new Date(), type, message, data };
+    const logEntry = {
+      timestamp: new Date(),
+      type,
+      message,
+      data
+    };
     console.log(`[${type}] ${message}`, data);
     setActivityLog(prev => [logEntry, ...prev].slice(0, 50));
   };
 
+  // Format time
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
+  // Get status color
   const getStatusColor = (status) => {
     switch (status) {
       case 'pending': return '#ff7675';
@@ -393,12 +774,20 @@ const TasksList = () => {
     }
   };
 
-  const getNextSetIndex = () => brokerStatus?.currSet?.length || 0;
+  // Get the next available set index
+  const getNextSetIndex = () => {
+    if (!brokerStatus?.currSet) return 0;
+    return brokerStatus.currSet.length;
+  };
 
+  // Handle numeric input only
   const handleNumericInput = (e, field) => {
     const value = e.target.value.replace(/\D/g, '');
-    if (field === 'infraId') setSetStartData({ ...setStartData, infraId: value });
-    else if (field === 'supportId') setSupportAckData({ ...supportAckData, id: value });
+    if (field === 'infraId') {
+      setSetStartData({...setStartData, infraId: value});
+    } else if (field === 'supportId') {
+      setSupportAckData({...supportAckData, id: value});
+    }
   };
 
   const handleRefreshStatus = async () => {
