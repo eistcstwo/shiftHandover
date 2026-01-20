@@ -21,6 +21,7 @@ const TasksList = () => {
   const [currentSubsetId, setCurrentSubsetId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [allSetsCompleted, setAllSetsCompleted] = useState(false);
+  const [newSessionLoading, setNewSessionLoading] = useState(false);
 
   // Refs to track state and prevent race conditions
   const isInitializing = useRef(true);
@@ -363,6 +364,70 @@ const TasksList = () => {
     }
   };
 
+  // FIXED: Handle start new session button
+  const handleStartNewSession = async () => {
+    if (!isOperations) {
+      alert('Only Operations team can start new sessions.');
+      return;
+    }
+
+    logActivity('NEW_SESSION', 'Starting new broker restart session from completion page');
+    setNewSessionLoading(true);
+
+    try {
+      // Clear all localStorage entries for this session
+      if (restartId) {
+        for (let i = 0; i < 4; i++) {
+          localStorage.removeItem(`currentSubsetId_${restartId}_${i}`);
+        }
+      }
+      localStorage.removeItem('brokerRestartId');
+
+      // Reset all state
+      setAllSetsCompleted(false);
+      setRestartId(null);
+      setBrokerStatus(null);
+      setSelectedSetIndex(null);
+      setCurrentSubsetId(null);
+      setCurrentStep(1);
+      setActivityLog([]);
+
+      // Reset checklist
+      const resetSteps = checklistSteps.map(step => ({
+        ...step,
+        completed: false,
+        completedTime: null,
+        ackBy: null,
+        ackTime: null
+      }));
+      setChecklistSteps(resetSteps);
+
+      // Clear timer
+      if (timer) {
+        clearInterval(timer);
+        setTimer(null);
+      }
+
+      // Get a fresh restart ID WITHOUT calling fetchBrokerStatus
+      const response = await getRestartId();
+      const newRestartId = response.restartId;
+      setRestartId(newRestartId);
+      localStorage.setItem('brokerRestartId', newRestartId);
+      
+      logActivity('API_SUCCESS', `New session started with restart ID: ${newRestartId}`, response);
+      
+      // Fetch initial status for the new session
+      await fetchBrokerStatus(newRestartId);
+
+    } catch (error) {
+      console.error('Error starting new session:', error);
+      logActivity('API_ERROR', `Failed to start new session: ${error.message}`);
+      alert(`Failed to start new session: ${error.message}`);
+    } finally {
+      setNewSessionLoading(false);
+    }
+  };
+
   // STEP 4: Handle set start
   const handleSetStart = (setIndex) => {
     if (!isOperations) {
@@ -449,6 +514,7 @@ const TasksList = () => {
         logActivity('INFO', `New session started`);
       }
 
+      // FIXED: Set broker status immediately from response
       setBrokerStatus(response);
       setShowSetModal(false);
       setCurrentStep(1);
@@ -462,6 +528,10 @@ const TasksList = () => {
       }));
       setChecklistSteps(resetSteps);
 
+      // FIXED: Force update the UI with the current subset ID immediately
+      // Fetch fresh status to ensure everything is in sync
+      await fetchBrokerStatus(response.brokerRestartId || restartId, true);
+      
       startTimer();
 
       logActivity('SET_INIT', `Set ${selectedSetIndex + 1} initialized successfully`);
@@ -694,47 +764,6 @@ const TasksList = () => {
     startTimer();
   };
 
-  // Handle starting new session when all sets are completed
-  const handleStartNewSession = () => {
-    if (!isOperations) {
-      alert('Only Operations team can start new sessions.');
-      return;
-    }
-
-    logActivity('NEW_SESSION', 'Starting new broker restart session from completion page');
-
-    if (restartId) {
-      for (let i = 0; i < 4; i++) {
-        localStorage.removeItem(`currentSubsetId_${restartId}_${i}`);
-      }
-    }
-    localStorage.removeItem('brokerRestartId');
-
-    setAllSetsCompleted(false);
-    setRestartId(null);
-    setBrokerStatus(null);
-    setSelectedSetIndex(null);
-    setCurrentSubsetId(null);
-    setCurrentStep(1);
-    setActivityLog([]);
-
-    const resetSteps = checklistSteps.map(step => ({
-      ...step,
-      completed: false,
-      completedTime: null,
-      ackBy: null,
-      ackTime: null
-    }));
-    setChecklistSteps(resetSteps);
-
-    if (timer) {
-      clearInterval(timer);
-      setTimer(null);
-    }
-
-    initializeRestartId();
-  };
-
   // Timer management
   const startTimer = () => {
     if (timer) clearInterval(timer);
@@ -817,6 +846,7 @@ const TasksList = () => {
     );
   }
 
+  // Show completion page when all 4 sets are done
   if (allSetsCompleted) {
     return (
       <div className="tasks-list-page">
@@ -854,8 +884,12 @@ const TasksList = () => {
           </div>
 
           {isOperations && (
-            <button onClick={handleStartNewSession} className="btn-primary btn-large">
-              🔄 Start New Broker Restart Session
+            <button 
+              onClick={handleStartNewSession} 
+              className="btn-primary btn-large"
+              disabled={newSessionLoading}
+            >
+              {newSessionLoading ? 'Starting New Session...' : '🔄 Start New Broker Restart Session'}
             </button>
           )}
         </section>
