@@ -364,7 +364,7 @@ const TasksList = () => {
     }
   };
 
- // FIXED: Handle start new session button
+ // FIXED: Handle start new session button - Opens modal to start Set 1 directly
 const handleStartNewSession = async () => {
   if (!isOperations) {
     alert('Only Operations team can start new sessions.');
@@ -372,7 +372,6 @@ const handleStartNewSession = async () => {
   }
 
   logActivity('NEW_SESSION', 'Starting new broker restart session from completion page');
-  setNewSessionLoading(true);
 
   try {
     // Clear all localStorage entries for the previous session
@@ -387,7 +386,7 @@ const handleStartNewSession = async () => {
     setAllSetsCompleted(false);
     setRestartId(null);
     setBrokerStatus(null);
-    setSelectedSetIndex(null);
+    setSelectedSetIndex(0); // Set to 0 for Set 1
     setCurrentSubsetId(null);
     setCurrentStep(1);
     setActivityLog([]);
@@ -407,18 +406,17 @@ const handleStartNewSession = async () => {
       clearInterval(timer);
       setTimer(null);
     }
-
-    // DO NOT call getRestartId() or fetchBrokerStatus()
-    // The restart ID will be created when the user starts Set 1
     
-    logActivity('NEW_SESSION', 'Session reset complete. Ready to start Set 1.');
+    logActivity('NEW_SESSION', 'Session reset complete. Opening modal to start Set 1.');
+    
+    // Open the modal to start Set 1 immediately
+    setShowSetModal(true);
+    setSetStartData({ infraName: '', infraId: '' });
 
   } catch (error) {
     console.error('Error starting new session:', error);
     logActivity('API_ERROR', `Failed to start new session: ${error.message}`);
     alert(`Failed to start new session: ${error.message}`);
-  } finally {
-    setNewSessionLoading(false);
   }
 };
 
