@@ -364,7 +364,8 @@ const TasksList = () => {
     }
   };
 
- // FIXED: Handle start new session button - Opens modal to start Set 1 directly
+
+// FIXED: Handle start new session button - Opens modal to start Set 1 directly
 const handleStartNewSession = async () => {
   if (!isOperations) {
     alert('Only Operations team can start new sessions.');
@@ -419,7 +420,6 @@ const handleStartNewSession = async () => {
     alert(`Failed to start new session: ${error.message}`);
   }
 };
-
   
   // STEP 4: Handle set start
   const handleSetStart = (setIndex) => {
