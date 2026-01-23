@@ -123,7 +123,7 @@ const TasksList = () => {
     },
     {
       id: 11,
-      title: 'INFORM START OF ACTIVITY TO SUPPORT TEAM',
+      title: 'INFORM END OF ACTIVITY TO SUPPORT TEAM',
       description: 'Notify support team about activity completion',
       completed: false,
       completedTime: null,
@@ -256,7 +256,7 @@ const TasksList = () => {
       const statusResponse = await getBrokerRestartStatus(rid);
       console.log('Broker status response:', statusResponse);
       setBrokerStatus(statusResponse);
-      
+
       if (!silent) {
         logActivity('API_SUCCESS', 'Broker status fetched', statusResponse);
       }
@@ -407,9 +407,9 @@ const handleStartNewSession = async () => {
       clearInterval(timer);
       setTimer(null);
     }
-    
+
     logActivity('NEW_SESSION', 'Session reset complete. Opening modal to start Set 1.');
-    
+
     // Open the modal to start Set 1 immediately
     setShowSetModal(true);
     setSetStartData({ infraName: '', infraId: '' });
@@ -420,7 +420,7 @@ const handleStartNewSession = async () => {
     alert(`Failed to start new session: ${error.message}`);
   }
 };
-  
+
   // STEP 4: Handle set start
   const handleSetStart = (setIndex) => {
     if (!isOperations) {
@@ -435,7 +435,7 @@ const handleStartNewSession = async () => {
 
   const handleSetStartSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (processingStep.current) {
       console.log('Already processing a request, please wait...');
       return;
@@ -524,7 +524,7 @@ const handleStartNewSession = async () => {
       // FIXED: Force update the UI with the current subset ID immediately
       // Fetch fresh status to ensure everything is in sync
       await fetchBrokerStatus(response.brokerRestartId || restartId, true);
-      
+
       startTimer();
 
       logActivity('SET_INIT', `Set ${selectedSetIndex + 1} initialized successfully`);
@@ -877,8 +877,8 @@ const handleStartNewSession = async () => {
           </div>
 
           {isOperations && (
-            <button 
-              onClick={handleStartNewSession} 
+            <button
+              onClick={handleStartNewSession}
               className="btn-primary btn-large"
               disabled={newSessionLoading}
             >
@@ -1052,13 +1052,13 @@ const handleStartNewSession = async () => {
                       </div>
                     </div>
                     <p className="step-description">{step.description}</p>
-                    
+
                     {step.completedTime && (
                       <div className="step-completed-time">
                         <small>Completed at: {format(new Date(step.completedTime), 'h:mm:ss a')}</small>
                       </div>
                     )}
-                    
+
                     {step.id === 11 && step.ackBy && (
                       <div className="step-support-ack">
                         <strong>Acknowledged by:</strong> {step.ackBy}
@@ -1072,13 +1072,13 @@ const handleStartNewSession = async () => {
                           {processingStep.current ? 'Processing...' : 'Mark as Complete'}
                         </button>
                       )}
-                      
+
                       {isSupport && currentStep === 11 && step.id === 11 && !step.completed && (
                         <button onClick={handleSupportAckClick} className="btn-support-ack">
                           Acknowledge as Support Team
                         </button>
                       )}
-                      
+
                       {!isSupport && currentStep === 11 && step.id === 11 && !step.completed && (
                         <div className="waiting-support">
                           <span className="waiting-text">⏳ Waiting for Support team acknowledgment...</span>
@@ -1132,8 +1132,8 @@ const handleStartNewSession = async () => {
 
       <div className="footer-info">
         <p>
-          <strong>Note:</strong> 
-          {isOperations 
+          <strong>Note:</strong>
+          {isOperations
             ? " You are part of the Operations team. You can start sets and mark checklist steps as complete."
             : isSupport
             ? " You are part of the Support team. You can only acknowledge completion at Step 11."
