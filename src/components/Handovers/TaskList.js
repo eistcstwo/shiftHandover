@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { format } from 'date-fns';
 import './TasksList.css';
@@ -434,125 +435,171 @@ const handleStartNewSession = async () => {
   };
 
   const handleSetStartSubmit = async (e) => {
-  e.preventDefault();
+    e.preventDefault();
 
-  if (processingStep.current) {
-    console.log('Already processing a request, please wait...');
-    return;
-  }
-
-  processingStep.current = true;
-  setLoading(true);
-
-  try {
-    logActivity('SET_START', `Starting set ${selectedSetIndex + 1}`, setStartData);
-
-    let restartIdToPass = null;
-    let setNumber = selectedSetIndex + 1;
-
-    if (!brokerStatus?.currSet || brokerStatus.currSet.length === 0) {
-      restartIdToPass = null;
-      logActivity('INFO', 'Starting first set - creating new session');
-    } else if (!allSetsCompleted && brokerStatus?.currSet?.length > 0) {
-      restartIdToPass = restartId;
-      logActivity('INFO', `Continuing session ${restartId} with set ${setNumber}`);
+    if (processingStep.current) {
+      console.log('Already processing a request, please wait...');
+      return;
     }
 
-    logActivity('INFO', `Calling API with restartId: ${restartIdToPass || 'null'}, setNumber: ${setNumber}`);
+    processingStep.current = true;
+    setLoading(true);
 
-    const response = await startBrokerRestartTask(
-      setStartData.infraId,
-      setStartData.infraName,
-      restartIdToPass,
-      setNumber
-    );
+    try {
+      logActivity('SET_START', `Starting set ${selectedSetIndex + 1}`, setStartData);
 
-    console.log('Start broker restart task response:', response);
-    logActivity('API_SUCCESS', `Set ${selectedSetIndex + 1} started successfully`, response);
+      let restartIdToPass = null;
+      let setNumber = selectedSetIndex + 1;
 
-    // Extract and set the new restart ID
-    if (response.brokerRestartId) {
-      const newRestartId = response.brokerRestartId;
-      if (newRestartId !== restartId) {
-        setRestartId(newRestartId);
-        localStorage.setItem('brokerRestartId', newRestartId);
-        logActivity('INFO', `New restart ID obtained from response: ${newRestartId}`);
+      if (!brokerStatus?.currSet || brokerStatus.currSet.length === 0) {
+        restartIdToPass = null;
+        logActivity('INFO', 'Starting first set - creating new session');
+      } else if (!allSetsCompleted && brokerStatus?.currSet?.length > 0) {
+        restartIdToPass = restartId;
+        logActivity('INFO', `Continuing session ${restartId} with set ${setNumber}`);
       }
-    }
 
-    // FIXED: Extract subsetId directly from response.currSet (which is an object, not array)
-    let subsetId = null;
-    
-    // Check if currSet is an object (for first set)
-    if (response.currSet && typeof response.currSet === 'object' && !Array.isArray(response.currSet)) {
-      subsetId = response.currSet.subSetsId || response.currSet.subSetId || response.currSet.subsetId;
+      logActivity('INFO', `Calling API with restartId: ${restartIdToPass || 'null'}, setNumber: ${setNumber}`);
+
+      const response = await startBrokerRestartTask(
+        setStartData.infraId,
+        setStartData.infraName,
+        restartIdToPass,
+        setNumber
+      );
+
+      console.log('Start broker restart task response:', response);
+      logActivity('API_SUCCESS', `Set ${selectedSetIndex + 1} started successfully`, response);
+
+      if (response.brokerRestartId) {
+        const newRestartId = response.brokerRestartId;
+        if (newRestartId !== restartId) {
+          setRestartId(newRestartId);
+          localStorage.setItem('brokerRestartId', newRestartId);
+          logActivity('INFO', `New restart ID obtained from response: ${newRestartId}`);
+        }
+      }
+
+      let subsetId = extractSubsetId(response);
+
+      if (!subsetId && response.currSet && response.currSet[selectedSetIndex]) {
+        const set = response.currSet[selectedSetIndex];
+        subsetId = extractSubsetId(set);
+        if (subsetId) {
+          logActivity('INFO', `Found subSetsId in set[${selectedSetIndex}]: ${subsetId}`);
+        }
+      }
+
       if (subsetId) {
-        logActivity('INFO', `Found subSetsId in currSet object: ${subsetId}`);
+        setCurrentSubsetId(subsetId);
+        logActivity('INFO', `Subset ID obtained: ${subsetId} for set ${selectedSetIndex + 1}`);
+
+        const currentRestartId = response.brokerRestartId || restartId;
+        if (currentRestartId) {
+          localStorage.setItem(`currentSubsetId_${currentRestartId}_${selectedSetIndex}`, subsetId);
+        }
+      } else {
+        logActivity('ERROR', 'No subset ID returned from API');
+        throw new Error('No subset ID received from server');
       }
-    }
-    // Fallback: check if currSet is an array (for subsequent sets)
-    else if (response.currSet && Array.isArray(response.currSet) && response.currSet.length > 0) {
-      subsetId = extractSubsetId(response);
-    }
 
-    // If still no subsetId found, try extracting from top level response
-    if (!subsetId) {
-      subsetId = extractSubsetId(response);
-    }
-
-    if (subsetId) {
-      setCurrentSubsetId(subsetId);
-      logActivity('INFO', `Subset ID obtained: ${subsetId} for set ${selectedSetIndex + 1}`);
-
-      const currentRestartId = response.brokerRestartId || restartId;
-      if (currentRestartId) {
-        localStorage.setItem(`currentSubsetId_${currentRestartId}_${selectedSetIndex}`, subsetId);
+      if (allSetsCompleted) {
+        setAllSetsCompleted(false);
+        logActivity('INFO', `New session started`);
       }
-    } else {
-      logActivity('ERROR', 'No subset ID returned from API');
-      throw new Error('No subset ID received from server');
+
+      // FIXED: Set broker status immediately from response
+      setBrokerStatus(response);
+      setShowSetModal(false);
+      setCurrentStep(1);
+
+      const resetSteps = checklistSteps.map(step => ({
+        ...step,
+        completed: false,
+        completedTime: null,
+        ackBy: null,
+        ackTime: null
+      }));
+      setChecklistSteps(resetSteps);
+
+      // FIXED: Force update the UI with the current subset ID immediately
+      // Fetch fresh status to ensure everything is in sync
+      await fetchBrokerStatus(response.brokerRestartId || restartId, true);
+
+      startTimer();
+
+      logActivity('SET_INIT', `Set ${selectedSetIndex + 1} initialized successfully`);
+
+    } catch (error) {
+      console.error('Error starting set:', error);
+      logActivity('API_ERROR', `Failed to start set: ${error.message}`);
+      alert(`Failed to start set: ${error.message}`);
+    } finally {
+      setLoading(false);
+      processingStep.current = false;
+    }
+  };
+
+  // STEP 5: Mark step as complete
+  const completeStep = async (stepId) => {
+    // Only operations can mark steps as complete
+    if (!isOperations) {
+      alert('Only Operations team can mark steps as complete.');
+      return;
     }
 
-    if (allSetsCompleted) {
-      setAllSetsCompleted(false);
-      logActivity('INFO', `New session started`);
+    // Skip if not the current step OR if it's the last step (support ack)
+    if (stepId !== currentStep || stepId === 11) return;
+
+    if (!currentSubsetId) {
+      logActivity('ERROR', 'No active subset ID. Cannot complete step.');
+      alert('Error: No active subset ID found. Please start a set first.');
+      return;
     }
 
-    // Update broker status immediately from response
-    // Convert currSet to array format if it's an object
-    const normalizedResponse = {
-      ...response,
-      currSet: Array.isArray(response.currSet) 
-        ? response.currSet 
-        : (response.currSet ? [response.currSet] : [])
-    };
-    
-    setBrokerStatus(normalizedResponse);
-    setShowSetModal(false);
-    setCurrentStep(1);
+    if (processingStep.current) {
+      console.log('Already processing a step, please wait...');
+      return;
+    }
 
-    const resetSteps = checklistSteps.map(step => ({
-      ...step,
-      completed: false,
-      completedTime: null,
-      ackBy: null,
-      ackTime: null
-    }));
-    setChecklistSteps(resetSteps);
+    processingStep.current = true;
 
-    startTimer();
+    try {
+      const step = checklistSteps[stepId - 1];
 
-    logActivity('SET_INIT', `Set ${selectedSetIndex + 1} initialized successfully with subsetId: ${subsetId}`);
+      logActivity('API_CALL', `Calling updateSubRestart for step ${stepId}: ${step.title}`, {
+        subsetId: currentSubsetId,
+        stepTitle: step.title
+      });
 
-  } catch (error) {
-    console.error('Error starting set:', error);
-    logActivity('API_ERROR', `Failed to start set: ${error.message}`);
-    alert(`Failed to start set: ${error.message}`);
-  } finally {
-    setLoading(false);
-    processingStep.current = false;
-  }
-};
+      await updateSubRestart(step.title, currentSubsetId);
+
+      logActivity('API_SUCCESS', `Step ${stepId} completed: ${step.title}`);
+
+      const updatedSteps = [...checklistSteps];
+      updatedSteps[stepId - 1] = {
+        ...updatedSteps[stepId - 1],
+        completed: true,
+        completedTime: new Date().toISOString()
+      };
+      setChecklistSteps(updatedSteps);
+
+      // Move to next step
+      if (stepId < checklistSteps.length) {
+        setTimeout(() => {
+          setCurrentStep(stepId + 1);
+          setTimeElapsed(0);
+        }, 500);
+      }
+    } catch (error) {
+      console.error('Error completing step:', error);
+      logActivity('API_ERROR', `Failed to complete step ${stepId}: ${error.message}`);
+      alert(`Failed to complete step: ${error.message}`);
+    } finally {
+      processingStep.current = false;
+    }
+  };
+
   // STEP 6: Handle support acknowledgment (Last Step - Step 11)
   const handleSupportAckClick = () => {
     // Only support users can acknowledge AND only when step 11 is current
