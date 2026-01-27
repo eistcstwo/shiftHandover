@@ -503,15 +503,15 @@
   transform: none;
 }
 
-/* ===== ENHANCED MARK AS COMPLETE BUTTON ===== */
+/* ===== MEDIUM-SIZED MARK AS COMPLETE BUTTON ===== */
 .btn-complete-step {
-  padding: 1rem 2rem;
+  padding: 0.75rem 1.5rem;
   background: linear-gradient(135deg, rgba(0, 184, 148, 0.2) 0%, rgba(0, 168, 132, 0.15) 100%);
   color: var(--success-green);
   border: 2px solid rgba(0, 184, 148, 0.4);
-  border-radius: 12px;
+  border-radius: 10px;
   font-weight: 700;
-  font-size: 1rem;
+  font-size: 0.95rem;
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   box-shadow: 0 4px 15px rgba(0, 184, 148, 0.2);
@@ -519,7 +519,7 @@
   letter-spacing: 0.5px;
   position: relative;
   overflow: hidden;
-  width: 100%;
+  display: inline-block;
   margin-top: 1rem;
 }
 
@@ -537,19 +537,19 @@
 }
 
 .btn-complete-step:hover:not(:disabled) {
-  transform: translateY(-3px) scale(1.02);
-  box-shadow: 0 8px 30px rgba(0, 184, 148, 0.4);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 25px rgba(0, 184, 148, 0.35);
   background: linear-gradient(135deg, rgba(0, 184, 148, 0.3) 0%, rgba(0, 168, 132, 0.25) 100%);
   border-color: var(--success-green);
 }
 
 .btn-complete-step:hover:not(:disabled)::before {
-  width: 400px;
-  height: 400px;
+  width: 300px;
+  height: 300px;
 }
 
 .btn-complete-step:active:not(:disabled) {
-  transform: translateY(-1px) scale(1);
+  transform: translateY(0);
 }
 
 .btn-complete-step:disabled {
@@ -803,17 +803,13 @@
   box-shadow: 0 0 30px rgba(46, 213, 255, 0.12);
 }
 
-/* ===== REPOSITIONED STEP HEADER WITH STATUS ON LEFT ===== */
+/* ===== STEP HEADER WITH STATUS ON RIGHT ===== */
 .step-header {
   display: flex;
+  justify-content: space-between;
   align-items: flex-start;
   margin-bottom: 1rem;
   gap: 1rem;
-}
-
-.step-header .step-status {
-  flex-shrink: 0;
-  margin-right: 0.5rem;
 }
 
 .step-header h3 {
@@ -823,6 +819,11 @@
   color: var(--text-primary);
   flex: 1;
   line-height: 1.4;
+}
+
+.step-header .step-status {
+  flex-shrink: 0;
+  margin-left: 1rem;
 }
 
 .status-completed {
@@ -1198,8 +1199,8 @@
   }
 
   .step-header .step-status {
-    margin-right: 0;
-    margin-bottom: 0.5rem;
+    margin-left: 0;
+    align-self: flex-start;
   }
 
   .modal-container {
