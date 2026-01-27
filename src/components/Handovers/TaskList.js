@@ -227,7 +227,44 @@ const TasksList = () => {
         logActivity('INIT', `Using stored restart ID: ${storedRestartId}`);
         // Always fetch broker status on page refresh
         logActivity('API_CALL', 'Fetching broker status on page refresh');
-        await fetchBrokerStatus(parseInt(storedRestartId));
+        const statusResponse = await getBrokerRestartStatus(parseInt(storedRestartId));
+        setBrokerStatus(statusResponse);
+        logActivity('API_SUCCESS', 'Broker status fetched', statusResponse);
+        
+        // Check if support user and all sets completed - clear and reinitialize
+        if (isSupport && statusResponse?.currSet && statusResponse.currSet.length >= 4) {
+          const completedCount = statusResponse.currSet.filter(
+            set => set.status === 'completed' || (set.endTime && set.endTime !== 'Present')
+          ).length;
+          
+          if (completedCount >= 4) {
+            logActivity('SUPPORT_REFRESH', 'Support user refreshed after completion - clearing and reinitializing session');
+            
+            // Clear all localStorage entries
+            for (let i = 0; i < 4; i++) {
+              localStorage.removeItem(`currentSubsetId_${storedRestartId}_${i}`);
+            }
+            localStorage.removeItem('brokerRestartId');
+            
+            // Reset state
+            setAllSetsCompleted(false);
+            
+            // Get new restart ID
+            const response = await getRestartId();
+            const newRestartId = response.restartId;
+            setRestartId(newRestartId);
+            localStorage.setItem('brokerRestartId', newRestartId);
+            logActivity('API_SUCCESS', `New restart ID obtained after support refresh: ${newRestartId}`, response);
+            
+            // Fetch fresh broker status
+            logActivity('API_CALL', 'Fetching fresh broker status after reinitialization');
+            await fetchBrokerStatus(newRestartId);
+            return;
+          }
+        }
+        
+        // Normal flow - process the fetched status
+        await processBrokerStatus(statusResponse, parseInt(storedRestartId));
       } else {
         const response = await getRestartId();
         const newRestartId = response.restartId;
@@ -247,6 +284,104 @@ const TasksList = () => {
     }
   };
 
+  // Helper function to process broker status
+  const processBrokerStatus = async (statusResponse, rid, silent = false) => {
+    // Check if all 4 sets are completed
+    if (statusResponse.currSet && statusResponse.currSet.length >= 4) {
+      const completedCount = statusResponse.currSet.filter(
+        set => set.status === 'completed' || (set.endTime && set.endTime !== 'Present')
+      ).length;
+
+      console.log(`Completed sets: ${completedCount}/4`);
+
+      if (completedCount >= 4) {
+        setAllSetsCompleted(true);
+        setSelectedSetIndex(null);
+        setCurrentSubsetId(null);
+        if (!silent) {
+          logActivity('INFO', 'All 4 sets completed. Ready to start new session.');
+        }
+        return;
+      }
+    }
+
+    // Check if there's an ongoing set
+    if (statusResponse.currSet && statusResponse.currSet.length > 0) {
+      const activeSets = statusResponse.currSet.filter(
+        set => set.status === 'started' && (!set.endTime || set.endTime === 'Present')
+      );
+
+      console.log('Active sets found:', activeSets.length);
+
+      if (activeSets.length > 0) {
+        const lastActiveSet = activeSets[activeSets.length - 1];
+        const setIndex = statusResponse.currSet.indexOf(lastActiveSet);
+        setSelectedSetIndex(setIndex);
+
+        const subsetId = extractSubsetId(lastActiveSet);
+        if (subsetId) {
+          setCurrentSubsetId(subsetId);
+          localStorage.setItem(`currentSubsetId_${rid}_${setIndex}`, subsetId);
+          if (!silent) {
+            logActivity('INFO', `Found active subset ID: ${subsetId} for set ${setIndex + 1}`);
+          }
+        } else {
+          if (!silent) {
+            logActivity('WARNING', 'No subSetsId found in active set');
+          }
+          const storedSubsetId = localStorage.getItem(`currentSubsetId_${rid}_${setIndex}`);
+          if (storedSubsetId) {
+            setCurrentSubsetId(storedSubsetId);
+            if (!silent) {
+              logActivity('INFO', `Using stored subset ID: ${storedSubsetId} for set ${setIndex + 1}`);
+            }
+          }
+        }
+
+        // Determine which step we're on based on subtasks
+        if (lastActiveSet.subTasks && lastActiveSet.subTasks.length > 0) {
+          const completedStepsCount = lastActiveSet.subTasks.length;
+          setCurrentStep(completedStepsCount + 1);
+
+          // Update completed steps
+          const updatedSteps = [...checklistSteps];
+          lastActiveSet.subTasks.forEach((task, index) => {
+            if (updatedSteps[index]) {
+              updatedSteps[index].completed = true;
+              updatedSteps[index].completedTime = task.completion || new Date().toISOString();
+            }
+          });
+          setChecklistSteps(updatedSteps);
+
+          if (!silent) {
+            logActivity('RESUME', `Resuming set ${setIndex + 1} from step ${completedStepsCount + 1}`);
+          }
+        } else {
+          if (!silent) {
+            logActivity('RESUME', `Starting new set ${setIndex + 1} from step 1`);
+          }
+          setCurrentStep(1);
+        }
+
+        if (!timer) {
+          startTimer();
+        }
+      } else {
+        if (!silent) {
+          logActivity('INFO', 'No active set found. Ready to start a new set.');
+        }
+        setSelectedSetIndex(null);
+        setCurrentSubsetId(null);
+      }
+    } else {
+      if (!silent) {
+        logActivity('INFO', 'No sets started yet. Ready to begin.');
+      }
+      setSelectedSetIndex(null);
+      setCurrentSubsetId(null);
+    }
+  };
+
   // STEP 2: Fetch broker status to check if any set is in progress
   const fetchBrokerStatus = async (rid, silent = false) => {
     try {
@@ -258,100 +393,7 @@ const TasksList = () => {
         logActivity('API_SUCCESS', 'Broker status fetched', statusResponse);
       }
 
-      // Check if all 4 sets are completed
-      if (statusResponse.currSet && statusResponse.currSet.length >= 4) {
-        const completedCount = statusResponse.currSet.filter(
-          set => set.status === 'completed' || (set.endTime && set.endTime !== 'Present')
-        ).length;
-
-        console.log(`Completed sets: ${completedCount}/4`);
-
-        if (completedCount >= 4) {
-          setAllSetsCompleted(true);
-          setSelectedSetIndex(null);
-          setCurrentSubsetId(null);
-          if (!silent) {
-            logActivity('INFO', 'All 4 sets completed. Ready to start new session.');
-          }
-          return;
-        }
-      }
-
-      // Check if there's an ongoing set
-      if (statusResponse.currSet && statusResponse.currSet.length > 0) {
-        const activeSets = statusResponse.currSet.filter(
-          set => set.status === 'started' && (!set.endTime || set.endTime === 'Present')
-        );
-
-        console.log('Active sets found:', activeSets.length);
-
-        if (activeSets.length > 0) {
-          const lastActiveSet = activeSets[activeSets.length - 1];
-          const setIndex = statusResponse.currSet.indexOf(lastActiveSet);
-          setSelectedSetIndex(setIndex);
-
-          const subsetId = extractSubsetId(lastActiveSet);
-          if (subsetId) {
-            setCurrentSubsetId(subsetId);
-            localStorage.setItem(`currentSubsetId_${rid}_${setIndex}`, subsetId);
-            if (!silent) {
-              logActivity('INFO', `Found active subset ID: ${subsetId} for set ${setIndex + 1}`);
-            }
-          } else {
-            if (!silent) {
-              logActivity('WARNING', 'No subSetsId found in active set');
-            }
-            const storedSubsetId = localStorage.getItem(`currentSubsetId_${rid}_${setIndex}`);
-            if (storedSubsetId) {
-              setCurrentSubsetId(storedSubsetId);
-              if (!silent) {
-                logActivity('INFO', `Using stored subset ID: ${storedSubsetId} for set ${setIndex + 1}`);
-              }
-            }
-          }
-
-          // Determine which step we're on based on subtasks
-          if (lastActiveSet.subTasks && lastActiveSet.subTasks.length > 0) {
-            const completedStepsCount = lastActiveSet.subTasks.length;
-            setCurrentStep(completedStepsCount + 1);
-
-            // Update completed steps
-            const updatedSteps = [...checklistSteps];
-            lastActiveSet.subTasks.forEach((task, index) => {
-              if (updatedSteps[index]) {
-                updatedSteps[index].completed = true;
-                updatedSteps[index].completedTime = task.completion || new Date().toISOString();
-              }
-            });
-            setChecklistSteps(updatedSteps);
-
-            if (!silent) {
-              logActivity('RESUME', `Resuming set ${setIndex + 1} from step ${completedStepsCount + 1}`);
-            }
-          } else {
-            if (!silent) {
-              logActivity('RESUME', `Starting new set ${setIndex + 1} from step 1`);
-            }
-            setCurrentStep(1);
-          }
-
-          if (!timer) {
-            startTimer();
-          }
-        } else {
-          if (!silent) {
-            logActivity('INFO', 'No active set found. Ready to start a new set.');
-          }
-          setSelectedSetIndex(null);
-          setCurrentSubsetId(null);
-        }
-      } else {
-        if (!silent) {
-          logActivity('INFO', 'No sets started yet. Ready to begin.');
-        }
-        setSelectedSetIndex(null);
-        setCurrentSubsetId(null);
-      }
+      await processBrokerStatus(statusResponse, rid, silent);
     } catch (error) {
       console.error('Error fetching broker status:', error);
       if (!silent) {
@@ -663,27 +705,12 @@ const TasksList = () => {
       logActivity('INFO', `Total completed sets: ${completedCount}/4`);
 
       if (completedCount >= 4) {
-        // Clear localStorage for all subset IDs and restart ID
-        logActivity('INFO', 'Clearing localStorage for completed session');
-        if (restartId) {
-          for (let i = 0; i < 4; i++) {
-            localStorage.removeItem(`currentSubsetId_${restartId}_${i}`);
-          }
-        }
-        localStorage.removeItem('brokerRestartId');
-        
-        // Fetch fresh broker status after clearing localStorage
-        logActivity('API_CALL', 'Fetching fresh broker status after completion');
-        const freshStatusResponse = await getBrokerRestartStatus(restartId);
-        logActivity('API_SUCCESS', 'Fresh broker status fetched', freshStatusResponse);
-        setBrokerStatus(freshStatusResponse);
-        
         setAllSetsCompleted(true);
         setSupportAckModal(false);
         setSupportAckData({ name: '', id: '' });
         setSelectedSetIndex(null);
         setCurrentSubsetId(null);
-        logActivity('COMPLETE', 'All 4 sets completed! Broker restart activity finished. localStorage cleared.');
+        logActivity('COMPLETE', 'All 4 sets completed! Broker restart activity finished.');
         if (timer) clearInterval(timer);
       } else {
         setSupportAckModal(false);
