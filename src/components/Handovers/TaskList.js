@@ -1112,6 +1112,7 @@ const TasksList = () => {
 
                   <div className="step-content">
                     <div className="step-header">
+                      <h3>{step.title}</h3>
                       <div className="step-status">
                         {step.completed ? (
                           <span className="status-completed">✅ Completed</span>
@@ -1121,7 +1122,6 @@ const TasksList = () => {
                           <span className="status-pending">⏳ Pending</span>
                         )}
                       </div>
-                      <h3>{step.title}</h3>
                     </div>
 
                     <p className="step-description">{step.description}</p>
