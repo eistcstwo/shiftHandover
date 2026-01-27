@@ -663,12 +663,27 @@ const TasksList = () => {
       logActivity('INFO', `Total completed sets: ${completedCount}/4`);
 
       if (completedCount >= 4) {
+        // Clear localStorage for all subset IDs and restart ID
+        logActivity('INFO', 'Clearing localStorage for completed session');
+        if (restartId) {
+          for (let i = 0; i < 4; i++) {
+            localStorage.removeItem(`currentSubsetId_${restartId}_${i}`);
+          }
+        }
+        localStorage.removeItem('brokerRestartId');
+        
+        // Fetch fresh broker status after clearing localStorage
+        logActivity('API_CALL', 'Fetching fresh broker status after completion');
+        const freshStatusResponse = await getBrokerRestartStatus(restartId);
+        logActivity('API_SUCCESS', 'Fresh broker status fetched', freshStatusResponse);
+        setBrokerStatus(freshStatusResponse);
+        
         setAllSetsCompleted(true);
         setSupportAckModal(false);
         setSupportAckData({ name: '', id: '' });
         setSelectedSetIndex(null);
         setCurrentSubsetId(null);
-        logActivity('COMPLETE', 'All 4 sets completed! Broker restart activity finished.');
+        logActivity('COMPLETE', 'All 4 sets completed! Broker restart activity finished. localStorage cleared.');
         if (timer) clearInterval(timer);
       } else {
         setSupportAckModal(false);
