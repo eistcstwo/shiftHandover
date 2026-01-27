@@ -225,6 +225,8 @@ const TasksList = () => {
       if (storedRestartId) {
         setRestartId(parseInt(storedRestartId));
         logActivity('INIT', `Using stored restart ID: ${storedRestartId}`);
+        // Always fetch broker status on page refresh
+        logActivity('API_CALL', 'Fetching broker status on page refresh');
         await fetchBrokerStatus(parseInt(storedRestartId));
       } else {
         const response = await getRestartId();
@@ -232,6 +234,8 @@ const TasksList = () => {
         setRestartId(newRestartId);
         localStorage.setItem('brokerRestartId', newRestartId);
         logActivity('API_SUCCESS', `New restart ID obtained: ${newRestartId}`, response);
+        // Fetch broker status for new restart ID
+        logActivity('API_CALL', 'Fetching broker status for new restart ID');
         await fetchBrokerStatus(newRestartId);
       }
     } catch (error) {
