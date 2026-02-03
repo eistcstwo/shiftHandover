@@ -225,7 +225,8 @@ export const getBrokerRestartStatus = async (restartId) => {
 // STEP 3 & 4: Start broker restart task
 // If restartId is provided and currSet.length < 4, it creates a new subset
 // If restartId is NOT provided (undefined/null), it starts a completely new restart session
-export const startBrokerRestartTask = async (infraId, infraName, restartId = null) => {
+// setNumber indicates which set (1-4) is being started
+export const startBrokerRestartTask = async (infraId, infraName, restartId = null, setNumber = null) => {
   try {
     const payload = {
       infraId: infraId,
@@ -235,6 +236,11 @@ export const startBrokerRestartTask = async (infraId, infraName, restartId = nul
     // Only include restartId if it's provided and we want to add to existing session
     if (restartId !== null && restartId !== undefined) {
       payload.restartId = restartId;
+    }
+
+    // Include setNumber if provided
+    if (setNumber !== null && setNumber !== undefined) {
+      payload.setNumber = setNumber;
     }
 
     console.log('Starting broker restart task with payload:', payload);
