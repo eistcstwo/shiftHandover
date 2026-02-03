@@ -198,10 +198,6 @@ const TasksList = () => {
 
     // 5) Try currSet when it is an array
     if (response.currSet && Array.isArray(response.currSet)) {
-      const latestSet = response.currSet[response.currSet.length - 1];
-      const idFromLatest = pickId(latestSet);
-      if (idFromLatest != null) return idFromLatest;
-
       // Fallback: pick from the last active set (status === 'started' && endTime missing or "Present")
       const activeSets = response.currSet.filter(
         (set) => set && set.status === 'started' && (!set.endTime || set.endTime === 'Present')
@@ -211,6 +207,11 @@ const TasksList = () => {
         const idFromActive = pickId(lastActiveSet);
         if (idFromActive != null) return idFromActive;
       }
+
+      // If no active set found, try the very last entry in currSet
+      const latestSet = response.currSet[response.currSet.length - 1];
+      const idFromLatest = pickId(latestSet);
+      if (idFromLatest != null) return idFromLatest;
     }
 
     // 6) Nothing found
@@ -472,6 +473,7 @@ const TasksList = () => {
 
       logActivity('API_SUCCESS', `Set ${selectedSetIndex + 1} started successfully`, response);
 
+      // Update restartId if backend returned a new one
       if (response.brokerRestartId) {
         const newRestartId = response.brokerRestartId;
         if (newRestartId !== restartId) {
@@ -487,13 +489,14 @@ const TasksList = () => {
         subsetId = extractSubsetId(response.currSet[selectedSetIndex]);
       }
       if (!subsetId) {
-        logActivity('ERROR', 'No subset ID returned from API');
+        logActivity('ERROR', 'No subset ID returned from API. Full response: ' + JSON.stringify(response));
         throw new Error('No subset ID received from server');
       }
 
       setCurrentSubsetId(subsetId);
       logActivity('INFO', `Subset ID obtained: ${subsetId} for set ${selectedSetIndex + 1}`);
 
+      // Persist subsetId to localStorage
       const currentRestartId = response.brokerRestartId ?? restartId;
       if (currentRestartId) {
         localStorage.setItem(`currentSubsetId_${currentRestartId}_${selectedSetIndex}`, subsetId);
@@ -504,11 +507,15 @@ const TasksList = () => {
         logActivity('INFO', `New session started`);
       }
 
-      // Update brokerStatus immediately and close modal
+      // Set brokerStatus from the response we already have — DO NOT re-fetch here.
+      // A silent fetchBrokerStatus was previously called here, but if the backend
+      // hasn't fully registered the new set yet, processBrokerStatus inside it would
+      // find no active set and reset selectedSetIndex/currentSubsetId to null → blank screen.
+      // The 30-second polling interval in the useEffect above will keep status in sync.
       setBrokerStatus(response);
       setShowSetModal(false);
 
-      // Reset steps
+      // Reset checklist steps for the new set
       setCurrentStep(1);
       const resetSteps = checklistSteps.map((step) => ({
         ...step,
@@ -518,9 +525,6 @@ const TasksList = () => {
         ackTime: null
       }));
       setChecklistSteps(resetSteps);
-
-      // Fetch fresh status (silent) to ensure everything stays in sync (this is the part that used to cause a transient undefined state; guards added)
-      await fetchBrokerStatus(response.brokerRestartId ?? restartId, true); // silent refresh
 
       startTimer();
       logActivity('SET_INIT', `Set ${selectedSetIndex + 1} initialized successfully`);
@@ -611,8 +615,12 @@ const TasksList = () => {
 
     processingStep.current = true;
     setLoading(true);
+
+    // Capture selectedSetIndex now, before any state resets, so the log message is correct
+    const completedSetIndex = selectedSetIndex;
+
     try {
-      logActivity('API_CALL', `Completing set ${selectedSetIndex + 1} with support acknowledgment`, {
+      logActivity('API_CALL', `Completing set ${completedSetIndex + 1} with support acknowledgment`, {
         supportId: supportAckData.id,
         supportName: supportAckData.name,
         subSetsId: currentSubsetId
@@ -629,6 +637,7 @@ const TasksList = () => {
         updateResponse
       );
 
+      // Mark step 11 as completed in the UI immediately
       const updatedSteps = [...checklistSteps];
       updatedSteps[10] = {
         ...updatedSteps[10],
@@ -639,6 +648,7 @@ const TasksList = () => {
       };
       setChecklistSteps(updatedSteps);
 
+      // Fetch fresh status from backend to get the ground truth
       logActivity('API_CALL', `Fetching broker status after set completion`);
       const statusResponse = await getBrokerRestartStatus(restartId);
       logActivity('API_SUCCESS', `Broker status refreshed`, statusResponse);
@@ -651,18 +661,23 @@ const TasksList = () => {
 
       logActivity('INFO', `Total completed sets: ${completedCount}/4`);
 
+      // Close the modal and clear its data first
+      setSupportAckModal(false);
+      setSupportAckData({ name: '', id: '' });
+
       if (completedCount >= 4) {
+        // All done — show completion page
         setAllSetsCompleted(true);
-        setSupportAckModal(false);
-        setSupportAckData({ name: '', id: '' });
         setSelectedSetIndex(null);
         setCurrentSubsetId(null);
         logActivity('COMPLETE', 'All 4 sets completed! Broker restart activity finished.');
         if (timer) clearInterval(timer);
       } else {
-        setSupportAckModal(false);
-        setSupportAckData({ name: '', id: '' });
-
+        // More sets to go — reset checklist and let processBrokerStatus
+        // decide what selectedSetIndex / currentSubsetId should be.
+        // Previously we set both to null here manually, which caused a blank
+        // screen if processBrokerStatus then also set them to null before the
+        // next render committed. Now processBrokerStatus is the single source of truth.
         const resetStepsAfterAck = checklistSteps.map((step) => ({
           ...step,
           completed: false,
@@ -673,12 +688,15 @@ const TasksList = () => {
         setChecklistSteps(resetStepsAfterAck);
         setCurrentStep(1);
         setTimeElapsed(0);
-        setSelectedSetIndex(null);
-        setCurrentSubsetId(null);
+
         logActivity(
           'SET_COMPLETE',
-          `Set ${selectedSetIndex + 1} completed. Ready to start next set (${completedCount + 1}/4)`
+          `Set ${completedSetIndex + 1} completed. Ready to start next set (${completedCount + 1}/4)`
         );
+
+        // Let processBrokerStatus set selectedSetIndex and currentSubsetId
+        // based on the actual backend state instead of guessing
+        await processBrokerStatus(statusResponse, restartId);
       }
     } catch (error) {
       console.error('Error in support acknowledgment:', error);
