@@ -134,6 +134,25 @@ const TasksList = () => {
     }
   ]);
 
+  // Helper to normalize API response - ensures currSet is always an array
+  const normalizeBrokerStatus = (statusData) => {
+    if (!statusData) return null;
+    
+    console.log('Normalizing broker status:', statusData);
+    
+    // If currSet is an object (single set), wrap it in an array
+    if (statusData.currSet && typeof statusData.currSet === 'object' && !Array.isArray(statusData.currSet)) {
+      console.log('Converting currSet from object to array');
+      return {
+        ...statusData,
+        currSet: [statusData.currSet]
+      };
+    }
+    
+    // If currSet is already an array or doesn't exist, return as-is
+    return statusData;
+  };
+
   // STEP 1: Initialize - Get restart ID on component mount
   useEffect(() => {
     initializeRestartId();
@@ -190,7 +209,7 @@ const TasksList = () => {
     const topLevelId = pickId(response);
     if (topLevelId != null) return topLevelId;
 
-    // 4) Try currSet when it is an object
+    // 4) Try currSet when it is an object (SINGLE SET RESPONSE)
     if (response.currSet && typeof response.currSet === 'object' && !Array.isArray(response.currSet)) {
       const idFromObject = pickId(response.currSet);
       if (idFromObject != null) return idFromObject;
@@ -229,12 +248,13 @@ const TasksList = () => {
         // Always fetch broker status on page refresh
         logActivity('API_CALL', 'Fetching broker status on page refresh');
         const statusResponse = await getBrokerRestartStatus(parseInt(storedRestartId));
-        setBrokerStatus(statusResponse);
-        logActivity('API_SUCCESS', 'Broker status fetched', statusResponse);
+        const normalizedStatus = normalizeBrokerStatus(statusResponse);
+        setBrokerStatus(normalizedStatus);
+        logActivity('API_SUCCESS', 'Broker status fetched', normalizedStatus);
 
         // Check if support user and all sets completed - clear and reinitialize
-        if (isSupport && statusResponse?.currSet && statusResponse.currSet.length >= 4) {
-          const completedCount = statusResponse.currSet.filter(
+        if (isSupport && normalizedStatus?.currSet && normalizedStatus.currSet.length >= 4) {
+          const completedCount = normalizedStatus.currSet.filter(
             (set) => set.status === 'completed' && (set.endTime && set.endTime !== 'Present')
           ).length;
           if (completedCount >= 4) {
@@ -266,7 +286,7 @@ const TasksList = () => {
         }
 
         // Normal flow - process the fetched status
-        await processBrokerStatus(statusResponse, parseInt(storedRestartId));
+        await processBrokerStatus(normalizedStatus, parseInt(storedRestartId));
       } else {
         const response = await getRestartId();
         const newRestartId = response.restartId;
@@ -369,9 +389,10 @@ const TasksList = () => {
     try {
       const statusResponse = await getBrokerRestartStatus(rid);
       console.log('Broker status response:', statusResponse);
-      setBrokerStatus(statusResponse);
-      if (!silent) logActivity('API_SUCCESS', 'Broker status fetched', statusResponse);
-      await processBrokerStatus(statusResponse, rid, silent);
+      const normalizedStatus = normalizeBrokerStatus(statusResponse);
+      setBrokerStatus(normalizedStatus);
+      if (!silent) logActivity('API_SUCCESS', 'Broker status fetched', normalizedStatus);
+      await processBrokerStatus(normalizedStatus, rid, silent);
     } catch (error) {
       console.error('Error fetching broker status:', error);
       if (!silent) logActivity('API_ERROR', `Failed to fetch status: ${error.message}`);
@@ -485,8 +506,13 @@ const TasksList = () => {
 
       // Extract subset id from response
       let subsetId = extractSubsetId(response);
-      if (!subsetId && response.currSet && response.currSet[selectedSetIndex]) {
-        subsetId = extractSubsetId(response.currSet[selectedSetIndex]);
+      if (!subsetId && response.currSet) {
+        // Try to extract from currSet directly (handle both object and array)
+        if (Array.isArray(response.currSet) && response.currSet[selectedSetIndex]) {
+          subsetId = extractSubsetId(response.currSet[selectedSetIndex]);
+        } else if (typeof response.currSet === 'object' && !Array.isArray(response.currSet)) {
+          subsetId = extractSubsetId(response.currSet);
+        }
       }
       if (!subsetId) {
         logActivity('ERROR', 'No subset ID returned from API. Full response: ' + JSON.stringify(response));
@@ -507,12 +533,9 @@ const TasksList = () => {
         logActivity('INFO', `New session started`);
       }
 
-      // Set brokerStatus from the response we already have — DO NOT re-fetch here.
-      // A silent fetchBrokerStatus was previously called here, but if the backend
-      // hasn't fully registered the new set yet, processBrokerStatus inside it would
-      // find no active set and reset selectedSetIndex/currentSubsetId to null → blank screen.
-      // The 30-second polling interval in the useEffect above will keep status in sync.
-      setBrokerStatus(response);
+      // CRITICAL FIX: Normalize the response before setting broker status
+      const normalizedResponse = normalizeBrokerStatus(response);
+      setBrokerStatus(normalizedResponse);
       setShowSetModal(false);
 
       // Reset checklist steps for the new set
@@ -651,11 +674,12 @@ const TasksList = () => {
       // Fetch fresh status from backend to get the ground truth
       logActivity('API_CALL', `Fetching broker status after set completion`);
       const statusResponse = await getBrokerRestartStatus(restartId);
-      logActivity('API_SUCCESS', `Broker status refreshed`, statusResponse);
-      setBrokerStatus(statusResponse);
+      const normalizedStatus = normalizeBrokerStatus(statusResponse);
+      logActivity('API_SUCCESS', `Broker status refreshed`, normalizedStatus);
+      setBrokerStatus(normalizedStatus);
 
       const completedCount =
-        statusResponse.currSet?.filter(
+        normalizedStatus.currSet?.filter(
           (set) => set.status === 'completed' && (set.endTime && set.endTime !== 'Present')
         ).length ?? 0;
 
@@ -675,9 +699,6 @@ const TasksList = () => {
       } else {
         // More sets to go — reset checklist and let processBrokerStatus
         // decide what selectedSetIndex / currentSubsetId should be.
-        // Previously we set both to null here manually, which caused a blank
-        // screen if processBrokerStatus then also set them to null before the
-        // next render committed. Now processBrokerStatus is the single source of truth.
         const resetStepsAfterAck = checklistSteps.map((step) => ({
           ...step,
           completed: false,
@@ -696,7 +717,7 @@ const TasksList = () => {
 
         // Let processBrokerStatus set selectedSetIndex and currentSubsetId
         // based on the actual backend state instead of guessing
-        await processBrokerStatus(statusResponse, restartId);
+        await processBrokerStatus(normalizedStatus, restartId);
       }
     } catch (error) {
       console.error('Error in support acknowledgment:', error);
