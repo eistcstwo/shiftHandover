@@ -1,40 +1,16 @@
-{brokerRestartId: 94, startTiming: "2026-01-23 13:45:27.319353",…}
-brokerRestartId
-: 
-94
-currSet
-: 
-{subSetsId: 142, status: "started", startTime: "2026-01-23 13:45:27.319353", endTime: "Present",…}
-brokerRestartId_id
-: 
-94
-endTime
-: 
-"Present"
-infraId
-: 
-"123456"
-infraName
-: 
-"aryan"
-startTime
-: 
-"2026-01-23 13:45:27.319353"
-status
-: 
-"started"
-subSetsId
-: 
-142
-supportName
-: 
-""
-supportTime
-: 
-"Pending"
-supportid
-: 
-"pending"
-startTiming
-: 
-"2026-01-23 13:45:27.319353"
+{
+    "brokerRestartId": 117,
+    "startTiming": "2026-02-03 14:57:59.266684",
+    "currSet": {
+        "subSetsId": 193,
+        "status": "started",
+        "startTime": "2026-02-03 14:57:59.266684",
+        "endTime": "Present",
+        "supportTime": "Pending",
+        "supportid": "pending",
+        "supportName": "",
+        "infraId": "123456",
+        "infraName": "dfsf",
+        "brokerRestartId_id": 117
+    }
+}
