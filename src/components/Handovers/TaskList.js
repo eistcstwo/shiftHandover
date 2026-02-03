@@ -820,14 +820,56 @@ const TasksList = () => {
     return brokerStatus.currSet.length;
   };
 
-  // Handle numeric input only
-  const handleNumericInput = (e, field) => {
-    const value = e.target.value.replace(/\D/g, '');
-    if (field === 'infraId') {
-      setSetStartData({ ...setStartData, infraId: value });
-    } else if (field === 'supportId') {
-      setSupportAckData({ ...supportAckData, id: value });
+  // Handle numeric input for infra ID (max 7 digits for manual entry)
+  const handleInfraIdInput = (e) => {
+    const value = e.target.value.replace(/\D/g, ''); // Remove non-numeric characters
+    // Limit to 7 digits for manual entry
+    const limited = value.slice(0, 7);
+    setSetStartData({ ...setStartData, infraId: limited });
+  };
+
+  // Handle numeric input for support ID (max 7 digits for manual entry)
+  const handleSupportIdInput = (e) => {
+    const value = e.target.value.replace(/\D/g, ''); // Remove non-numeric characters
+    // Limit to 7 digits for manual entry
+    const limited = value.slice(0, 7);
+    setSupportAckData({ ...supportAckData, id: limited });
+  };
+
+  // Handle "Use Current User Info" button click for Set Start Modal
+  const handleUseCurrentUserInfo = () => {
+    const uidd = localStorage.getItem('uidd') || '';
+    const username = localStorage.getItem('username') || '';
+    
+    if (!uidd || !username) {
+      alert('User information not found in local storage. Please enter details manually.');
+      return;
     }
+    
+    setSetStartData({
+      infraId: uidd, // Use exact value from localStorage (may contain letters)
+      infraName: username
+    });
+    
+    logActivity('USER_INFO', `Auto-filled with current user: ${username} (${uidd})`);
+  };
+
+  // Handle "Use Current User Info" button click for Support Acknowledgment Modal
+  const handleUseSupportUserInfo = () => {
+    const uidd = localStorage.getItem('uidd') || '';
+    const username = localStorage.getItem('username') || '';
+    
+    if (!uidd || !username) {
+      alert('User information not found in local storage. Please enter details manually.');
+      return;
+    }
+    
+    setSupportAckData({
+      id: uidd, // Use exact value from localStorage (may contain letters)
+      name: username
+    });
+    
+    logActivity('USER_INFO', `Auto-filled support info with current user: ${username} (${uidd})`);
   };
 
   const handleRefreshStatus = async () => {
@@ -1052,6 +1094,43 @@ const TasksList = () => {
             </div>
 
             <form onSubmit={handleSetStartSubmit} className="modal-form">
+              <div style={{ marginBottom: '1.5rem', textAlign: 'center' }}>
+                <button
+                  type="button"
+                  onClick={handleUseCurrentUserInfo}
+                  className="btn-secondary"
+                  style={{
+                    width: '100%',
+                    padding: '1rem',
+                    background: 'linear-gradient(135deg, rgba(46, 213, 255, 0.1) 0%, rgba(138, 43, 226, 0.08) 100%)',
+                    border: '2px solid var(--border-color)',
+                    color: 'var(--primary-blue)',
+                    fontWeight: '600',
+                    fontSize: '0.95rem',
+                    cursor: 'pointer',
+                    borderRadius: '10px',
+                    transition: 'all 0.3s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.background = 'linear-gradient(135deg, rgba(46, 213, 255, 0.15) 0%, rgba(138, 43, 226, 0.12) 100%)';
+                    e.target.style.borderColor = 'var(--primary-blue)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.background = 'linear-gradient(135deg, rgba(46, 213, 255, 0.1) 0%, rgba(138, 43, 226, 0.08) 100%)';
+                    e.target.style.borderColor = 'var(--border-color)';
+                  }}
+                >
+                  👤 Use Current User Info
+                </button>
+                <p style={{ 
+                  margin: '0.75rem 0 0 0', 
+                  fontSize: '0.85rem', 
+                  color: 'var(--text-secondary)' 
+                }}>
+                  Or enter details manually below
+                </p>
+              </div>
+
               <div className="form-group">
                 <label>Infrastructure Name</label>
                 <input
@@ -1069,12 +1148,20 @@ const TasksList = () => {
                 <input
                   type="text"
                   value={setStartData.infraId}
-                  onChange={(e) => handleNumericInput(e, 'infraId')}
-                  placeholder="Enter infra ID"
+                  onChange={handleInfraIdInput}
+                  placeholder="Enter infra ID (max 7 digits)"
                   required
                   className="form-input"
-                  pattern="\d+"
+                  maxLength={7}
                 />
+                <small style={{ 
+                  display: 'block', 
+                  marginTop: '0.5rem', 
+                  color: 'var(--text-secondary)', 
+                  fontSize: '0.85rem' 
+                }}>
+                  Manual entry: Numbers only, maximum 7 digits
+                </small>
               </div>
 
               <div className="modal-actions">
@@ -1099,6 +1186,43 @@ const TasksList = () => {
             </div>
 
             <form onSubmit={handleSupportAckSubmit} className="modal-form">
+              <div style={{ marginBottom: '1.5rem', textAlign: 'center' }}>
+                <button
+                  type="button"
+                  onClick={handleUseSupportUserInfo}
+                  className="btn-secondary"
+                  style={{
+                    width: '100%',
+                    padding: '1rem',
+                    background: 'linear-gradient(135deg, rgba(0, 184, 148, 0.1) 0%, rgba(0, 168, 132, 0.08) 100%)',
+                    border: '2px solid rgba(0, 184, 148, 0.3)',
+                    color: 'var(--success-green)',
+                    fontWeight: '600',
+                    fontSize: '0.95rem',
+                    cursor: 'pointer',
+                    borderRadius: '10px',
+                    transition: 'all 0.3s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.background = 'linear-gradient(135deg, rgba(0, 184, 148, 0.15) 0%, rgba(0, 168, 132, 0.12) 100%)';
+                    e.target.style.borderColor = 'var(--success-green)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.background = 'linear-gradient(135deg, rgba(0, 184, 148, 0.1) 0%, rgba(0, 168, 132, 0.08) 100%)';
+                    e.target.style.borderColor = 'rgba(0, 184, 148, 0.3)';
+                  }}
+                >
+                  👤 Use Current User Info
+                </button>
+                <p style={{ 
+                  margin: '0.75rem 0 0 0', 
+                  fontSize: '0.85rem', 
+                  color: 'var(--text-secondary)' 
+                }}>
+                  Or enter details manually below
+                </p>
+              </div>
+
               <div className="form-group">
                 <label>Support Team Member Name</label>
                 <input
@@ -1116,12 +1240,20 @@ const TasksList = () => {
                 <input
                   type="text"
                   value={supportAckData.id}
-                  onChange={(e) => handleNumericInput(e, 'supportId')}
-                  placeholder="Enter ID"
+                  onChange={handleSupportIdInput}
+                  placeholder="Enter ID (max 7 digits)"
                   required
                   className="form-input"
-                  pattern="\d+"
+                  maxLength={7}
                 />
+                <small style={{ 
+                  display: 'block', 
+                  marginTop: '0.5rem', 
+                  color: 'var(--text-secondary)', 
+                  fontSize: '0.85rem' 
+                }}>
+                  Manual entry: Numbers only, maximum 7 digits
+                </small>
               </div>
 
               <div className="modal-actions">
