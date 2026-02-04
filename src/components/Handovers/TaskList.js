@@ -360,8 +360,19 @@ const TasksList = () => {
 
         // CRITICAL: Store infraId as expectedUserId in localStorage for authorization
         if (lastActiveSet.infraId) {
-          localStorage.setItem(`expectedUserId_${rid}_${setIndex}`, lastActiveSet.infraId);
-          if (!silent) logActivity('INFO', `Stored expected user ID: ${lastActiveSet.infraId} for set ${setIndex + 1}`);
+          const infraIdToSave = String(lastActiveSet.infraId).trim();
+          if (infraIdToSave && infraIdToSave !== '' && infraIdToSave !== 'undefined') {
+            const storageKey = `expectedUserId_${rid}_${setIndex}`;
+            localStorage.setItem(storageKey, infraIdToSave);
+            if (!silent) {
+              logActivity('INFRA_ID_SAVED', `Stored expected user ID: ${infraIdToSave} for set ${setIndex + 1}`);
+            }
+            console.log(`[CRITICAL] Saved ${storageKey} = ${infraIdToSave} from processBrokerStatus`);
+          } else {
+            console.warn('[WARNING] infraId is empty or invalid:', lastActiveSet.infraId);
+          }
+        } else {
+          console.warn('[WARNING] No infraId found in lastActiveSet');
         }
 
         const subsetId = extractSubsetId(lastActiveSet);
@@ -420,6 +431,22 @@ const TasksList = () => {
       const statusResponse = await getBrokerRestartStatus(rid);
       console.log('Broker status response:', statusResponse);
       const normalizedStatus = normalizeBrokerStatus(statusResponse);
+      
+      // CRITICAL: Save infraId from API response immediately for each set
+      if (normalizedStatus?.currSet && Array.isArray(normalizedStatus.currSet)) {
+        normalizedStatus.currSet.forEach((set, index) => {
+          if (set.infraId && set.infraId.trim() !== '') {
+            const existingExpectedId = localStorage.getItem(`expectedUserId_${rid}_${index}`);
+            if (!existingExpectedId || existingExpectedId === '' || existingExpectedId === 'undefined') {
+              localStorage.setItem(`expectedUserId_${rid}_${index}`, set.infraId);
+              if (!silent) {
+                logActivity('INFRA_ID_SAVED', `Saved infraId from API: ${set.infraId} for set ${index + 1}`);
+              }
+            }
+          }
+        });
+      }
+      
       setBrokerStatus(normalizedStatus);
       if (!silent) logActivity('API_SUCCESS', 'Broker status fetched', normalizedStatus);
       await processBrokerStatus(normalizedStatus, rid, silent);
@@ -559,9 +586,16 @@ const TasksList = () => {
       const currentRestartId = response.brokerRestartId ?? restartId;
       if (currentRestartId) {
         localStorage.setItem(`currentSubsetId_${currentRestartId}_${selectedSetIndex}`, subsetId);
-        // CRITICAL: Store infraId as expectedUserId when starting a set
-        localStorage.setItem(`expectedUserId_${currentRestartId}_${selectedSetIndex}`, setStartData.infraId);
-        logActivity('INFO', `Stored expected user ID: ${setStartData.infraId} for set ${selectedSetIndex + 1}`);
+        
+        // CRITICAL: Store infraId as expectedUserId when starting a set - PRIMARY SAVE POINT
+        const infraIdToSave = setStartData.infraId.trim();
+        if (infraIdToSave) {
+          localStorage.setItem(`expectedUserId_${currentRestartId}_${selectedSetIndex}`, infraIdToSave);
+          logActivity('INFRA_ID_SAVED', `Stored expected user ID: ${infraIdToSave} for set ${selectedSetIndex + 1}`);
+          console.log(`[CRITICAL] Saved expectedUserId_${currentRestartId}_${selectedSetIndex} = ${infraIdToSave}`);
+        } else {
+          logActivity('WARNING', 'infraId is empty, cannot save expected user ID');
+        }
       }
 
       if (allSetsCompleted) {
@@ -602,14 +636,29 @@ const TasksList = () => {
   const checkUserAuthorization = (userId) => {
     if (!restartId || selectedSetIndex === null) {
       logActivity('WARNING', 'No restart ID or set index available for authorization check');
+      console.error('[AUTH] Missing restartId or selectedSetIndex', { restartId, selectedSetIndex });
       return false;
     }
 
     // Get the expected user ID from localStorage
-    const expectedUserId = localStorage.getItem(`expectedUserId_${restartId}_${selectedSetIndex}`);
+    const storageKey = `expectedUserId_${restartId}_${selectedSetIndex}`;
+    const expectedUserId = localStorage.getItem(storageKey);
+    
+    console.log('[AUTH] Authorization check:', {
+      storageKey,
+      expectedUserId,
+      userId,
+      restartId,
+      selectedSetIndex,
+      allLocalStorageKeys: Object.keys(localStorage).filter(k => k.includes('expectedUserId'))
+    });
     
     if (!expectedUserId) {
-      logActivity('WARNING', 'No expected user ID found in localStorage');
+      logActivity('WARNING', `No expected user ID found in localStorage for key: ${storageKey}`);
+      console.error('[AUTH] localStorage does not have expected user ID', {
+        storageKey,
+        allKeys: Object.keys(localStorage)
+      });
       return false;
     }
 
@@ -620,6 +669,12 @@ const TasksList = () => {
       'AUTH_CHECK',
       `Authorization check: userId=${userId}, expectedUserId=${expectedUserId}, authorized=${authorized}`
     );
+    
+    console.log('[AUTH] Comparison result:', {
+      userId: String(userId).trim(),
+      expectedUserId: String(expectedUserId).trim(),
+      authorized
+    });
 
     return authorized;
   };
@@ -1645,6 +1700,51 @@ const TasksList = () => {
               No activity logs yet.
             </p>
           )}
+        </div>
+      </div>
+
+      {/* DEBUG SECTION - Shows localStorage state */}
+      <div className="activity-log-section" style={{ marginTop: '1rem' }}>
+        <h2>🔍 Debug Info - localStorage State</h2>
+        <div style={{ 
+          background: 'rgba(0, 0, 0, 0.3)', 
+          padding: '1rem', 
+          borderRadius: '8px',
+          fontFamily: 'monospace',
+          fontSize: '0.85rem',
+          color: 'var(--text-secondary)'
+        }}>
+          <div style={{ marginBottom: '0.5rem' }}>
+            <strong style={{ color: 'var(--primary-blue)' }}>brokerRestartId:</strong> {localStorage.getItem('brokerRestartId') || 'not set'}
+          </div>
+          <div style={{ marginBottom: '0.5rem' }}>
+            <strong style={{ color: 'var(--primary-blue)' }}>Current User (uidd):</strong> {localStorage.getItem('uidd') || 'not set'}
+          </div>
+          <div style={{ marginBottom: '0.5rem' }}>
+            <strong style={{ color: 'var(--primary-blue)' }}>Selected Set Index:</strong> {selectedSetIndex !== null ? selectedSetIndex : 'none'}
+          </div>
+          <hr style={{ margin: '0.75rem 0', borderColor: 'rgba(255,255,255,0.1)' }} />
+          <div><strong style={{ color: 'var(--warning-yellow)' }}>Expected User IDs:</strong></div>
+          {[0, 1, 2, 3].map(i => {
+            const key = `expectedUserId_${localStorage.getItem('brokerRestartId')}_${i}`;
+            const value = localStorage.getItem(key);
+            return (
+              <div key={i} style={{ marginLeft: '1rem', color: value ? 'var(--success-green)' : 'var(--text-secondary)' }}>
+                Set {i + 1}: {value || 'not set'}
+              </div>
+            );
+          })}
+          <hr style={{ margin: '0.75rem 0', borderColor: 'rgba(255,255,255,0.1)' }} />
+          <div><strong style={{ color: 'var(--warning-yellow)' }}>Subset IDs:</strong></div>
+          {[0, 1, 2, 3].map(i => {
+            const key = `currentSubsetId_${localStorage.getItem('brokerRestartId')}_${i}`;
+            const value = localStorage.getItem(key);
+            return (
+              <div key={i} style={{ marginLeft: '1rem', color: value ? 'var(--success-green)' : 'var(--text-secondary)' }}>
+                Set {i + 1}: {value || 'not set'}
+              </div>
+            );
+          })}
         </div>
       </div>
 
