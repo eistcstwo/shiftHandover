@@ -47,6 +47,14 @@ const TasksList = () => {
   });
   const [supportManualEntryMode, setSupportManualEntryMode] = useState(false);
 
+  // NEW: State for step completion authorization modal
+  const [stepAuthModal, setStepAuthModal] = useState(false);
+  const [stepAuthData, setStepAuthData] = useState({
+    userId: ''
+  });
+  const [stepAuthManualMode, setStepAuthManualMode] = useState(false);
+  const [pendingStepId, setPendingStepId] = useState(null);
+
   // State for current step tracking
   const [currentStep, setCurrentStep] = useState(1);
   const [timer, setTimer] = useState(null);
@@ -267,6 +275,9 @@ const TasksList = () => {
         setBrokerStatus(normalizedStatus);
         logActivity('API_SUCCESS', 'Broker status fetched', normalizedStatus);
 
+        // Store expected user ID from the active set
+        storeExpectedUserId(normalizedStatus, parseInt(storedRestartId));
+
         // Check if support user and all sets completed - clear and reinitialize
         if (isSupport && normalizedStatus?.currSet && normalizedStatus.currSet.length >= 4) {
           const completedCount = normalizedStatus.currSet.filter(
@@ -280,6 +291,7 @@ const TasksList = () => {
             // Clear all localStorage entries
             for (let i = 0; i < 4; i++) {
               localStorage.removeItem(`currentSubsetId_${storedRestartId}_${i}`);
+              localStorage.removeItem(`expectedUserId_${storedRestartId}_${i}`);
             }
             localStorage.removeItem('brokerRestartId');
 
@@ -322,8 +334,26 @@ const TasksList = () => {
     }
   };
 
+  // NEW: Store expected user ID from the active set
+  const storeExpectedUserId = (statusResponse, rid) => {
+    if (statusResponse?.currSet && Array.isArray(statusResponse.currSet)) {
+      statusResponse.currSet.forEach((set, index) => {
+        if (set.infraId && set.status === 'started') {
+          const key = `expectedUserId_${rid}_${index}`;
+          localStorage.setItem(key, set.infraId);
+          logActivity('INFO', `Stored expected user ID: ${set.infraId} for set ${index + 1}`);
+        }
+      });
+    }
+  };
+
   // Helper function to process broker status
   const processBrokerStatus = async (statusResponse, rid, silent = false) => {
+    // Store expected user IDs
+    if (!silent) {
+      storeExpectedUserId(statusResponse, rid);
+    }
+
     // Check if all 4 sets are completed
     if (statusResponse.currSet && statusResponse.currSet.length >= 4) {
       const completedCount = statusResponse.currSet.filter(
@@ -426,6 +456,7 @@ const TasksList = () => {
       if (restartId) {
         for (let i = 0; i < 4; i++) {
           localStorage.removeItem(`currentSubsetId_${restartId}_${i}`);
+          localStorage.removeItem(`expectedUserId_${restartId}_${i}`);
         }
       }
       localStorage.removeItem('brokerRestartId');
@@ -543,6 +574,9 @@ const TasksList = () => {
       const currentRestartId = response.brokerRestartId ?? restartId;
       if (currentRestartId) {
         localStorage.setItem(`currentSubsetId_${currentRestartId}_${selectedSetIndex}`, subsetId);
+        // Store expected user ID
+        localStorage.setItem(`expectedUserId_${currentRestartId}_${selectedSetIndex}`, setStartData.infraId);
+        logActivity('INFO', `Stored expected user ID: ${setStartData.infraId} for set ${selectedSetIndex + 1}`);
       }
 
       if (allSetsCompleted) {
@@ -579,8 +613,8 @@ const TasksList = () => {
     }
   };
 
-  // STEP 5: Mark step as complete
-  const completeStep = async (stepId) => {
+  // NEW: Handle step completion button click - Opens authorization modal
+  const handleCompleteStepClick = (stepId) => {
     // Only operations can mark steps as complete
     if (!isOperations) {
       alert('Only Operations team can mark steps as complete.');
@@ -594,38 +628,152 @@ const TasksList = () => {
       alert('Error: No active subset ID found. Please start a set first.');
       return;
     }
+
+    // Open authorization modal
+    setPendingStepId(stepId);
+    setStepAuthModal(true);
+    setStepAuthData({ userId: '' });
+    setStepAuthManualMode(false);
+  };
+
+  // NEW: Validate user authorization
+  const validateUserAuthorization = (userId) => {
+    if (!restartId || selectedSetIndex === null) {
+      return { valid: false, message: 'No active set found.' };
+    }
+
+    const expectedUserId = localStorage.getItem(`expectedUserId_${restartId}_${selectedSetIndex}`);
+    
+    if (!expectedUserId) {
+      logActivity('WARNING', 'No expected user ID found in storage');
+      return { valid: false, message: 'Unable to verify authorization. Expected user ID not found.' };
+    }
+
+    // Normalize both IDs for comparison (trim and convert to lowercase)
+    const normalizedUserId = String(userId).trim().toLowerCase();
+    const normalizedExpectedId = String(expectedUserId).trim().toLowerCase();
+
+    logActivity('AUTH_CHECK', `Comparing userId: ${normalizedUserId} with expected: ${normalizedExpectedId}`);
+
+    if (normalizedUserId !== normalizedExpectedId) {
+      return { 
+        valid: false, 
+        message: `Not authorized. This set was started by user ${expectedUserId}. Only that user can mark steps as complete.` 
+      };
+    }
+
+    return { valid: true, message: 'Authorization successful.' };
+  };
+
+  // NEW: Handle "Use Current User Info" for step authorization
+  const handleUseCurrentUserForStep = async () => {
+    const currentUserId = localStorage.getItem('uidd') || '';
+
+    if (!currentUserId) {
+      alert('User ID not found in local storage. Please enter manually.');
+      setStepAuthManualMode(true);
+      return;
+    }
+
+    // Validate authorization
+    const authResult = validateUserAuthorization(currentUserId);
+    
+    if (!authResult.valid) {
+      alert(authResult.message);
+      logActivity('AUTH_FAILED', authResult.message);
+      setStepAuthModal(false);
+      setStepAuthManualMode(false);
+      setPendingStepId(null);
+      return;
+    }
+
+    // Authorization successful - proceed with step completion
+    await completeStepWithAuth(currentUserId);
+  };
+
+  // NEW: Handle manual user ID entry for step authorization
+  const handleStepAuthSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!stepAuthData.userId.trim()) {
+      alert('Please enter a user ID.');
+      return;
+    }
+
+    // Validate authorization
+    const authResult = validateUserAuthorization(stepAuthData.userId);
+    
+    if (!authResult.valid) {
+      alert(authResult.message);
+      logActivity('AUTH_FAILED', authResult.message);
+      setStepAuthModal(false);
+      setStepAuthManualMode(false);
+      setStepAuthData({ userId: '' });
+      setPendingStepId(null);
+      return;
+    }
+
+    // Authorization successful - proceed with step completion
+    await completeStepWithAuth(stepAuthData.userId);
+  };
+
+  // NEW: Complete step after authorization
+  const completeStepWithAuth = async (userId) => {
+    if (!pendingStepId || !currentSubsetId) {
+      alert('Error: Missing step or subset information.');
+      return;
+    }
+
     if (processingStep.current) return;
 
     processingStep.current = true;
+    setLoading(true);
+
     try {
-      const step = checklistSteps[stepId - 1];
-      logActivity('API_CALL', `Calling updateSubRestart for step ${stepId}: ${step.title}`, {
+      const step = checklistSteps[pendingStepId - 1];
+      logActivity('API_CALL', `Calling updateSubRestart for step ${pendingStepId}: ${step.title}`, {
         subsetId: currentSubsetId,
-        stepTitle: step.title
+        stepTitle: step.title,
+        userId: userId
       });
-      await updateSubRestart(step.title, currentSubsetId);
-      logActivity('API_SUCCESS', `Step ${stepId} completed: ${step.title}`);
+
+      await updateSubRestart(step.title, currentSubsetId, userId);
+      
+      logActivity('API_SUCCESS', `Step ${pendingStepId} completed by user ${userId}: ${step.title}`);
 
       const updatedSteps = [...checklistSteps];
-      updatedSteps[stepId - 1] = {
-        ...updatedSteps[stepId - 1],
+      updatedSteps[pendingStepId - 1] = {
+        ...updatedSteps[pendingStepId - 1],
         completed: true,
         completedTime: new Date().toISOString()
       };
       setChecklistSteps(updatedSteps);
 
+      // Close modal and reset state
+      setStepAuthModal(false);
+      setStepAuthManualMode(false);
+      setStepAuthData({ userId: '' });
+      setPendingStepId(null);
+
       // Move to next step
-      if (stepId < checklistSteps.length) {
+      if (pendingStepId < checklistSteps.length) {
         setTimeout(() => {
-          setCurrentStep(stepId + 1);
+          setCurrentStep(pendingStepId + 1);
           setTimeElapsed(0);
         }, 500);
       }
     } catch (error) {
       console.error('Error completing step:', error);
-      logActivity('API_ERROR', `Failed to complete step ${stepId}: ${error.message}`);
+      logActivity('API_ERROR', `Failed to complete step ${pendingStepId}: ${error.message}`);
       alert(`Failed to complete step: ${error.message}`);
+      
+      // Close modal on error
+      setStepAuthModal(false);
+      setStepAuthManualMode(false);
+      setStepAuthData({ userId: '' });
+      setPendingStepId(null);
     } finally {
+      setLoading(false);
       processingStep.current = false;
     }
   };
@@ -842,32 +990,41 @@ const TasksList = () => {
 
   // Handle numeric input for infra ID (max 7 digits for manual entry)
   const handleInfraIdInput = (e) => {
-    const value = e.target.value.replace(/\D/g, ''); // Remove non-numeric characters
-    // Limit to 7 digits for manual entry
-    const limited = value.slice(0, 7);
+    const value = e.target.value;
+    // Allow alphanumeric characters but limit length
+    const limited = value.slice(0, 10);
     setSetStartData({ ...setStartData, infraId: limited });
   };
 
   // Handle numeric input for support ID (max 7 digits for manual entry)
   const handleSupportIdInput = (e) => {
-    const value = e.target.value.replace(/\D/g, ''); // Remove non-numeric characters
-    // Limit to 7 digits for manual entry
-    const limited = value.slice(0, 7);
+    const value = e.target.value;
+    // Allow alphanumeric characters but limit length
+    const limited = value.slice(0, 10);
     setSupportAckData({ ...supportAckData, id: limited });
   };
 
+  // NEW: Handle user ID input for step authorization
+  const handleStepAuthIdInput = (e) => {
+    const value = e.target.value;
+    // Allow alphanumeric characters but limit length
+    const limited = value.slice(0, 10);
+    setStepAuthData({ userId: limited });
+  };
+
   // Handle "Use Current User Info" button click for Set Start Modal
-  const handleUseCurrentUserInfo = () => {
+  const handleUseCurrentUserInfo = async () => {
     const uidd = localStorage.getItem('uidd') || '';
     const username = localStorage.getItem('username') || '';
 
     if (!uidd || !username) {
       alert('User information not found in local storage. Please enter details manually.');
+      setManualEntryMode(true);
       return;
     }
 
     setSetStartData({
-      infraId: uidd, // Use exact value from localStorage (may contain letters)
+      infraId: uidd,
       infraName: username
     });
 
@@ -875,22 +1032,26 @@ const TasksList = () => {
     
     // Auto-submit the form
     setTimeout(() => {
-      document.getElementById('set-start-form')?.requestSubmit();
+      const form = document.getElementById('set-start-form');
+      if (form) {
+        form.requestSubmit();
+      }
     }, 100);
   };
 
   // Handle "Use Current User Info" button click for Support Acknowledgment Modal
-  const handleUseSupportUserInfo = () => {
+  const handleUseSupportUserInfo = async () => {
     const uidd = localStorage.getItem('uidd') || '';
     const username = localStorage.getItem('username') || '';
 
     if (!uidd || !username) {
       alert('User information not found in local storage. Please enter details manually.');
+      setSupportManualEntryMode(true);
       return;
     }
 
     setSupportAckData({
-      id: uidd, // Use exact value from localStorage (may contain letters)
+      id: uidd,
       name: username
     });
 
@@ -898,7 +1059,10 @@ const TasksList = () => {
     
     // Auto-submit the form
     setTimeout(() => {
-      document.getElementById('support-ack-form')?.requestSubmit();
+      const form = document.getElementById('support-ack-form');
+      if (form) {
+        form.requestSubmit();
+      }
     }, 100);
   };
 
@@ -912,6 +1076,12 @@ const TasksList = () => {
   const handleEnterSupportManually = () => {
     setSupportManualEntryMode(true);
     setSupportAckData({ name: '', id: '' });
+  };
+
+  // NEW: Handle "Enter Details Manually" for step authorization
+  const handleEnterStepAuthManually = () => {
+    setStepAuthManualMode(true);
+    setStepAuthData({ userId: '' });
   };
 
   const handleRefreshStatus = async () => {
@@ -1032,22 +1202,10 @@ const TasksList = () => {
           <h1>📝 Night Broker Restart Checklist</h1>
 
           <div className="header-details">
-           {/*restartId && (
-              <p>
-                <strong>Restart ID:</strong> {restartId}
-              </p>
-            )*/}
-
             <p>
               <strong>Completed Sets:</strong>{' '}
               {(brokerStatus?.currSet?.filter((s) => s.status === 'completed')?.length ?? 0)}/4
             </p>
-
-            {/*currentSubsetId && selectedSetIndex !== null && (
-              <p>
-                <strong>Current Subset ID:</strong> {currentSubsetId}
-              </p>
-            )*/}
 
             <p>
               <strong>User Level:</strong>{' '}
@@ -1079,12 +1237,6 @@ const TasksList = () => {
                 </div>
 
                 <div className="set-details">
-                  {/*set.subSetsId && (
-                    <p className="subset-id">
-                      <strong>Subset ID:</strong> {set.subSetsId}
-                    </p>
-                  )*/}
-
                   {set.infraName && (
                     <p className="infra-name">
                       <strong>Infra:</strong> {set.infraName}
@@ -1127,6 +1279,7 @@ const TasksList = () => {
         </div>
       )}
 
+      {/* Set Start Modal */}
       {showSetModal && (
         <div className="modal-overlay" onClick={() => { setShowSetModal(false); setManualEntryMode(false); }}>
           <div className="modal-container" onClick={(e) => e.stopPropagation()}>
@@ -1185,10 +1338,10 @@ const TasksList = () => {
                     type="text"
                     value={setStartData.infraId}
                     onChange={handleInfraIdInput}
-                    placeholder="Enter infra ID (max 7 digits)"
+                    placeholder="Enter infra ID"
                     required
                     className="form-input"
-                    maxLength={7}
+                    maxLength={10}
                   />
                   <small style={{
                     display: 'block',
@@ -1196,7 +1349,7 @@ const TasksList = () => {
                     color: 'var(--text-secondary)',
                     fontSize: '0.85rem'
                   }}>
-                    Numbers only, maximum 7 digits
+                    Maximum 10 characters
                   </small>
                 </div>
 
@@ -1214,6 +1367,84 @@ const TasksList = () => {
         </div>
       )}
 
+      {/* Step Authorization Modal */}
+      {stepAuthModal && (
+        <div className="modal-overlay" onClick={() => { setStepAuthModal(false); setStepAuthManualMode(false); setPendingStepId(null); }}>
+          <div className="modal-container" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>🔐 Authorize Step Completion</h2>
+              <p>Verify your identity to mark step as complete</p>
+            </div>
+
+            {!stepAuthManualMode ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <button
+                  type="button"
+                  onClick={handleUseCurrentUserForStep}
+                  className="btn-primary"
+                  style={{ width: '100%', padding: '1.25rem' }}
+                  disabled={loading}
+                >
+                  {loading ? 'Verifying...' : '👤 Use Current User Info'}
+                </button>
+                
+                <button
+                  type="button"
+                  onClick={handleEnterStepAuthManually}
+                  className="btn-secondary"
+                  style={{ width: '100%', padding: '1.25rem' }}
+                >
+                  ✍️ Enter User ID Manually
+                </button>
+                
+                <button
+                  type="button"
+                  onClick={() => { setStepAuthModal(false); setStepAuthManualMode(false); setPendingStepId(null); }}
+                  className="btn-secondary"
+                  style={{ marginTop: '0.5rem' }}
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <form id="step-auth-form" onSubmit={handleStepAuthSubmit} className="modal-form">
+                <div className="form-group">
+                  <label>Your ADID/TCS ID</label>
+                  <input
+                    type="text"
+                    value={stepAuthData.userId}
+                    onChange={handleStepAuthIdInput}
+                    placeholder="Enter your user ID"
+                    required
+                    className="form-input"
+                    autoFocus
+                    maxLength={10}
+                  />
+                  <small style={{
+                    display: 'block',
+                    marginTop: '0.5rem',
+                    color: 'var(--text-secondary)',
+                    fontSize: '0.85rem'
+                  }}>
+                    Must match the user who started this set
+                  </small>
+                </div>
+
+                <div className="modal-actions">
+                  <button type="button" onClick={() => setStepAuthManualMode(false)} className="btn-secondary">
+                    Back
+                  </button>
+                  <button type="submit" disabled={loading} className="btn-primary">
+                    {loading ? 'Verifying...' : 'Verify & Complete Step'}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Support Acknowledgment Modal */}
       {supportAckModal && isSupport && (
         <div className="modal-overlay" onClick={() => { setSupportAckModal(false); setSupportManualEntryMode(false); }}>
           <div className="modal-container" onClick={(e) => e.stopPropagation()}>
@@ -1272,10 +1503,10 @@ const TasksList = () => {
                     type="text"
                     value={supportAckData.id}
                     onChange={handleSupportIdInput}
-                    placeholder="Enter ID (max 7 digits)"
+                    placeholder="Enter ID"
                     required
                     className="form-input"
-                    maxLength={7}
+                    maxLength={10}
                   />
                   <small style={{
                     display: 'block',
@@ -1283,7 +1514,7 @@ const TasksList = () => {
                     color: 'var(--text-secondary)',
                     fontSize: '0.85rem'
                   }}>
-                    Numbers only, maximum 7 digits
+                    Maximum 10 characters
                   </small>
                 </div>
 
@@ -1370,11 +1601,11 @@ const TasksList = () => {
                     <div className="step-actions">
                       {isOperations && currentStep === step.id && step.id !== 11 && !step.completed && (
                         <button
-                          onClick={() => completeStep(step.id)}
+                          onClick={() => handleCompleteStepClick(step.id)}
                           className="btn-complete-step"
-                          disabled={processingStep.current}
+                          disabled={processingStep.current || loading}
                         >
-                          {processingStep.current ? 'Processing...' : '✓ Mark as Complete'}
+                          {processingStep.current || loading ? 'Processing...' : '✓ Mark as Complete'}
                         </button>
                       )}
 
