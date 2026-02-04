@@ -137,9 +137,9 @@ const TasksList = () => {
   // Helper to normalize API response - ensures currSet is always an array
   const normalizeBrokerStatus = (statusData) => {
     if (!statusData) return null;
-    
+
     console.log('Normalizing broker status:', statusData);
-    
+
     // If currSet is an object (single set), wrap it in an array
     if (statusData.currSet && typeof statusData.currSet === 'object' && !Array.isArray(statusData.currSet)) {
       console.log('Converting currSet from object to array');
@@ -148,7 +148,7 @@ const TasksList = () => {
         currSet: [statusData.currSet]
       };
     }
-    
+
     // If currSet is already an array or doesn't exist, return as-is
     return statusData;
   };
@@ -840,17 +840,17 @@ const TasksList = () => {
   const handleUseCurrentUserInfo = () => {
     const uidd = localStorage.getItem('uidd') || '';
     const username = localStorage.getItem('username') || '';
-    
+
     if (!uidd || !username) {
       alert('User information not found in local storage. Please enter details manually.');
       return;
     }
-    
+
     setSetStartData({
       infraId: uidd, // Use exact value from localStorage (may contain letters)
       infraName: username
     });
-    
+
     logActivity('USER_INFO', `Auto-filled with current user: ${username} (${uidd})`);
   };
 
@@ -858,17 +858,17 @@ const TasksList = () => {
   const handleUseSupportUserInfo = () => {
     const uidd = localStorage.getItem('uidd') || '';
     const username = localStorage.getItem('username') || '';
-    
+
     if (!uidd || !username) {
       alert('User information not found in local storage. Please enter details manually.');
       return;
     }
-    
+
     setSupportAckData({
       id: uidd, // Use exact value from localStorage (may contain letters)
       name: username
     });
-    
+
     logActivity('USER_INFO', `Auto-filled support info with current user: ${username} (${uidd})`);
   };
 
@@ -990,26 +990,26 @@ const TasksList = () => {
           <h1>📝 Night Broker Restart Checklist</h1>
 
           <div className="header-details">
-            {restartId && (
+           {/*restartId && (
               <p>
                 <strong>Restart ID:</strong> {restartId}
               </p>
-            )}
+            )*/}
 
             <p>
               <strong>Completed Sets:</strong>{' '}
               {(brokerStatus?.currSet?.filter((s) => s.status === 'completed')?.length ?? 0)}/4
             </p>
 
-            {currentSubsetId && selectedSetIndex !== null && (
+            {/*currentSubsetId && selectedSetIndex !== null && (
               <p>
                 <strong>Current Subset ID:</strong> {currentSubsetId}
               </p>
-            )}
+            )*/}
 
             <p>
               <strong>User Level:</strong>{' '}
-              {isSupport ? 'Support Team' : isOperations ? 'Operations Team' : (rawUserLevel || 'Guest')}
+              {isSupport ? 'Support Team' : isOperations ? 'Infra Team' : (rawUserLevel || 'Guest')}
             </p>
 
             <button onClick={handleRefreshStatus} className="btn-refresh-status" disabled={loading}>
@@ -1037,11 +1037,11 @@ const TasksList = () => {
                 </div>
 
                 <div className="set-details">
-                  {set.subSetsId && (
+                  {/*set.subSetsId && (
                     <p className="subset-id">
                       <strong>Subset ID:</strong> {set.subSetsId}
                     </p>
-                  )}
+                  )*/}
 
                   {set.infraName && (
                     <p className="infra-name">
@@ -1122,17 +1122,17 @@ const TasksList = () => {
                 >
                   👤 Use Current User Info
                 </button>
-                <p style={{ 
-                  margin: '0.75rem 0 0 0', 
-                  fontSize: '0.85rem', 
-                  color: 'var(--text-secondary)' 
+                <p style={{
+                  margin: '0.75rem 0 0 0',
+                  fontSize: '0.85rem',
+                  color: 'var(--text-secondary)'
                 }}>
                   Or enter details manually below
                 </p>
               </div>
 
               <div className="form-group">
-                <label>Infrastructure Name</label>
+                <label>Infra Team Member Name</label>
                 <input
                   type="text"
                   value={setStartData.infraName}
@@ -1144,7 +1144,7 @@ const TasksList = () => {
               </div>
 
               <div className="form-group">
-                <label>Infrastructure ID</label>
+                <label>Infra Team Memeber ADID/TCS ID</label>
                 <input
                   type="text"
                   value={setStartData.infraId}
@@ -1154,11 +1154,11 @@ const TasksList = () => {
                   className="form-input"
                   maxLength={7}
                 />
-                <small style={{ 
-                  display: 'block', 
-                  marginTop: '0.5rem', 
-                  color: 'var(--text-secondary)', 
-                  fontSize: '0.85rem' 
+                <small style={{
+                  display: 'block',
+                  marginTop: '0.5rem',
+                  color: 'var(--text-secondary)',
+                  fontSize: '0.85rem'
                 }}>
                   Manual entry: Numbers only, maximum 7 digits
                 </small>
@@ -1214,17 +1214,17 @@ const TasksList = () => {
                 >
                   👤 Use Current User Info
                 </button>
-                <p style={{ 
-                  margin: '0.75rem 0 0 0', 
-                  fontSize: '0.85rem', 
-                  color: 'var(--text-secondary)' 
+                <p style={{
+                  margin: '0.75rem 0 0 0',
+                  fontSize: '0.85rem',
+                  color: 'var(--text-secondary)'
                 }}>
                   Or enter details manually below
                 </p>
               </div>
 
               <div className="form-group">
-                <label>Support Team Member Name</label>
+                <label>Support Member Name</label>
                 <input
                   type="text"
                   value={supportAckData.name}
@@ -1236,7 +1236,7 @@ const TasksList = () => {
               </div>
 
               <div className="form-group">
-                <label>Support Member ID</label>
+                <label>Support Member ADID/TCS ID</label>
                 <input
                   type="text"
                   value={supportAckData.id}
@@ -1246,11 +1246,11 @@ const TasksList = () => {
                   className="form-input"
                   maxLength={7}
                 />
-                <small style={{ 
-                  display: 'block', 
-                  marginTop: '0.5rem', 
-                  color: 'var(--text-secondary)', 
-                  fontSize: '0.85rem' 
+                <small style={{
+                  display: 'block',
+                  marginTop: '0.5rem',
+                  color: 'var(--text-secondary)',
+                  fontSize: '0.85rem'
                 }}>
                   Manual entry: Numbers only, maximum 7 digits
                 </small>
@@ -1274,7 +1274,6 @@ const TasksList = () => {
           <div className="user-info-banner">
             <div className="user-info-content">
               <span className="user-label">📍 Current Set: Set {selectedSetIndex + 1} of 4</span>
-              <span className="user-id">Subset ID: {currentSubsetId ?? 'Loading...'}</span>
 
               {brokerStatus?.currSet?.[selectedSetIndex]?.infraName && (
                 <span className="infra-info">
@@ -1413,29 +1412,6 @@ const TasksList = () => {
         </div>
       </div>
 
-      <div
-        style={{
-          marginTop: '2rem',
-          padding: '1rem',
-          background: 'rgba(255, 255, 255, 0.02)',
-          borderRadius: '10px',
-          fontSize: '0.9rem',
-          color: 'var(--text-secondary)'
-        }}
-      >
-        <p style={{ margin: '0 0 0.5rem 0' }}>
-          <strong>Note:</strong>
-          {isOperations
-            ? ' You are part of the Operations team. You can start sets and mark checklist steps as complete.'
-            : isSupport
-            ? ' You are part of the Support team. You can only acknowledge completion at Step 11.'
-            : ' You have limited access to view only.'}
-        </p>
-        <p style={{ margin: 0 }}>
-          <strong>Session ID:</strong> {restartId ?? 'Not started'}{' '}
-          <strong>Total Sets:</strong> {(brokerStatus?.currSet?.length ?? 0)}/4
-        </p>
-      </div>
     </div>
   );
 };
