@@ -47,14 +47,6 @@ const TasksList = () => {
   });
   const [supportManualEntryMode, setSupportManualEntryMode] = useState(false);
 
-  // NEW: State for step completion authentication modal
-  const [stepAuthModal, setStepAuthModal] = useState(false);
-  const [stepAuthData, setStepAuthData] = useState({
-    userId: ''
-  });
-  const [stepAuthManualMode, setStepAuthManualMode] = useState(false);
-  const [pendingStepId, setPendingStepId] = useState(null);
-
   // State for current step tracking
   const [currentStep, setCurrentStep] = useState(1);
   const [timer, setTimer] = useState(null);
@@ -288,7 +280,6 @@ const TasksList = () => {
             // Clear all localStorage entries
             for (let i = 0; i < 4; i++) {
               localStorage.removeItem(`currentSubsetId_${storedRestartId}_${i}`);
-              localStorage.removeItem(`expectedUserId_${storedRestartId}_${i}`);
             }
             localStorage.removeItem('brokerRestartId');
 
@@ -358,23 +349,6 @@ const TasksList = () => {
         const setIndex = statusResponse.currSet.indexOf(lastActiveSet);
         setSelectedSetIndex(setIndex);
 
-        // CRITICAL: Store infraId as expectedUserId in localStorage for authorization
-        if (lastActiveSet.infraId) {
-          const infraIdToSave = String(lastActiveSet.infraId).trim();
-          if (infraIdToSave && infraIdToSave !== '' && infraIdToSave !== 'undefined') {
-            const storageKey = `expectedUserId_${rid}_${setIndex}`;
-            localStorage.setItem(storageKey, infraIdToSave);
-            if (!silent) {
-              logActivity('INFRA_ID_SAVED', `Stored expected user ID: ${infraIdToSave} for set ${setIndex + 1}`);
-            }
-            console.log(`[CRITICAL] Saved ${storageKey} = ${infraIdToSave} from processBrokerStatus`);
-          } else {
-            console.warn('[WARNING] infraId is empty or invalid:', lastActiveSet.infraId);
-          }
-        } else {
-          console.warn('[WARNING] No infraId found in lastActiveSet');
-        }
-
         const subsetId = extractSubsetId(lastActiveSet);
         if (subsetId) {
           setCurrentSubsetId(subsetId);
@@ -431,22 +405,6 @@ const TasksList = () => {
       const statusResponse = await getBrokerRestartStatus(rid);
       console.log('Broker status response:', statusResponse);
       const normalizedStatus = normalizeBrokerStatus(statusResponse);
-      
-      // CRITICAL: Save infraId from API response immediately for each set
-      if (normalizedStatus?.currSet && Array.isArray(normalizedStatus.currSet)) {
-        normalizedStatus.currSet.forEach((set, index) => {
-          if (set.infraId && set.infraId.trim() !== '') {
-            const existingExpectedId = localStorage.getItem(`expectedUserId_${rid}_${index}`);
-            if (!existingExpectedId || existingExpectedId === '' || existingExpectedId === 'undefined') {
-              localStorage.setItem(`expectedUserId_${rid}_${index}`, set.infraId);
-              if (!silent) {
-                logActivity('INFRA_ID_SAVED', `Saved infraId from API: ${set.infraId} for set ${index + 1}`);
-              }
-            }
-          }
-        });
-      }
-      
       setBrokerStatus(normalizedStatus);
       if (!silent) logActivity('API_SUCCESS', 'Broker status fetched', normalizedStatus);
       await processBrokerStatus(normalizedStatus, rid, silent);
@@ -468,7 +426,6 @@ const TasksList = () => {
       if (restartId) {
         for (let i = 0; i < 4; i++) {
           localStorage.removeItem(`currentSubsetId_${restartId}_${i}`);
-          localStorage.removeItem(`expectedUserId_${restartId}_${i}`);
         }
       }
       localStorage.removeItem('brokerRestartId');
@@ -586,16 +543,6 @@ const TasksList = () => {
       const currentRestartId = response.brokerRestartId ?? restartId;
       if (currentRestartId) {
         localStorage.setItem(`currentSubsetId_${currentRestartId}_${selectedSetIndex}`, subsetId);
-        
-        // CRITICAL: Store infraId as expectedUserId when starting a set - PRIMARY SAVE POINT
-        const infraIdToSave = setStartData.infraId.trim();
-        if (infraIdToSave) {
-          localStorage.setItem(`expectedUserId_${currentRestartId}_${selectedSetIndex}`, infraIdToSave);
-          logActivity('INFRA_ID_SAVED', `Stored expected user ID: ${infraIdToSave} for set ${selectedSetIndex + 1}`);
-          console.log(`[CRITICAL] Saved expectedUserId_${currentRestartId}_${selectedSetIndex} = ${infraIdToSave}`);
-        } else {
-          logActivity('WARNING', 'infraId is empty, cannot save expected user ID');
-        }
       }
 
       if (allSetsCompleted) {
@@ -632,55 +579,8 @@ const TasksList = () => {
     }
   };
 
-  // UPDATED: Check if user is authorized to complete step - uses localStorage expected user ID
-  const checkUserAuthorization = (userId) => {
-    if (!restartId || selectedSetIndex === null) {
-      logActivity('WARNING', 'No restart ID or set index available for authorization check');
-      console.error('[AUTH] Missing restartId or selectedSetIndex', { restartId, selectedSetIndex });
-      return false;
-    }
-
-    // Get the expected user ID from localStorage
-    const storageKey = `expectedUserId_${restartId}_${selectedSetIndex}`;
-    const expectedUserId = localStorage.getItem(storageKey);
-    
-    console.log('[AUTH] Authorization check:', {
-      storageKey,
-      expectedUserId,
-      userId,
-      restartId,
-      selectedSetIndex,
-      allLocalStorageKeys: Object.keys(localStorage).filter(k => k.includes('expectedUserId'))
-    });
-    
-    if (!expectedUserId) {
-      logActivity('WARNING', `No expected user ID found in localStorage for key: ${storageKey}`);
-      console.error('[AUTH] localStorage does not have expected user ID', {
-        storageKey,
-        allKeys: Object.keys(localStorage)
-      });
-      return false;
-    }
-
-    // Compare the userId with expectedUserId (both normalized to strings for comparison)
-    const authorized = String(userId).trim() === String(expectedUserId).trim();
-    
-    logActivity(
-      'AUTH_CHECK',
-      `Authorization check: userId=${userId}, expectedUserId=${expectedUserId}, authorized=${authorized}`
-    );
-    
-    console.log('[AUTH] Comparison result:', {
-      userId: String(userId).trim(),
-      expectedUserId: String(expectedUserId).trim(),
-      authorized
-    });
-
-    return authorized;
-  };
-
-  // NEW: Handle mark as complete click (opens authentication modal)
-  const handleCompleteStepClick = (stepId) => {
+  // STEP 5: Mark step as complete
+  const completeStep = async (stepId) => {
     // Only operations can mark steps as complete
     if (!isOperations) {
       alert('Only Operations team can mark steps as complete.');
@@ -694,92 +594,6 @@ const TasksList = () => {
       alert('Error: No active subset ID found. Please start a set first.');
       return;
     }
-
-    // Open authentication modal
-    setPendingStepId(stepId);
-    setStepAuthModal(true);
-    setStepAuthData({ userId: '' });
-    setStepAuthManualMode(false);
-  };
-
-  // UPDATED: Handle "Use Current User" for step authentication
-  const handleUseCurrentUserForStep = async () => {
-    const uidd = localStorage.getItem('uidd') || '';
-    
-    if (!uidd) {
-      alert('User information not found in local storage. Please enter details manually.');
-      return;
-    }
-
-    logActivity('USER_INFO', `Using current user ID for step auth: ${uidd}`);
-    
-    // Check authorization using localStorage expected user ID
-    if (!checkUserAuthorization(uidd)) {
-      const expectedUserId = localStorage.getItem(`expectedUserId_${restartId}_${selectedSetIndex}`) || 'unknown';
-      alert(
-        `⛔ Authorization Failed!\n\nYou are not authorized to complete this step.\n\n` +
-        `Expected User ID: ${expectedUserId}\n` +
-        `Your User ID: ${uidd}\n\n` +
-        `Only the user who started this set can mark steps as complete.`
-      );
-      logActivity('AUTH_FAILED', `User ${uidd} not authorized. Expected: ${expectedUserId}`);
-      return;
-    }
-
-    // Close modal and proceed with step completion
-    setStepAuthModal(false);
-    setStepAuthManualMode(false);
-    logActivity('AUTH_SUCCESS', `User ${uidd} authorized to complete step ${pendingStepId}`);
-    
-    // Now actually complete the step
-    await completeStepWithAuth(pendingStepId, uidd);
-  };
-
-  // NEW: Handle "Enter User ID Manually" for step authentication
-  const handleEnterStepAuthManually = () => {
-    setStepAuthManualMode(true);
-    setStepAuthData({ userId: '' });
-  };
-
-  // UPDATED: Handle step authentication submit
-  const handleStepAuthSubmit = async (e) => {
-    e.preventDefault();
-    
-    const userId = stepAuthData.userId.trim();
-    if (!userId) {
-      alert('Please enter a user ID');
-      return;
-    }
-
-    // Check authorization using localStorage expected user ID
-    if (!checkUserAuthorization(userId)) {
-      const expectedUserId = localStorage.getItem(`expectedUserId_${restartId}_${selectedSetIndex}`) || 'unknown';
-      alert(
-        `⛔ Authorization Failed!\n\nYou are not authorized to complete this step.\n\n` +
-        `Expected User ID: ${expectedUserId}\n` +
-        `Provided User ID: ${userId}\n\n` +
-        `Only the user who started this set can mark steps as complete.`
-      );
-      logActivity('AUTH_FAILED', `User ${userId} not authorized. Expected: ${expectedUserId}`);
-      return;
-    }
-
-    // Close modal and proceed with step completion
-    setStepAuthModal(false);
-    setStepAuthManualMode(false);
-    logActivity('AUTH_SUCCESS', `User ${userId} authorized to complete step ${pendingStepId}`);
-    
-    // Now actually complete the step
-    await completeStepWithAuth(pendingStepId, userId);
-  };
-
-  // STEP 5: Mark step as complete (with authentication)
-  const completeStepWithAuth = async (stepId, userId) => {
-    if (!currentSubsetId) {
-      logActivity('ERROR', 'No active subset ID. Cannot complete step.');
-      alert('Error: No active subset ID found. Please start a set first.');
-      return;
-    }
     if (processingStep.current) return;
 
     processingStep.current = true;
@@ -787,13 +601,10 @@ const TasksList = () => {
       const step = checklistSteps[stepId - 1];
       logActivity('API_CALL', `Calling updateSubRestart for step ${stepId}: ${step.title}`, {
         subsetId: currentSubsetId,
-        stepTitle: step.title,
-        userId: userId
+        stepTitle: step.title
       });
-      
-      // Call API with userId
-      await updateSubRestart(step.title, currentSubsetId, userId);
-      logActivity('API_SUCCESS', `Step ${stepId} completed by user ${userId}: ${step.title}`);
+      await updateSubRestart(step.title, currentSubsetId);
+      logActivity('API_SUCCESS', `Step ${stepId} completed: ${step.title}`);
 
       const updatedSteps = [...checklistSteps];
       updatedSteps[stepId - 1] = {
@@ -816,7 +627,6 @@ const TasksList = () => {
       alert(`Failed to complete step: ${error.message}`);
     } finally {
       processingStep.current = false;
-      setPendingStepId(null);
     }
   };
 
@@ -1046,14 +856,6 @@ const TasksList = () => {
     setSupportAckData({ ...supportAckData, id: limited });
   };
 
-  // NEW: Handle numeric input for step auth user ID
-  const handleStepAuthIdInput = (e) => {
-    const value = e.target.value.replace(/\D/g, ''); // Remove non-numeric characters
-    // Limit to 7 digits for manual entry
-    const limited = value.slice(0, 7);
-    setStepAuthData({ userId: limited });
-  };
-
   // Handle "Use Current User Info" button click for Set Start Modal
   const handleUseCurrentUserInfo = () => {
     const uidd = localStorage.getItem('uidd') || '';
@@ -1230,10 +1032,22 @@ const TasksList = () => {
           <h1>📝 Night Broker Restart Checklist</h1>
 
           <div className="header-details">
+           {/*restartId && (
+              <p>
+                <strong>Restart ID:</strong> {restartId}
+              </p>
+            )*/}
+
             <p>
               <strong>Completed Sets:</strong>{' '}
               {(brokerStatus?.currSet?.filter((s) => s.status === 'completed')?.length ?? 0)}/4
             </p>
+
+            {/*currentSubsetId && selectedSetIndex !== null && (
+              <p>
+                <strong>Current Subset ID:</strong> {currentSubsetId}
+              </p>
+            )*/}
 
             <p>
               <strong>User Level:</strong>{' '}
@@ -1265,6 +1079,12 @@ const TasksList = () => {
                 </div>
 
                 <div className="set-details">
+                  {/*set.subSetsId && (
+                    <p className="subset-id">
+                      <strong>Subset ID:</strong> {set.subSetsId}
+                    </p>
+                  )*/}
+
                   {set.infraName && (
                     <p className="infra-name">
                       <strong>Infra:</strong> {set.infraName}
@@ -1307,7 +1127,6 @@ const TasksList = () => {
         </div>
       )}
 
-      {/* SET START MODAL */}
       {showSetModal && (
         <div className="modal-overlay" onClick={() => { setShowSetModal(false); setManualEntryMode(false); }}>
           <div className="modal-container" onClick={(e) => e.stopPropagation()}>
@@ -1395,83 +1214,6 @@ const TasksList = () => {
         </div>
       )}
 
-      {/* STEP AUTHENTICATION MODAL */}
-      {stepAuthModal && (
-        <div className="modal-overlay" onClick={() => { setStepAuthModal(false); setStepAuthManualMode(false); setPendingStepId(null); }}>
-          <div className="modal-container" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>🔐 Verify Identity to Complete Step</h2>
-              <p>Authentication required</p>
-            </div>
-
-            {!stepAuthManualMode ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <button
-                  type="button"
-                  onClick={handleUseCurrentUserForStep}
-                  className="btn-primary"
-                  style={{ width: '100%', padding: '1.25rem' }}
-                >
-                  👤 Use Current User ID
-                </button>
-                
-                <button
-                  type="button"
-                  onClick={handleEnterStepAuthManually}
-                  className="btn-secondary"
-                  style={{ width: '100%', padding: '1.25rem' }}
-                >
-                  ✍️ Enter User ID Manually
-                </button>
-                
-                <button
-                  type="button"
-                  onClick={() => { setStepAuthModal(false); setStepAuthManualMode(false); setPendingStepId(null); }}
-                  className="btn-secondary"
-                  style={{ marginTop: '0.5rem' }}
-                >
-                  Cancel
-                </button>
-              </div>
-            ) : (
-              <form id="step-auth-form" onSubmit={handleStepAuthSubmit} className="modal-form">
-                <div className="form-group">
-                  <label>User ADID/TCS ID</label>
-                  <input
-                    type="text"
-                    value={stepAuthData.userId}
-                    onChange={handleStepAuthIdInput}
-                    placeholder="Enter your ID (max 7 digits)"
-                    required
-                    className="form-input"
-                    maxLength={7}
-                    autoFocus
-                  />
-                  <small style={{
-                    display: 'block',
-                    marginTop: '0.5rem',
-                    color: 'var(--text-secondary)',
-                    fontSize: '0.85rem'
-                  }}>
-                    Numbers only, maximum 7 digits. Only the user who started this set can complete steps.
-                  </small>
-                </div>
-
-                <div className="modal-actions">
-                  <button type="button" onClick={() => setStepAuthManualMode(false)} className="btn-secondary">
-                    Back
-                  </button>
-                  <button type="submit" className="btn-primary">
-                    Verify & Complete
-                  </button>
-                </div>
-              </form>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* SUPPORT ACKNOWLEDGMENT MODAL */}
       {supportAckModal && isSupport && (
         <div className="modal-overlay" onClick={() => { setSupportAckModal(false); setSupportManualEntryMode(false); }}>
           <div className="modal-container" onClick={(e) => e.stopPropagation()}>
@@ -1628,7 +1370,7 @@ const TasksList = () => {
                     <div className="step-actions">
                       {isOperations && currentStep === step.id && step.id !== 11 && !step.completed && (
                         <button
-                          onClick={() => handleCompleteStepClick(step.id)}
+                          onClick={() => completeStep(step.id)}
                           className="btn-complete-step"
                           disabled={processingStep.current}
                         >
@@ -1700,51 +1442,6 @@ const TasksList = () => {
               No activity logs yet.
             </p>
           )}
-        </div>
-      </div>
-
-      {/* DEBUG SECTION - Shows localStorage state */}
-      <div className="activity-log-section" style={{ marginTop: '1rem' }}>
-        <h2>🔍 Debug Info - localStorage State</h2>
-        <div style={{ 
-          background: 'rgba(0, 0, 0, 0.3)', 
-          padding: '1rem', 
-          borderRadius: '8px',
-          fontFamily: 'monospace',
-          fontSize: '0.85rem',
-          color: 'var(--text-secondary)'
-        }}>
-          <div style={{ marginBottom: '0.5rem' }}>
-            <strong style={{ color: 'var(--primary-blue)' }}>brokerRestartId:</strong> {localStorage.getItem('brokerRestartId') || 'not set'}
-          </div>
-          <div style={{ marginBottom: '0.5rem' }}>
-            <strong style={{ color: 'var(--primary-blue)' }}>Current User (uidd):</strong> {localStorage.getItem('uidd') || 'not set'}
-          </div>
-          <div style={{ marginBottom: '0.5rem' }}>
-            <strong style={{ color: 'var(--primary-blue)' }}>Selected Set Index:</strong> {selectedSetIndex !== null ? selectedSetIndex : 'none'}
-          </div>
-          <hr style={{ margin: '0.75rem 0', borderColor: 'rgba(255,255,255,0.1)' }} />
-          <div><strong style={{ color: 'var(--warning-yellow)' }}>Expected User IDs:</strong></div>
-          {[0, 1, 2, 3].map(i => {
-            const key = `expectedUserId_${localStorage.getItem('brokerRestartId')}_${i}`;
-            const value = localStorage.getItem(key);
-            return (
-              <div key={i} style={{ marginLeft: '1rem', color: value ? 'var(--success-green)' : 'var(--text-secondary)' }}>
-                Set {i + 1}: {value || 'not set'}
-              </div>
-            );
-          })}
-          <hr style={{ margin: '0.75rem 0', borderColor: 'rgba(255,255,255,0.1)' }} />
-          <div><strong style={{ color: 'var(--warning-yellow)' }}>Subset IDs:</strong></div>
-          {[0, 1, 2, 3].map(i => {
-            const key = `currentSubsetId_${localStorage.getItem('brokerRestartId')}_${i}`;
-            const value = localStorage.getItem(key);
-            return (
-              <div key={i} style={{ marginLeft: '1rem', color: value ? 'var(--success-green)' : 'var(--text-secondary)' }}>
-                Set {i + 1}: {value || 'not set'}
-              </div>
-            );
-          })}
         </div>
       </div>
 
