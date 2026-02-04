@@ -288,6 +288,7 @@ const TasksList = () => {
             // Clear all localStorage entries
             for (let i = 0; i < 4; i++) {
               localStorage.removeItem(`currentSubsetId_${storedRestartId}_${i}`);
+              localStorage.removeItem(`expectedUserId_${storedRestartId}_${i}`);
             }
             localStorage.removeItem('brokerRestartId');
 
@@ -356,6 +357,12 @@ const TasksList = () => {
         const lastActiveSet = activeSets[activeSets.length - 1];
         const setIndex = statusResponse.currSet.indexOf(lastActiveSet);
         setSelectedSetIndex(setIndex);
+
+        // CRITICAL: Store infraId as expectedUserId in localStorage for authorization
+        if (lastActiveSet.infraId) {
+          localStorage.setItem(`expectedUserId_${rid}_${setIndex}`, lastActiveSet.infraId);
+          if (!silent) logActivity('INFO', `Stored expected user ID: ${lastActiveSet.infraId} for set ${setIndex + 1}`);
+        }
 
         const subsetId = extractSubsetId(lastActiveSet);
         if (subsetId) {
@@ -434,6 +441,7 @@ const TasksList = () => {
       if (restartId) {
         for (let i = 0; i < 4; i++) {
           localStorage.removeItem(`currentSubsetId_${restartId}_${i}`);
+          localStorage.removeItem(`expectedUserId_${restartId}_${i}`);
         }
       }
       localStorage.removeItem('brokerRestartId');
@@ -551,6 +559,9 @@ const TasksList = () => {
       const currentRestartId = response.brokerRestartId ?? restartId;
       if (currentRestartId) {
         localStorage.setItem(`currentSubsetId_${currentRestartId}_${selectedSetIndex}`, subsetId);
+        // CRITICAL: Store infraId as expectedUserId when starting a set
+        localStorage.setItem(`expectedUserId_${currentRestartId}_${selectedSetIndex}`, setStartData.infraId);
+        logActivity('INFO', `Stored expected user ID: ${setStartData.infraId} for set ${selectedSetIndex + 1}`);
       }
 
       if (allSetsCompleted) {
@@ -587,24 +598,27 @@ const TasksList = () => {
     }
   };
 
-  // NEW: Check if user is authorized to complete step
+  // UPDATED: Check if user is authorized to complete step - uses localStorage expected user ID
   const checkUserAuthorization = (userId) => {
-    if (!brokerStatus?.currSet || selectedSetIndex === null) {
+    if (!restartId || selectedSetIndex === null) {
+      logActivity('WARNING', 'No restart ID or set index available for authorization check');
       return false;
     }
 
-    const currentSet = brokerStatus.currSet[selectedSetIndex];
-    if (!currentSet || !currentSet.infraId) {
-      logActivity('WARNING', 'No infraId found in current set');
+    // Get the expected user ID from localStorage
+    const expectedUserId = localStorage.getItem(`expectedUserId_${restartId}_${selectedSetIndex}`);
+    
+    if (!expectedUserId) {
+      logActivity('WARNING', 'No expected user ID found in localStorage');
       return false;
     }
 
-    // Compare the userId with infraId (both normalized to strings for comparison)
-    const authorized = String(userId).trim() === String(currentSet.infraId).trim();
+    // Compare the userId with expectedUserId (both normalized to strings for comparison)
+    const authorized = String(userId).trim() === String(expectedUserId).trim();
     
     logActivity(
       'AUTH_CHECK',
-      `Authorization check: userId=${userId}, infraId=${currentSet.infraId}, authorized=${authorized}`
+      `Authorization check: userId=${userId}, expectedUserId=${expectedUserId}, authorized=${authorized}`
     );
 
     return authorized;
@@ -633,7 +647,7 @@ const TasksList = () => {
     setStepAuthManualMode(false);
   };
 
-  // NEW: Handle "Use Current User" for step authentication
+  // UPDATED: Handle "Use Current User" for step authentication
   const handleUseCurrentUserForStep = async () => {
     const uidd = localStorage.getItem('uidd') || '';
     
@@ -644,14 +658,16 @@ const TasksList = () => {
 
     logActivity('USER_INFO', `Using current user ID for step auth: ${uidd}`);
     
-    // Check authorization directly
+    // Check authorization using localStorage expected user ID
     if (!checkUserAuthorization(uidd)) {
-      const currentSet = brokerStatus?.currSet?.[selectedSetIndex];
-      const expectedId = currentSet?.infraId || 'unknown';
+      const expectedUserId = localStorage.getItem(`expectedUserId_${restartId}_${selectedSetIndex}`) || 'unknown';
       alert(
-        `Authorization Failed!\n\nYou are not authorized to complete this step.\n\nExpected User ID: ${expectedId}\nYour User ID: ${uidd}\n\nOnly the user who started this set can mark steps as complete.`
+        `⛔ Authorization Failed!\n\nYou are not authorized to complete this step.\n\n` +
+        `Expected User ID: ${expectedUserId}\n` +
+        `Your User ID: ${uidd}\n\n` +
+        `Only the user who started this set can mark steps as complete.`
       );
-      logActivity('AUTH_FAILED', `User ${uidd} not authorized. Expected: ${expectedId}`);
+      logActivity('AUTH_FAILED', `User ${uidd} not authorized. Expected: ${expectedUserId}`);
       return;
     }
 
@@ -670,7 +686,7 @@ const TasksList = () => {
     setStepAuthData({ userId: '' });
   };
 
-  // NEW: Handle step authentication submit
+  // UPDATED: Handle step authentication submit
   const handleStepAuthSubmit = async (e) => {
     e.preventDefault();
     
@@ -680,14 +696,16 @@ const TasksList = () => {
       return;
     }
 
-    // Check authorization
+    // Check authorization using localStorage expected user ID
     if (!checkUserAuthorization(userId)) {
-      const currentSet = brokerStatus?.currSet?.[selectedSetIndex];
-      const expectedId = currentSet?.infraId || 'unknown';
+      const expectedUserId = localStorage.getItem(`expectedUserId_${restartId}_${selectedSetIndex}`) || 'unknown';
       alert(
-        `Authorization Failed!\n\nYou are not authorized to complete this step.\n\nExpected User ID: ${expectedId}\nProvided User ID: ${userId}\n\nOnly the user who started this set can mark steps as complete.`
+        `⛔ Authorization Failed!\n\nYou are not authorized to complete this step.\n\n` +
+        `Expected User ID: ${expectedUserId}\n` +
+        `Provided User ID: ${userId}\n\n` +
+        `Only the user who started this set can mark steps as complete.`
       );
-      logActivity('AUTH_FAILED', `User ${userId} not authorized. Expected: ${expectedId}`);
+      logActivity('AUTH_FAILED', `User ${userId} not authorized. Expected: ${expectedUserId}`);
       return;
     }
 
