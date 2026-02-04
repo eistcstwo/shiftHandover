@@ -523,11 +523,15 @@ const TasksList = () => {
       let restartIdToPass = null;
       const setNumber = selectedSetIndex + 1;
 
-      if (!brokerStatus?.currSet || brokerStatus.currSet.length === 0) {
-        restartIdToPass = null; // first set -> create new session
-        logActivity('INFO', 'Starting first set - creating new session');
-      } else if (!allSetsCompleted && brokerStatus?.currSet?.length > 0) {
-        restartIdToPass = restartId; // continue current session
+      // Determine if this is the first set or a continuation
+      // Check both the selected index and the broker status
+      if (selectedSetIndex === 0 || !brokerStatus?.currSet || brokerStatus.currSet.length === 0) {
+        // First set - don't pass restartId (backend will create new session)
+        restartIdToPass = null;
+        logActivity('INFO', `Starting first set (Set ${setNumber}) - creating new session`);
+      } else {
+        // Subsequent set - pass the current restartId to continue the session
+        restartIdToPass = restartId;
         logActivity('INFO', `Continuing session ${restartId} with set ${setNumber}`);
       }
 
@@ -666,7 +670,7 @@ const TasksList = () => {
   };
 
   // NEW: Handle "Use Current User Info" for step authorization
-  const handleUseCurrentUserForStep = async () => {
+  const handleUseCurrentUserForStep = () => {
     const currentUserId = localStorage.getItem('uidd') || '';
 
     if (!currentUserId) {
@@ -687,8 +691,10 @@ const TasksList = () => {
       return;
     }
 
+    logActivity('AUTH_SUCCESS', `User ${currentUserId} authorized for step completion`);
+    
     // Authorization successful - proceed with step completion
-    await completeStepWithAuth(currentUserId);
+    completeStepWithAuth(currentUserId);
   };
 
   // NEW: Handle manual user ID entry for step authorization
@@ -1013,7 +1019,7 @@ const TasksList = () => {
   };
 
   // Handle "Use Current User Info" button click for Set Start Modal
-  const handleUseCurrentUserInfo = async () => {
+  const handleUseCurrentUserInfo = () => {
     const uidd = localStorage.getItem('uidd') || '';
     const username = localStorage.getItem('username') || '';
 
@@ -1023,6 +1029,7 @@ const TasksList = () => {
       return;
     }
 
+    // First, populate the data
     setSetStartData({
       infraId: uidd,
       infraName: username
@@ -1030,17 +1037,21 @@ const TasksList = () => {
 
     logActivity('USER_INFO', `Auto-filled with current user: ${username} (${uidd})`);
     
-    // Auto-submit the form
+    // Switch to manual mode so the form appears
+    setManualEntryMode(true);
+    
+    // Wait for the form to render, then submit it
     setTimeout(() => {
       const form = document.getElementById('set-start-form');
       if (form) {
-        form.requestSubmit();
+        // Directly call the submit handler
+        handleSetStartSubmit({ preventDefault: () => {} });
       }
     }, 100);
   };
 
   // Handle "Use Current User Info" button click for Support Acknowledgment Modal
-  const handleUseSupportUserInfo = async () => {
+  const handleUseSupportUserInfo = () => {
     const uidd = localStorage.getItem('uidd') || '';
     const username = localStorage.getItem('username') || '';
 
@@ -1057,11 +1068,15 @@ const TasksList = () => {
 
     logActivity('USER_INFO', `Auto-filled support info with current user: ${username} (${uidd})`);
     
-    // Auto-submit the form
+    // Switch to manual mode so the form appears
+    setSupportManualEntryMode(true);
+    
+    // Wait for the form to render, then submit it
     setTimeout(() => {
       const form = document.getElementById('support-ack-form');
       if (form) {
-        form.requestSubmit();
+        // Directly call the submit handler
+        handleSupportAckSubmit({ preventDefault: () => {} });
       }
     }, 100);
   };
