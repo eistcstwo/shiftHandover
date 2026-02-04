@@ -634,7 +634,7 @@ const TasksList = () => {
   };
 
   // NEW: Handle "Use Current User" for step authentication
-  const handleUseCurrentUserForStep = () => {
+  const handleUseCurrentUserForStep = async () => {
     const uidd = localStorage.getItem('uidd') || '';
     
     if (!uidd) {
@@ -642,13 +642,26 @@ const TasksList = () => {
       return;
     }
 
-    setStepAuthData({ userId: uidd });
-    logActivity('USER_INFO', `Auto-filled step auth with current user ID: ${uidd}`);
+    logActivity('USER_INFO', `Using current user ID for step auth: ${uidd}`);
     
-    // Auto-submit the form
-    setTimeout(() => {
-      document.getElementById('step-auth-form')?.requestSubmit();
-    }, 100);
+    // Check authorization directly
+    if (!checkUserAuthorization(uidd)) {
+      const currentSet = brokerStatus?.currSet?.[selectedSetIndex];
+      const expectedId = currentSet?.infraId || 'unknown';
+      alert(
+        `Authorization Failed!\n\nYou are not authorized to complete this step.\n\nExpected User ID: ${expectedId}\nYour User ID: ${uidd}\n\nOnly the user who started this set can mark steps as complete.`
+      );
+      logActivity('AUTH_FAILED', `User ${uidd} not authorized. Expected: ${expectedId}`);
+      return;
+    }
+
+    // Close modal and proceed with step completion
+    setStepAuthModal(false);
+    setStepAuthManualMode(false);
+    logActivity('AUTH_SUCCESS', `User ${uidd} authorized to complete step ${pendingStepId}`);
+    
+    // Now actually complete the step
+    await completeStepWithAuth(pendingStepId, uidd);
   };
 
   // NEW: Handle "Enter User ID Manually" for step authentication
