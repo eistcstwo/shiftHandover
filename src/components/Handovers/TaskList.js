@@ -28,6 +28,7 @@ const TasksList = () => {
   const isInitializing = useRef(true);
   const processingStep = useRef(false);
   const statusPollingInterval = useRef(null);
+  const currentStepRef = useRef(null); // Ref for scrolling to current step
 
   // State for set selection modal
   const [showSetModal, setShowSetModal] = useState(false);
@@ -36,6 +37,7 @@ const TasksList = () => {
     infraName: '',
     infraId: ''
   });
+  const [manualEntryMode, setManualEntryMode] = useState(false);
 
   // State for support acknowledgment modal
   const [supportAckModal, setSupportAckModal] = useState(false);
@@ -43,6 +45,7 @@ const TasksList = () => {
     name: '',
     id: ''
   });
+  const [supportManualEntryMode, setSupportManualEntryMode] = useState(false);
 
   // State for current step tracking
   const [currentStep, setCurrentStep] = useState(1);
@@ -133,6 +136,18 @@ const TasksList = () => {
       ackTime: null
     }
   ]);
+
+  // Auto-scroll to current step when it changes
+  useEffect(() => {
+    if (currentStepRef.current && selectedSetIndex !== null) {
+      setTimeout(() => {
+        currentStepRef.current?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center'
+        });
+      }, 300);
+    }
+  }, [currentStep, selectedSetIndex]);
 
   // Helper to normalize API response - ensures currSet is always an array
   const normalizeBrokerStatus = (statusData) => {
@@ -445,6 +460,7 @@ const TasksList = () => {
       // Open the modal to start Set 1 immediately
       setShowSetModal(true);
       setSetStartData({ infraName: '', infraId: '' });
+      setManualEntryMode(false);
     } catch (error) {
       console.error('Error starting new session:', error);
       logActivity('API_ERROR', `Failed to start new session: ${error.message}`);
@@ -461,6 +477,7 @@ const TasksList = () => {
     setSelectedSetIndex(setIndex);
     setShowSetModal(true);
     setSetStartData({ infraName: '', infraId: '' });
+    setManualEntryMode(false);
   };
 
   const handleSetStartSubmit = async (e) => {
@@ -537,6 +554,7 @@ const TasksList = () => {
       const normalizedResponse = normalizeBrokerStatus(response);
       setBrokerStatus(normalizedResponse);
       setShowSetModal(false);
+      setManualEntryMode(false);
 
       // Reset checklist steps for the new set
       setCurrentStep(1);
@@ -625,6 +643,7 @@ const TasksList = () => {
     }
     setSupportAckModal(true);
     setSupportAckData({ name: '', id: '' });
+    setSupportManualEntryMode(false);
   };
 
   const handleSupportAckSubmit = async (e) => {
@@ -688,6 +707,7 @@ const TasksList = () => {
       // Close the modal and clear its data first
       setSupportAckModal(false);
       setSupportAckData({ name: '', id: '' });
+      setSupportManualEntryMode(false);
 
       if (completedCount >= 4) {
         // All done — show completion page
@@ -852,6 +872,11 @@ const TasksList = () => {
     });
 
     logActivity('USER_INFO', `Auto-filled with current user: ${username} (${uidd})`);
+    
+    // Auto-submit the form
+    setTimeout(() => {
+      document.getElementById('set-start-form')?.requestSubmit();
+    }, 100);
   };
 
   // Handle "Use Current User Info" button click for Support Acknowledgment Modal
@@ -870,6 +895,23 @@ const TasksList = () => {
     });
 
     logActivity('USER_INFO', `Auto-filled support info with current user: ${username} (${uidd})`);
+    
+    // Auto-submit the form
+    setTimeout(() => {
+      document.getElementById('support-ack-form')?.requestSubmit();
+    }, 100);
+  };
+
+  // Handle "Enter Details Manually" button for Set Start Modal
+  const handleEnterManually = () => {
+    setManualEntryMode(true);
+    setSetStartData({ infraName: '', infraId: '' });
+  };
+
+  // Handle "Enter Details Manually" button for Support Ack Modal
+  const handleEnterSupportManually = () => {
+    setSupportManualEntryMode(true);
+    setSupportAckData({ name: '', id: '' });
   };
 
   const handleRefreshStatus = async () => {
@@ -1086,185 +1128,175 @@ const TasksList = () => {
       )}
 
       {showSetModal && (
-        <div className="modal-overlay" onClick={() => setShowSetModal(false)}>
+        <div className="modal-overlay" onClick={() => { setShowSetModal(false); setManualEntryMode(false); }}>
           <div className="modal-container" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h2>🔐 Start Set {selectedSetIndex + 1}</h2>
-              <p>Enter infrastructure details to begin</p>
+              <p>Choose how to proceed</p>
             </div>
 
-            <form onSubmit={handleSetStartSubmit} className="modal-form">
-              <div style={{ marginBottom: '1.5rem', textAlign: 'center' }}>
+            {!manualEntryMode ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 <button
                   type="button"
                   onClick={handleUseCurrentUserInfo}
-                  className="btn-secondary"
-                  style={{
-                    width: '100%',
-                    padding: '1rem',
-                    background: 'linear-gradient(135deg, rgba(46, 213, 255, 0.1) 0%, rgba(138, 43, 226, 0.08) 100%)',
-                    border: '2px solid var(--border-color)',
-                    color: 'var(--primary-blue)',
-                    fontWeight: '600',
-                    fontSize: '0.95rem',
-                    cursor: 'pointer',
-                    borderRadius: '10px',
-                    transition: 'all 0.3s ease'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.target.style.background = 'linear-gradient(135deg, rgba(46, 213, 255, 0.15) 0%, rgba(138, 43, 226, 0.12) 100%)';
-                    e.target.style.borderColor = 'var(--primary-blue)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.target.style.background = 'linear-gradient(135deg, rgba(46, 213, 255, 0.1) 0%, rgba(138, 43, 226, 0.08) 100%)';
-                    e.target.style.borderColor = 'var(--border-color)';
-                  }}
+                  className="btn-primary"
+                  style={{ width: '100%', padding: '1.25rem' }}
                 >
                   👤 Use Current User Info
                 </button>
-                <p style={{
-                  margin: '0.75rem 0 0 0',
-                  fontSize: '0.85rem',
-                  color: 'var(--text-secondary)'
-                }}>
-                  Or enter details manually below
-                </p>
-              </div>
-
-              <div className="form-group">
-                <label>Infra Team Member Name</label>
-                <input
-                  type="text"
-                  value={setStartData.infraName}
-                  onChange={(e) => setSetStartData({ ...setStartData, infraName: e.target.value })}
-                  placeholder="Enter infra name"
-                  required
-                  className="form-input"
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Infra Team Memeber ADID/TCS ID</label>
-                <input
-                  type="text"
-                  value={setStartData.infraId}
-                  onChange={handleInfraIdInput}
-                  placeholder="Enter infra ID (max 7 digits)"
-                  required
-                  className="form-input"
-                  maxLength={7}
-                />
-                <small style={{
-                  display: 'block',
-                  marginTop: '0.5rem',
-                  color: 'var(--text-secondary)',
-                  fontSize: '0.85rem'
-                }}>
-                  Manual entry: Numbers only, maximum 7 digits
-                </small>
-              </div>
-
-              <div className="modal-actions">
-                <button type="button" onClick={() => setShowSetModal(false)} className="btn-secondary">
+                
+                <button
+                  type="button"
+                  onClick={handleEnterManually}
+                  className="btn-secondary"
+                  style={{ width: '100%', padding: '1.25rem' }}
+                >
+                  ✍️ Enter Details Manually
+                </button>
+                
+                <button
+                  type="button"
+                  onClick={() => { setShowSetModal(false); setManualEntryMode(false); }}
+                  className="btn-secondary"
+                  style={{ marginTop: '0.5rem' }}
+                >
                   Cancel
                 </button>
-                <button type="submit" disabled={loading} className="btn-primary">
-                  {loading ? 'Starting...' : 'Start Set'}
-                </button>
               </div>
-            </form>
+            ) : (
+              <form id="set-start-form" onSubmit={handleSetStartSubmit} className="modal-form">
+                <div className="form-group">
+                  <label>Infra Team Member Name</label>
+                  <input
+                    type="text"
+                    value={setStartData.infraName}
+                    onChange={(e) => setSetStartData({ ...setStartData, infraName: e.target.value })}
+                    placeholder="Enter infra name"
+                    required
+                    className="form-input"
+                    autoFocus
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Infra Team Member ADID/TCS ID</label>
+                  <input
+                    type="text"
+                    value={setStartData.infraId}
+                    onChange={handleInfraIdInput}
+                    placeholder="Enter infra ID (max 7 digits)"
+                    required
+                    className="form-input"
+                    maxLength={7}
+                  />
+                  <small style={{
+                    display: 'block',
+                    marginTop: '0.5rem',
+                    color: 'var(--text-secondary)',
+                    fontSize: '0.85rem'
+                  }}>
+                    Numbers only, maximum 7 digits
+                  </small>
+                </div>
+
+                <div className="modal-actions">
+                  <button type="button" onClick={() => setManualEntryMode(false)} className="btn-secondary">
+                    Back
+                  </button>
+                  <button type="submit" disabled={loading} className="btn-primary">
+                    {loading ? 'Starting...' : 'Start Set'}
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}
 
       {supportAckModal && isSupport && (
-        <div className="modal-overlay" onClick={() => setSupportAckModal(false)}>
+        <div className="modal-overlay" onClick={() => { setSupportAckModal(false); setSupportManualEntryMode(false); }}>
           <div className="modal-container" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h2>🛡️ Complete Set {selectedSetIndex + 1}</h2>
-              <p>Enter support team acknowledgment details</p>
+              <p>Choose how to proceed</p>
             </div>
 
-            <form onSubmit={handleSupportAckSubmit} className="modal-form">
-              <div style={{ marginBottom: '1.5rem', textAlign: 'center' }}>
+            {!supportManualEntryMode ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 <button
                   type="button"
                   onClick={handleUseSupportUserInfo}
-                  className="btn-secondary"
-                  style={{
-                    width: '100%',
-                    padding: '1rem',
-                    background: 'linear-gradient(135deg, rgba(0, 184, 148, 0.1) 0%, rgba(0, 168, 132, 0.08) 100%)',
-                    border: '2px solid rgba(0, 184, 148, 0.3)',
-                    color: 'var(--success-green)',
-                    fontWeight: '600',
-                    fontSize: '0.95rem',
-                    cursor: 'pointer',
-                    borderRadius: '10px',
-                    transition: 'all 0.3s ease'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.target.style.background = 'linear-gradient(135deg, rgba(0, 184, 148, 0.15) 0%, rgba(0, 168, 132, 0.12) 100%)';
-                    e.target.style.borderColor = 'var(--success-green)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.target.style.background = 'linear-gradient(135deg, rgba(0, 184, 148, 0.1) 0%, rgba(0, 168, 132, 0.08) 100%)';
-                    e.target.style.borderColor = 'rgba(0, 184, 148, 0.3)';
-                  }}
+                  className="btn-primary"
+                  style={{ width: '100%', padding: '1.25rem' }}
                 >
                   👤 Use Current User Info
                 </button>
-                <p style={{
-                  margin: '0.75rem 0 0 0',
-                  fontSize: '0.85rem',
-                  color: 'var(--text-secondary)'
-                }}>
-                  Or enter details manually below
-                </p>
-              </div>
-
-              <div className="form-group">
-                <label>Support Member Name</label>
-                <input
-                  type="text"
-                  value={supportAckData.name}
-                  onChange={(e) => setSupportAckData({ ...supportAckData, name: e.target.value })}
-                  placeholder="Enter name"
-                  required
-                  className="form-input"
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Support Member ADID/TCS ID</label>
-                <input
-                  type="text"
-                  value={supportAckData.id}
-                  onChange={handleSupportIdInput}
-                  placeholder="Enter ID (max 7 digits)"
-                  required
-                  className="form-input"
-                  maxLength={7}
-                />
-                <small style={{
-                  display: 'block',
-                  marginTop: '0.5rem',
-                  color: 'var(--text-secondary)',
-                  fontSize: '0.85rem'
-                }}>
-                  Manual entry: Numbers only, maximum 7 digits
-                </small>
-              </div>
-
-              <div className="modal-actions">
-                <button type="button" onClick={() => setSupportAckModal(false)} className="btn-secondary">
+                
+                <button
+                  type="button"
+                  onClick={handleEnterSupportManually}
+                  className="btn-secondary"
+                  style={{ width: '100%', padding: '1.25rem' }}
+                >
+                  ✍️ Enter Details Manually
+                </button>
+                
+                <button
+                  type="button"
+                  onClick={() => { setSupportAckModal(false); setSupportManualEntryMode(false); }}
+                  className="btn-secondary"
+                  style={{ marginTop: '0.5rem' }}
+                >
                   Cancel
                 </button>
-                <button type="submit" disabled={loading} className="btn-primary">
-                  {loading ? 'Processing...' : 'Complete Set'}
-                </button>
               </div>
-            </form>
+            ) : (
+              <form id="support-ack-form" onSubmit={handleSupportAckSubmit} className="modal-form">
+                <div className="form-group">
+                  <label>Support Member Name</label>
+                  <input
+                    type="text"
+                    value={supportAckData.name}
+                    onChange={(e) => setSupportAckData({ ...supportAckData, name: e.target.value })}
+                    placeholder="Enter name"
+                    required
+                    className="form-input"
+                    autoFocus
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Support Member ADID/TCS ID</label>
+                  <input
+                    type="text"
+                    value={supportAckData.id}
+                    onChange={handleSupportIdInput}
+                    placeholder="Enter ID (max 7 digits)"
+                    required
+                    className="form-input"
+                    maxLength={7}
+                  />
+                  <small style={{
+                    display: 'block',
+                    marginTop: '0.5rem',
+                    color: 'var(--text-secondary)',
+                    fontSize: '0.85rem'
+                  }}>
+                    Numbers only, maximum 7 digits
+                  </small>
+                </div>
+
+                <div className="modal-actions">
+                  <button type="button" onClick={() => setSupportManualEntryMode(false)} className="btn-secondary">
+                    Back
+                  </button>
+                  <button type="submit" disabled={loading} className="btn-primary">
+                    {loading ? 'Processing...' : 'Complete Set'}
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}
@@ -1294,6 +1326,7 @@ const TasksList = () => {
               {checklistSteps.map((step, index) => (
                 <div
                   key={step.id}
+                  ref={currentStep === step.id ? currentStepRef : null}
                   className={`timeline-step ${step.completed ? 'completed' : ''} ${
                     currentStep === step.id ? 'current' : ''
                   }`}
