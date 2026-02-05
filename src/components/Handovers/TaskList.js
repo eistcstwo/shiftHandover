@@ -325,6 +325,26 @@ const TasksList = () => {
       }
     }
 
+    // Save infraId and infraName for all sets from API response if not in localStorage
+    if (statusResponse.currSet && statusResponse.currSet.length > 0) {
+      statusResponse.currSet.forEach((set, index) => {
+        // Only save for started or completed sets that have data
+        if (set.infraId && set.infraName) {
+          const storedInfraId = localStorage.getItem(`infraId_${rid}_${index}`);
+          const storedInfraName = localStorage.getItem(`infraName_${rid}_${index}`);
+          
+          // Save if not already in localStorage (happens on page refresh)
+          if (!storedInfraId || !storedInfraName) {
+            localStorage.setItem(`infraId_${rid}_${index}`, set.infraId);
+            localStorage.setItem(`infraName_${rid}_${index}`, set.infraName);
+            if (!silent) {
+              logActivity('RESTORE', `Restored infraId and infraName from API for set ${index + 1}: ${set.infraName} (${set.infraId})`);
+            }
+          }
+        }
+      });
+    }
+
     // Check if there's an ongoing set
     if (statusResponse.currSet && statusResponse.currSet.length > 0) {
       const activeSets = statusResponse.currSet.filter(
