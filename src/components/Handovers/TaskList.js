@@ -332,7 +332,7 @@ const TasksList = () => {
         if (set.infraId && set.infraName) {
           const storedInfraId = localStorage.getItem(`infraId_${rid}_${index}`);
           const storedInfraName = localStorage.getItem(`infraName_${rid}_${index}`);
-          
+
           // Save if not already in localStorage (happens on page refresh)
           if (!storedInfraId || !storedInfraName) {
             localStorage.setItem(`infraId_${rid}_${index}`, set.infraId);
@@ -609,12 +609,12 @@ const TasksList = () => {
     processingStep.current = true;
     try {
       const step = checklistSteps[stepId - 1];
-      
+
       // Get infraId from localStorage with detailed debugging
       const currentRestartIdForInfra = restartId;
       const localStorageKey = `infraId_${currentRestartIdForInfra}_${selectedSetIndex}`;
       const storedInfraId = localStorage.getItem(localStorageKey);
-      
+
       console.log('=== COMPLETE STEP DEBUG ===');
       console.log('Step ID:', stepId);
       console.log('Restart ID:', currentRestartIdForInfra);
@@ -623,18 +623,18 @@ const TasksList = () => {
       console.log('Retrieved infraId:', storedInfraId);
       console.log('Current Subset ID:', currentSubsetId);
       console.log('===========================');
-      
+
       if (!storedInfraId) {
         logActivity('WARNING', `No infraId found in localStorage for key: ${localStorageKey}. Attempting to retrieve from broker status...`);
-        
+
         // Try to get from current broker status as fallback
         if (brokerStatus?.currSet?.[selectedSetIndex]?.infraId) {
           const fallbackInfraId = brokerStatus.currSet[selectedSetIndex].infraId;
           logActivity('INFO', `Using infraId from broker status: ${fallbackInfraId}`);
-          
+
           // Save it to localStorage for future use
           localStorage.setItem(localStorageKey, fallbackInfraId);
-          
+
           await updateSubRestart(step.title, currentSubsetId, fallbackInfraId);
           logActivity('API_SUCCESS', `Step ${stepId} completed with fallback infraId: ${step.title}`);
         } else {
@@ -650,7 +650,7 @@ const TasksList = () => {
           currentSubSetUserId: storedInfraId,
           localStorageKey: localStorageKey
         });
-        
+
         await updateSubRestart(step.title, currentSubsetId, storedInfraId);
         logActivity('API_SUCCESS', `Step ${stepId} completed: ${step.title} with infraId: ${storedInfraId}`);
       }
@@ -962,13 +962,13 @@ const TasksList = () => {
     console.log('Selected Set Index:', selectedSetIndex);
     console.log('Current Subset ID:', currentSubsetId);
     console.log('');
-    
+
     if (restartId) {
       for (let i = 0; i < 4; i++) {
         const subsetId = localStorage.getItem(`currentSubsetId_${restartId}_${i}`);
         const infraId = localStorage.getItem(`infraId_${restartId}_${i}`);
         const infraName = localStorage.getItem(`infraName_${restartId}_${i}`);
-        
+
         if (subsetId || infraId || infraName) {
           console.log(`Set ${i}:`);
           console.log(`  - currentSubsetId_${restartId}_${i}:`, subsetId);
@@ -978,10 +978,10 @@ const TasksList = () => {
         }
       }
     }
-    
+
     console.log('Broker Status currSet:', brokerStatus?.currSet);
     console.log('===============================');
-    
+
     logActivity('DEBUG', 'localStorage state logged to console');
   };
 
@@ -1093,39 +1093,22 @@ const TasksList = () => {
           <h1>📝 Night Broker Restart Checklist</h1>
 
           <div className="header-details">
-            {restartId && (
-              <p>
-                <strong>Restart ID:</strong> {restartId}
-              </p>
-            )}
 
             <p>
               <strong>Completed Sets:</strong>{' '}
               {(brokerStatus?.currSet?.filter((s) => s.status === 'completed')?.length ?? 0)}/4
             </p>
 
-            {currentSubsetId && selectedSetIndex !== null && (
-              <p>
-                <strong>Current Subset ID:</strong> {currentSubsetId}
-              </p>
-            )}
 
             <p>
               <strong>User Level:</strong>{' '}
-              {isSupport ? 'Support Team' : isOperations ? 'Operations Team' : (rawUserLevel || 'Guest')}
+              {isSupport ? 'Support Team' : isOperations ? 'Infra Team' : (rawUserLevel || 'Guest')}
             </p>
 
             <button onClick={handleRefreshStatus} className="btn-refresh-status" disabled={loading}>
               {loading ? '🔄 Refreshing...' : '🔄 Refresh Status'}
             </button>
-            
-            <button 
-              onClick={showLocalStorageDebug} 
-              className="btn-refresh-status"
-              style={{ marginLeft: '0.5rem', background: 'rgba(138, 43, 226, 0.1)' }}
-            >
-              🐛 Debug localStorage
-            </button>
+
           </div>
         </div>
       </div>
@@ -1147,13 +1130,7 @@ const TasksList = () => {
                   </span>
                 </div>
 
-                <div className="set-details">
-                  {set.subSetsId && (
-                    <p className="subset-id">
-                      <strong>Subset ID:</strong> {set.subSetsId}
-                    </p>
-                  )}
-
+                 <div className = "set-details">
                   {set.infraName && (
                     <p className="infra-name">
                       <strong>Infra:</strong> {set.infraName}
@@ -1201,7 +1178,7 @@ const TasksList = () => {
           <div className="modal-container" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h2>🔐 Start Set {selectedSetIndex + 1}</h2>
-              <p>Enter infrastructure details to begin</p>
+              <p>Enter infra team details to begin</p>
             </div>
 
             <form onSubmit={handleSetStartSubmit} className="modal-form">
@@ -1243,7 +1220,7 @@ const TasksList = () => {
               </div>
 
               <div className="form-group">
-                <label>Infrastructure Name</label>
+                <label>Infra Team Member Name</label>
                 <input
                   type="text"
                   value={setStartData.infraName}
@@ -1255,7 +1232,7 @@ const TasksList = () => {
               </div>
 
               <div className="form-group">
-                <label>Infrastructure ID</label>
+                <label>Infra Team Member ADID/TCS ID</label>
                 <input
                   type="text"
                   value={setStartData.infraId}
@@ -1347,7 +1324,7 @@ const TasksList = () => {
               </div>
 
               <div className="form-group">
-                <label>Support Member ID</label>
+                <label>Support Member ADID/TCS ID</label>
                 <input
                   type="text"
                   value={supportAckData.id}
@@ -1385,7 +1362,6 @@ const TasksList = () => {
           <div className="user-info-banner">
             <div className="user-info-content">
               <span className="user-label">📍 Current Set: Set {selectedSetIndex + 1} of 4</span>
-              <span className="user-id">Subset ID: {currentSubsetId ?? 'Loading...'}</span>
 
               {brokerStatus?.currSet?.[selectedSetIndex]?.infraName && (
                 <span className="infra-info">
@@ -1524,29 +1500,6 @@ const TasksList = () => {
         </div>
       </div>
 
-      <div
-        style={{
-          marginTop: '2rem',
-          padding: '1rem',
-          background: 'rgba(255, 255, 255, 0.02)',
-          borderRadius: '10px',
-          fontSize: '0.9rem',
-          color: 'var(--text-secondary)'
-        }}
-      >
-        <p style={{ margin: '0 0 0.5rem 0' }}>
-          <strong>Note:</strong>
-          {isOperations
-            ? ' You are part of the Operations team. You can start sets and mark checklist steps as complete.'
-            : isSupport
-            ? ' You are part of the Support team. You can only acknowledge completion at Step 11.'
-            : ' You have limited access to view only.'}
-        </p>
-        <p style={{ margin: 0 }}>
-          <strong>Session ID:</strong> {restartId ?? 'Not started'}{' '}
-          <strong>Total Sets:</strong> {(brokerStatus?.currSet?.length ?? 0)}/4
-        </p>
-      </div>
     </div>
   );
 };
