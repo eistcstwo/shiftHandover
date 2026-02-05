@@ -610,18 +610,50 @@ const TasksList = () => {
     try {
       const step = checklistSteps[stepId - 1];
       
-      // Get infraId from localStorage
+      // Get infraId from localStorage with detailed debugging
       const currentRestartIdForInfra = restartId;
-      const storedInfraId = localStorage.getItem(`infraId_${currentRestartIdForInfra}_${selectedSetIndex}`);
+      const localStorageKey = `infraId_${currentRestartIdForInfra}_${selectedSetIndex}`;
+      const storedInfraId = localStorage.getItem(localStorageKey);
       
-      logActivity('API_CALL', `Calling updateSubRestart for step ${stepId}: ${step.title}`, {
-        subsetId: currentSubsetId,
-        stepTitle: step.title,
-        currentSubSetUserId: storedInfraId
-      });
+      console.log('=== COMPLETE STEP DEBUG ===');
+      console.log('Step ID:', stepId);
+      console.log('Restart ID:', currentRestartIdForInfra);
+      console.log('Selected Set Index:', selectedSetIndex);
+      console.log('localStorage Key:', localStorageKey);
+      console.log('Retrieved infraId:', storedInfraId);
+      console.log('Current Subset ID:', currentSubsetId);
+      console.log('===========================');
       
-      await updateSubRestart(step.title, currentSubsetId, storedInfraId);
-      logActivity('API_SUCCESS', `Step ${stepId} completed: ${step.title}`);
+      if (!storedInfraId) {
+        logActivity('WARNING', `No infraId found in localStorage for key: ${localStorageKey}. Attempting to retrieve from broker status...`);
+        
+        // Try to get from current broker status as fallback
+        if (brokerStatus?.currSet?.[selectedSetIndex]?.infraId) {
+          const fallbackInfraId = brokerStatus.currSet[selectedSetIndex].infraId;
+          logActivity('INFO', `Using infraId from broker status: ${fallbackInfraId}`);
+          
+          // Save it to localStorage for future use
+          localStorage.setItem(localStorageKey, fallbackInfraId);
+          
+          await updateSubRestart(step.title, currentSubsetId, fallbackInfraId);
+          logActivity('API_SUCCESS', `Step ${stepId} completed with fallback infraId: ${step.title}`);
+        } else {
+          logActivity('ERROR', 'No infraId available in localStorage or broker status');
+          alert('Error: Infrastructure ID not found. Please refresh the page and try again.');
+          processingStep.current = false;
+          return;
+        }
+      } else {
+        logActivity('API_CALL', `Calling updateSubRestart for step ${stepId}: ${step.title}`, {
+          subsetId: currentSubsetId,
+          stepTitle: step.title,
+          currentSubSetUserId: storedInfraId,
+          localStorageKey: localStorageKey
+        });
+        
+        await updateSubRestart(step.title, currentSubsetId, storedInfraId);
+        logActivity('API_SUCCESS', `Step ${stepId} completed: ${step.title} with infraId: ${storedInfraId}`);
+      }
 
       const updatedSteps = [...checklistSteps];
       updatedSteps[stepId - 1] = {
@@ -923,6 +955,36 @@ const TasksList = () => {
     }
   };
 
+  // Debug helper: Show localStorage state
+  const showLocalStorageDebug = () => {
+    console.log('=== LOCALSTORAGE DEBUG INFO ===');
+    console.log('Current restartId:', restartId);
+    console.log('Selected Set Index:', selectedSetIndex);
+    console.log('Current Subset ID:', currentSubsetId);
+    console.log('');
+    
+    if (restartId) {
+      for (let i = 0; i < 4; i++) {
+        const subsetId = localStorage.getItem(`currentSubsetId_${restartId}_${i}`);
+        const infraId = localStorage.getItem(`infraId_${restartId}_${i}`);
+        const infraName = localStorage.getItem(`infraName_${restartId}_${i}`);
+        
+        if (subsetId || infraId || infraName) {
+          console.log(`Set ${i}:`);
+          console.log(`  - currentSubsetId_${restartId}_${i}:`, subsetId);
+          console.log(`  - infraId_${restartId}_${i}:`, infraId);
+          console.log(`  - infraName_${restartId}_${i}:`, infraName);
+          console.log('');
+        }
+      }
+    }
+    
+    console.log('Broker Status currSet:', brokerStatus?.currSet);
+    console.log('===============================');
+    
+    logActivity('DEBUG', 'localStorage state logged to console');
+  };
+
   // --- RENDER ---
 
   // Initial "initializing" screen
@@ -1055,6 +1117,14 @@ const TasksList = () => {
 
             <button onClick={handleRefreshStatus} className="btn-refresh-status" disabled={loading}>
               {loading ? '🔄 Refreshing...' : '🔄 Refresh Status'}
+            </button>
+            
+            <button 
+              onClick={showLocalStorageDebug} 
+              className="btn-refresh-status"
+              style={{ marginLeft: '0.5rem', background: 'rgba(138, 43, 226, 0.1)' }}
+            >
+              🐛 Debug localStorage
             </button>
           </div>
         </div>
