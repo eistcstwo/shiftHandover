@@ -261,12 +261,18 @@ export const startBrokerRestartTask = async (infraId, infraName, restartId = nul
 };
 
 // STEP 5: Update sub-restart (mark step as complete)
-export const updateSubRestart = async (description, subSetsId) => {
+// Now includes currentSubSetUserId parameter
+export const updateSubRestart = async (description, subSetsId, currentSubSetUserId = null) => {
   try {
     const payload = {
       description: description,
       subSetsId: subSetsId
     };
+
+    // Include currentSubSetUserId if provided
+    if (currentSubSetUserId !== null && currentSubSetUserId !== undefined) {
+      payload.currentSubSetUserId = currentSubSetUserId;
+    }
 
     console.log('Updating sub-restart with payload:', payload);
 
