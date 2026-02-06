@@ -40,9 +40,14 @@ const TasksList = () => {
   const [showSetManualForm, setShowSetManualForm] = useState(false); // Toggle for manual form
   const [selectedServerSet, setSelectedServerSet] = useState(''); // Selected server set from dropdown
   const [showServerSetSelection, setShowServerSetSelection] = useState(false); // Toggle for server set selection step
+  const [showCustomSetForm, setShowCustomSetForm] = useState(false); // Toggle for custom set creation
+  const [customSetData, setCustomSetData] = useState({
+    name: '',
+    servers: ''
+  });
 
   // Predefined server sets
-  const serverSets = [
+  const [serverSets, setServerSets] = useState([
     {
       name: '25 Series - Set 1',
       servers: '155, 156, 157, 173, 174, 73, 74, 55, 56, 57, 63, 64, 163, 164, 10, 11, 12, 110, 111, 112, 41, 42, 43, 141, 142, 143, 31, 32, 134, 135, 192, 196, 197, 68, 69, 168, 169'
@@ -59,7 +64,7 @@ const TasksList = () => {
       name: '24 Series - Set 4',
       servers: '155, 156, 157, 173, 174, 73, 74, 55, 56, 57, 63, 64, 163, 164, 10, 11, 12, 110, 111, 112, 41, 42, 43, 141, 142, 143, 31, 32, 134, 135, 192, 196, 197, 68, 69, 168, 169'
     }
-  ];
+  ]);
 
   // State for support acknowledgment modal
   const [supportAckModal, setSupportAckModal] = useState(false);
@@ -73,7 +78,7 @@ const TasksList = () => {
   const [currentStep, setCurrentStep] = useState(1);
   const [timer, setTimer] = useState(null);
   const [timeElapsed, setTimeElapsed] = useState(0);
-  const [activityLog, setActivityLog] = useState([]);
+  const [activity Log, setActivityLog] = useState([]);
 
   // Checklist steps definition
   const [checklistSteps, setChecklistSteps] = useState([
@@ -304,6 +309,8 @@ const TasksList = () => {
               localStorage.removeItem(`currentSubsetId_${storedRestartId}_${i}`);
               localStorage.removeItem(`infraId_${storedRestartId}_${i}`);
               localStorage.removeItem(`infraName_${storedRestartId}_${i}`);
+              localStorage.removeItem(`serverSet_${storedRestartId}_${i}`);
+              localStorage.removeItem(`serverList_${storedRestartId}_${i}`);
             }
             localStorage.removeItem('brokerRestartId');
 
@@ -362,7 +369,7 @@ const TasksList = () => {
       }
     }
 
-    // Save infraId and infraName for all sets from API response if not in localStorage
+    // Save infraId, infraName, serverSet, and serverList for all sets from API response if not in localStorage
     if (statusResponse.currSet && statusResponse.currSet.length > 0) {
       statusResponse.currSet.forEach((set, index) => {
         // Only save for started or completed sets that have data
@@ -374,6 +381,15 @@ const TasksList = () => {
           if (!storedInfraId || !storedInfraName) {
             localStorage.setItem(`infraId_${rid}_${index}`, set.infraId);
             localStorage.setItem(`infraName_${rid}_${index}`, set.infraName);
+            
+            // Also save server set info if available
+            if (set.serverSet) {
+              localStorage.setItem(`serverSet_${rid}_${index}`, set.serverSet);
+            }
+            if (set.serverList) {
+              localStorage.setItem(`serverList_${rid}_${index}`, set.serverList);
+            }
+            
             if (!silent) {
               logActivity('RESTORE', `Restored infraId and infraName from API for set ${index + 1}: ${set.infraName} (${set.infraId})`);
             }
@@ -472,6 +488,8 @@ const TasksList = () => {
           localStorage.removeItem(`currentSubsetId_${restartId}_${i}`);
           localStorage.removeItem(`infraId_${restartId}_${i}`);
           localStorage.removeItem(`infraName_${restartId}_${i}`);
+          localStorage.removeItem(`serverSet_${restartId}_${i}`);
+          localStorage.removeItem(`serverList_${restartId}_${i}`);
         }
       }
       localStorage.removeItem('brokerRestartId');
@@ -507,7 +525,9 @@ const TasksList = () => {
       setShowSetModal(true);
       setShowServerSetSelection(true);
       setShowSetManualForm(false);
+      setShowCustomSetForm(false);
       setSelectedServerSet('');
+      setCustomSetData({ name: '', servers: '' });
       setSetStartData({ infraName: '', infraId: '' });
     } catch (error) {
       console.error('Error starting new session:', error);
@@ -526,7 +546,9 @@ const TasksList = () => {
     setShowSetModal(true);
     setShowServerSetSelection(true); // Start with server set selection
     setShowSetManualForm(false);
+    setShowCustomSetForm(false);
     setSelectedServerSet('');
+    setCustomSetData({ name: '', servers: '' });
     setSetStartData({ infraName: '', infraId: '' });
   };
 
@@ -538,6 +560,44 @@ const TasksList = () => {
     }
     logActivity('SERVER_SET', `Selected server set: ${selectedServerSet}`);
     setShowServerSetSelection(false); // Move to next step (user info choice)
+  };
+
+  // NEW: Handle "Create Custom Set"
+  const handleCreateCustomSet = () => {
+    setShowServerSetSelection(false);
+    setShowCustomSetForm(true);
+    setCustomSetData({ name: '', servers: '' });
+  };
+
+  // NEW: Handle custom set submission
+  const handleCustomSetSubmit = (e) => {
+    e.preventDefault();
+    
+    // Validate input
+    if (!customSetData.name.trim()) {
+      alert('Please enter a name for the custom set.');
+      return;
+    }
+    if (!customSetData.servers.trim()) {
+      alert('Please enter server numbers.');
+      return;
+    }
+
+    // Add the custom set to the list
+    const newSet = {
+      name: customSetData.name.trim(),
+      servers: customSetData.servers.trim(),
+      isCustom: true
+    };
+    
+    setServerSets([...serverSets, newSet]);
+    setSelectedServerSet(newSet.name);
+    
+    logActivity('CUSTOM_SET', `Created custom server set: ${newSet.name}`);
+    
+    // Move to user info choice
+    setShowCustomSetForm(false);
+    setCustomSetData({ name: '', servers: '' });
   };
 
   // NEW: Handle "Use Current User Info" for Set Start
@@ -569,7 +629,16 @@ const TasksList = () => {
     processingStep.current = true;
     setLoading(true);
     try {
-      logActivity('SET_START', `Starting set ${selectedSetIndex + 1}`, { infraName, infraId, serverSet: selectedServerSet });
+      // Get the selected server set details
+      const selectedSet = serverSets.find(s => s.name === selectedServerSet);
+      const serverList = selectedSet ? selectedSet.servers : '';
+
+      logActivity('SET_START', `Starting set ${selectedSetIndex + 1}`, { 
+        infraName, 
+        infraId, 
+        serverSet: selectedServerSet,
+        serverList 
+      });
 
       let restartIdToPass = null;
       const setNumber = selectedSetIndex + 1;
@@ -588,7 +657,9 @@ const TasksList = () => {
         infraId,
         infraName,
         restartIdToPass,
-        setNumber
+        setNumber,
+        selectedServerSet, // Pass server set name
+        serverList // Pass server list
       );
 
       logActivity('API_SUCCESS', `Set ${selectedSetIndex + 1} started successfully`, response);
@@ -621,16 +692,17 @@ const TasksList = () => {
       setCurrentSubsetId(subsetId);
       logActivity('INFO', `Subset ID obtained: ${subsetId} for set ${selectedSetIndex + 1}`);
 
-      // Persist subsetId, infraId, and infraName to localStorage
+      // Persist subsetId, infraId, infraName, serverSet, and serverList to localStorage
       const currentRestartId = response.brokerRestartId ?? restartId;
       if (currentRestartId) {
         localStorage.setItem(`currentSubsetId_${currentRestartId}_${selectedSetIndex}`, subsetId);
         // Save infraId and infraName for current set
         localStorage.setItem(`infraId_${currentRestartId}_${selectedSetIndex}`, infraId);
         localStorage.setItem(`infraName_${currentRestartId}_${selectedSetIndex}`, infraName);
-        // Save selected server set info
+        // Save selected server set info and server list
         localStorage.setItem(`serverSet_${currentRestartId}_${selectedSetIndex}`, selectedServerSet);
-        logActivity('INFO', `Saved infraId, infraName, and server set to localStorage for set ${selectedSetIndex + 1}`);
+        localStorage.setItem(`serverList_${currentRestartId}_${selectedSetIndex}`, serverList);
+        logActivity('INFO', `Saved infraId, infraName, server set, and server list to localStorage for set ${selectedSetIndex + 1}`);
       }
 
       if (allSetsCompleted) {
@@ -644,7 +716,9 @@ const TasksList = () => {
       setShowSetModal(false);
       setShowServerSetSelection(false);
       setShowSetManualForm(false);
+      setShowCustomSetForm(false);
       setSelectedServerSet('');
+      setCustomSetData({ name: '', servers: '' });
 
       // Reset checklist steps for the new set
       setCurrentStep(1);
@@ -679,7 +753,9 @@ const TasksList = () => {
     setShowSetModal(false);
     setShowServerSetSelection(false);
     setShowSetManualForm(false);
+    setShowCustomSetForm(false);
     setSelectedServerSet('');
+    setCustomSetData({ name: '', servers: '' });
     setSetStartData({ infraName: '', infraId: '' });
     // Only reset selectedSetIndex if there's no active work in progress
     if (!currentSubsetId) {
@@ -859,12 +935,13 @@ const TasksList = () => {
       };
       setChecklistSteps(updatedSteps);
 
-      // Clear infraId and infraName from localStorage after set completion
+      // Clear infraId, infraName, serverSet, and serverList from localStorage after set completion
       const currentRestartIdForClear = restartId;
       localStorage.removeItem(`infraId_${currentRestartIdForClear}_${completedSetIndex}`);
       localStorage.removeItem(`infraName_${currentRestartIdForClear}_${completedSetIndex}`);
       localStorage.removeItem(`serverSet_${currentRestartIdForClear}_${completedSetIndex}`);
-      logActivity('INFO', `Cleared infraId, infraName, and server set from localStorage for completed set ${completedSetIndex + 1}`);
+      localStorage.removeItem(`serverList_${currentRestartIdForClear}_${completedSetIndex}`);
+      logActivity('INFO', `Cleared infraId, infraName, server set, and server list from localStorage for completed set ${completedSetIndex + 1}`);
 
       // Fetch fresh status from backend to get the ground truth
       logActivity('API_CALL', `Fetching broker status after set completion`);
@@ -1068,13 +1145,15 @@ const TasksList = () => {
         const infraId = localStorage.getItem(`infraId_${restartId}_${i}`);
         const infraName = localStorage.getItem(`infraName_${restartId}_${i}`);
         const serverSet = localStorage.getItem(`serverSet_${restartId}_${i}`);
+        const serverList = localStorage.getItem(`serverList_${restartId}_${i}`);
 
-        if (subsetId || infraId || infraName || serverSet) {
+        if (subsetId || infraId || infraName || serverSet || serverList) {
           console.log(`Set ${i}:`);
           console.log(`  - currentSubsetId_${restartId}_${i}:`, subsetId);
           console.log(`  - infraId_${restartId}_${i}:`, infraId);
           console.log(`  - infraName_${restartId}_${i}:`, infraName);
           console.log(`  - serverSet_${restartId}_${i}:`, serverSet);
+          console.log(`  - serverList_${restartId}_${i}:`, serverList);
           console.log('');
         }
       }
@@ -1091,6 +1170,13 @@ const TasksList = () => {
     if (!restartId) return null;
     const serverSet = localStorage.getItem(`serverSet_${restartId}_${setIndex}`);
     return serverSet || (brokerStatus?.currSet?.[setIndex]?.serverSet);
+  };
+
+  // NEW: Get server list for display
+  const getServerList = (setIndex) => {
+    if (!restartId) return null;
+    const serverList = localStorage.getItem(`serverList_${restartId}_${setIndex}`);
+    return serverList || (brokerStatus?.currSet?.[setIndex]?.serverList);
   };
 
   // --- RENDER ---
@@ -1129,6 +1215,7 @@ const TasksList = () => {
               .slice(0, 4)
               .map((set, index) => {
                 const serverSetName = getServerSetName(index);
+                const serverList = getServerList(index);
                 return (
                   <div key={index} className="set-card set-card-completed" style={{ marginBottom: '1rem' }}>
                     <div className="set-header">
@@ -1141,6 +1228,13 @@ const TasksList = () => {
                         <p className="server-set-name">
                           <strong>Server Set:</strong> {serverSetName}
                         </p>
+                      )}
+
+                      {serverList && (
+                        <div className="server-list-display">
+                          <strong>Servers:</strong>
+                          <div className="server-numbers-compact">{serverList}</div>
+                        </div>
                       )}
 
                       {set.infraName && (
@@ -1236,6 +1330,7 @@ const TasksList = () => {
           <div className="sets-grid">
             {(brokerStatus?.currSet ?? []).map((set, index) => {
               const serverSetName = getServerSetName(index);
+              const serverList = getServerList(index);
               return (
                 <div
                   key={index}
@@ -1254,6 +1349,13 @@ const TasksList = () => {
                       <p className="server-set-name">
                         <strong>Server Set:</strong> {serverSetName}
                       </p>
+                    )}
+
+                    {serverList && (
+                      <div className="server-list-display">
+                        <strong>Servers:</strong>
+                        <div className="server-numbers-compact">{serverList}</div>
+                      </div>
                     )}
 
                     {set.infraName && (
@@ -1299,7 +1401,7 @@ const TasksList = () => {
         </div>
       )}
 
-      {/* UPDATED SET START MODAL WITH SERVER SET SELECTION */}
+      {/* UPDATED SET START MODAL WITH SERVER SET SELECTION AND CUSTOM SET CREATION */}
       {showSetModal && (
         <div className="modal-overlay" onClick={handleSetModalCancel}>
           <div className="modal-container server-set-modal" onClick={(e) => e.stopPropagation()}>
@@ -1308,6 +1410,8 @@ const TasksList = () => {
               <p>
                 {showServerSetSelection 
                   ? 'Select which server set you will be working on'
+                  : showCustomSetForm
+                  ? 'Create a custom server set'
                   : 'Choose how to provide infra team details'}
               </p>
             </div>
@@ -1326,7 +1430,7 @@ const TasksList = () => {
                     <option value="">-- Select a Server Set --</option>
                     {serverSets.map((set, idx) => (
                       <option key={idx} value={set.name}>
-                        {set.name}
+                        {set.name} {set.isCustom ? '(Custom)' : ''}
                       </option>
                     ))}
                   </select>
@@ -1342,6 +1446,14 @@ const TasksList = () => {
                 )}
 
                 <div className="modal-actions" style={{ marginTop: '2rem' }}>
+                  <button 
+                    type="button" 
+                    onClick={handleCreateCustomSet} 
+                    className="btn-secondary"
+                    style={{ marginRight: 'auto' }}
+                  >
+                    ➕ Create Custom Set
+                  </button>
                   <button type="button" onClick={handleSetModalCancel} className="btn-secondary">
                     Cancel
                   </button>
@@ -1355,6 +1467,59 @@ const TasksList = () => {
                   </button>
                 </div>
               </div>
+            ) : showCustomSetForm ? (
+              // CUSTOM SET CREATION FORM
+              <form onSubmit={handleCustomSetSubmit} className="modal-form">
+                <div className="form-group">
+                  <label>Custom Set Name</label>
+                  <input
+                    type="text"
+                    value={customSetData.name}
+                    onChange={(e) => setCustomSetData({ ...customSetData, name: e.target.value })}
+                    placeholder="e.g., Production Set A"
+                    required
+                    className="form-input"
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Server Numbers (comma-separated)</label>
+                  <textarea
+                    value={customSetData.servers}
+                    onChange={(e) => setCustomSetData({ ...customSetData, servers: e.target.value })}
+                    placeholder="e.g., 155, 156, 157, 173, 174, 73, 74"
+                    required
+                    className="form-input"
+                    rows="4"
+                    style={{ resize: 'vertical', fontFamily: "'Courier New', monospace" }}
+                  />
+                  <small style={{
+                    display: 'block',
+                    marginTop: '0.5rem',
+                    color: 'var(--text-secondary)',
+                    fontSize: '0.85rem'
+                  }}>
+                    Enter server numbers separated by commas
+                  </small>
+                </div>
+
+                <div className="modal-actions">
+                  <button 
+                    type="button" 
+                    onClick={() => {
+                      setShowCustomSetForm(false);
+                      setShowServerSetSelection(true);
+                      setCustomSetData({ name: '', servers: '' });
+                    }} 
+                    className="btn-secondary"
+                  >
+                    Back
+                  </button>
+                  <button type="submit" className="btn-primary">
+                    Create & Select
+                  </button>
+                </div>
+              </form>
             ) : !showSetManualForm ? (
               // CHOICE SCREEN (after server set selection)
               <div className="modal-choice-container">
@@ -1562,6 +1727,16 @@ const TasksList = () => {
             </div>
             <div className="current-timer">⏱️ Step Time: {formatTime(timeElapsed)}</div>
           </div>
+
+          {/* NEW: Display server list for current set */}
+          {getServerList(selectedSetIndex) && (
+            <div className="current-server-list-section">
+              <h3>🖥️ Servers in Current Set</h3>
+              <div className="server-list-display-box">
+                {getServerList(selectedSetIndex)}
+              </div>
+            </div>
+          )}
 
           <div className="checklist-section">
             <h2>📋 Restart Procedure Checklist</h2>
