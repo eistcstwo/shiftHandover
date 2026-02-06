@@ -37,7 +37,29 @@ const TasksList = () => {
     infraName: '',
     infraId: ''
   });
-  const [showSetManualForm, setShowSetManualForm] = useState(false); // NEW: Toggle for manual form
+  const [showSetManualForm, setShowSetManualForm] = useState(false); // Toggle for manual form
+  const [selectedServerSet, setSelectedServerSet] = useState(''); // Selected server set from dropdown
+  const [showServerSetSelection, setShowServerSetSelection] = useState(false); // Toggle for server set selection step
+
+  // Predefined server sets
+  const serverSets = [
+    {
+      name: '25 Series - Set 1',
+      servers: '155, 156, 157, 173, 174, 73, 74, 55, 56, 57, 63, 64, 163, 164, 10, 11, 12, 110, 111, 112, 41, 42, 43, 141, 142, 143, 31, 32, 134, 135, 192, 196, 197, 68, 69, 168, 169'
+    },
+    {
+      name: '25 Series - Set 2',
+      servers: '158, 159, 160, 175, 176, 75, 58, 59, 65, 66, 67, 165, 166, 13, 14, 113, 114, 115, 44, 45, 144, 145, 146, 33, 34, 131, 132, 133, 190, 191, 194, 195, 70, 71, 170, 171'
+    },
+    {
+      name: '24 Series - Set 3',
+      servers: '158, 159, 160, 175, 176, 75, 58, 59, 65, 66, 67, 165, 166, 13, 14, 113, 114, 115, 44, 45, 144, 145, 146, 33, 34, 131, 132, 133, 190, 191, 194, 195, 70, 71, 170, 171'
+    },
+    {
+      name: '24 Series - Set 4',
+      servers: '155, 156, 157, 173, 174, 73, 74, 55, 56, 57, 63, 64, 163, 164, 10, 11, 12, 110, 111, 112, 41, 42, 43, 141, 142, 143, 31, 32, 134, 135, 192, 196, 197, 68, 69, 168, 169'
+    }
+  ];
 
   // State for support acknowledgment modal
   const [supportAckModal, setSupportAckModal] = useState(false);
@@ -45,7 +67,7 @@ const TasksList = () => {
     name: '',
     id: ''
   });
-  const [showSupportManualForm, setShowSupportManualForm] = useState(false); // NEW: Toggle for manual form
+  const [showSupportManualForm, setShowSupportManualForm] = useState(false); // Toggle for manual form
 
   // State for current step tracking
   const [currentStep, setCurrentStep] = useState(1);
@@ -180,7 +202,7 @@ const TasksList = () => {
     };
   }, [selectedSetIndex, allSetsCompleted, restartId]);
 
-  // NEW: Auto-scroll to current step when currentStep changes
+  // Auto-scroll to current step when currentStep changes
   useEffect(() => {
     if (currentStepRef.current && selectedSetIndex !== null) {
       setTimeout(() => {
@@ -481,9 +503,11 @@ const TasksList = () => {
 
       logActivity('NEW_SESSION', 'Session reset complete. Opening modal to start Set 1.');
 
-      // Open the modal to start Set 1 immediately
+      // Open the modal to start Set 1 immediately - show server set selection first
       setShowSetModal(true);
-      setShowSetManualForm(false); // Reset to choice screen
+      setShowServerSetSelection(true);
+      setShowSetManualForm(false);
+      setSelectedServerSet('');
       setSetStartData({ infraName: '', infraId: '' });
     } catch (error) {
       console.error('Error starting new session:', error);
@@ -500,8 +524,20 @@ const TasksList = () => {
     }
     setSelectedSetIndex(setIndex);
     setShowSetModal(true);
-    setShowSetManualForm(false); // Reset to choice screen
+    setShowServerSetSelection(true); // Start with server set selection
+    setShowSetManualForm(false);
+    setSelectedServerSet('');
     setSetStartData({ infraName: '', infraId: '' });
+  };
+
+  // NEW: Handle server set selection and proceed to user info
+  const handleServerSetConfirm = () => {
+    if (!selectedServerSet) {
+      alert('Please select a server set before proceeding.');
+      return;
+    }
+    logActivity('SERVER_SET', `Selected server set: ${selectedServerSet}`);
+    setShowServerSetSelection(false); // Move to next step (user info choice)
   };
 
   // NEW: Handle "Use Current User Info" for Set Start
@@ -533,7 +569,7 @@ const TasksList = () => {
     processingStep.current = true;
     setLoading(true);
     try {
-      logActivity('SET_START', `Starting set ${selectedSetIndex + 1}`, { infraName, infraId });
+      logActivity('SET_START', `Starting set ${selectedSetIndex + 1}`, { infraName, infraId, serverSet: selectedServerSet });
 
       let restartIdToPass = null;
       const setNumber = selectedSetIndex + 1;
@@ -592,7 +628,9 @@ const TasksList = () => {
         // Save infraId and infraName for current set
         localStorage.setItem(`infraId_${currentRestartId}_${selectedSetIndex}`, infraId);
         localStorage.setItem(`infraName_${currentRestartId}_${selectedSetIndex}`, infraName);
-        logActivity('INFO', `Saved infraId and infraName to localStorage for set ${selectedSetIndex + 1}`);
+        // Save selected server set info
+        localStorage.setItem(`serverSet_${currentRestartId}_${selectedSetIndex}`, selectedServerSet);
+        logActivity('INFO', `Saved infraId, infraName, and server set to localStorage for set ${selectedSetIndex + 1}`);
       }
 
       if (allSetsCompleted) {
@@ -604,7 +642,9 @@ const TasksList = () => {
       const normalizedResponse = normalizeBrokerStatus(response);
       setBrokerStatus(normalizedResponse);
       setShowSetModal(false);
+      setShowServerSetSelection(false);
       setShowSetManualForm(false);
+      setSelectedServerSet('');
 
       // Reset checklist steps for the new set
       setCurrentStep(1);
@@ -618,7 +658,7 @@ const TasksList = () => {
       setChecklistSteps(resetSteps);
 
       startTimer();
-      logActivity('SET_INIT', `Set ${selectedSetIndex + 1} initialized successfully`);
+      logActivity('SET_INIT', `Set ${selectedSetIndex + 1} initialized successfully with server set: ${selectedServerSet}`);
     } catch (error) {
       console.error('Error starting set:', error);
       logActivity('API_ERROR', `Failed to start set: ${error.message}`);
@@ -637,7 +677,9 @@ const TasksList = () => {
   // NEW: Handle modal cancel - properly reset state
   const handleSetModalCancel = () => {
     setShowSetModal(false);
+    setShowServerSetSelection(false);
     setShowSetManualForm(false);
+    setSelectedServerSet('');
     setSetStartData({ infraName: '', infraId: '' });
     // Only reset selectedSetIndex if there's no active work in progress
     if (!currentSubsetId) {
@@ -821,7 +863,8 @@ const TasksList = () => {
       const currentRestartIdForClear = restartId;
       localStorage.removeItem(`infraId_${currentRestartIdForClear}_${completedSetIndex}`);
       localStorage.removeItem(`infraName_${currentRestartIdForClear}_${completedSetIndex}`);
-      logActivity('INFO', `Cleared infraId and infraName from localStorage for completed set ${completedSetIndex + 1}`);
+      localStorage.removeItem(`serverSet_${currentRestartIdForClear}_${completedSetIndex}`);
+      logActivity('INFO', `Cleared infraId, infraName, and server set from localStorage for completed set ${completedSetIndex + 1}`);
 
       // Fetch fresh status from backend to get the ground truth
       logActivity('API_CALL', `Fetching broker status after set completion`);
@@ -1024,12 +1067,14 @@ const TasksList = () => {
         const subsetId = localStorage.getItem(`currentSubsetId_${restartId}_${i}`);
         const infraId = localStorage.getItem(`infraId_${restartId}_${i}`);
         const infraName = localStorage.getItem(`infraName_${restartId}_${i}`);
+        const serverSet = localStorage.getItem(`serverSet_${restartId}_${i}`);
 
-        if (subsetId || infraId || infraName) {
+        if (subsetId || infraId || infraName || serverSet) {
           console.log(`Set ${i}:`);
           console.log(`  - currentSubsetId_${restartId}_${i}:`, subsetId);
           console.log(`  - infraId_${restartId}_${i}:`, infraId);
           console.log(`  - infraName_${restartId}_${i}:`, infraName);
+          console.log(`  - serverSet_${restartId}_${i}:`, serverSet);
           console.log('');
         }
       }
@@ -1039,6 +1084,13 @@ const TasksList = () => {
     console.log('===============================');
 
     logActivity('DEBUG', 'localStorage state logged to console');
+  };
+
+  // Get server set name for display
+  const getServerSetName = (setIndex) => {
+    if (!restartId) return null;
+    const serverSet = localStorage.getItem(`serverSet_${restartId}_${setIndex}`);
+    return serverSet || (brokerStatus?.currSet?.[setIndex]?.serverSet);
   };
 
   // --- RENDER ---
@@ -1075,38 +1127,47 @@ const TasksList = () => {
 
             {(brokerStatus?.currSet ?? [])
               .slice(0, 4)
-              .map((set, index) => (
-                <div key={index} className="set-card set-card-completed" style={{ marginBottom: '1rem' }}>
-                  <div className="set-header">
-                    <h3>Set {index + 1}</h3>
-                    <span className="set-status set-status-completed">✅ COMPLETED</span>
-                  </div>
+              .map((set, index) => {
+                const serverSetName = getServerSetName(index);
+                return (
+                  <div key={index} className="set-card set-card-completed" style={{ marginBottom: '1rem' }}>
+                    <div className="set-header">
+                      <h3>Set {index + 1}</h3>
+                      <span className="set-status set-status-completed">✅ COMPLETED</span>
+                    </div>
 
-                  <div className="set-details">
-                    {set.infraName && (
-                      <p className="infra-name">
-                        <strong>Infrastructure:</strong> {set.infraName}
-                      </p>
-                    )}
+                    <div className="set-details">
+                      {serverSetName && (
+                        <p className="server-set-name">
+                          <strong>Server Set:</strong> {serverSetName}
+                        </p>
+                      )}
 
-                    {set.supportName && (
-                      <div className="set-support-ack">
-                        <strong>Support Acknowledgment:</strong> {set.supportName}
-                        {set.supportTime && set.supportTime !== 'Pending' && (
-                          <>
-                            <br />
-                            <small>{format(new Date(set.supportTime), 'MMM d, h:mm:ss a')}</small>
-                          </>
-                        )}
+                      {set.infraName && (
+                        <p className="infra-name">
+                          <strong>Infrastructure:</strong> {set.infraName}
+                        </p>
+                      )}
+
+                      {set.supportName && (
+                        <div className="set-support-ack">
+                          <strong>Support Acknowledgment:</strong> {set.supportName}
+                          {set.supportTime && set.supportTime !== 'Pending' && (
+                            <>
+                              <br />
+                              <small>{format(new Date(set.supportTime), 'MMM d, h:mm:ss a')}</small>
+                            </>
+                          )}
+                        </div>
+                      )}
+
+                      <div className="set-progress-info">
+                        <span>Steps completed: {set.subTasks?.length ?? 0}/10</span>
                       </div>
-                    )}
-
-                    <div className="set-progress-info">
-                      <span>Steps completed: {set.subTasks?.length ?? 0}/10</span>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
           </div>
 
           {isOperations && (
@@ -1173,47 +1234,56 @@ const TasksList = () => {
         <div className="sets-section">
           <h2>📊 Available Sets {(brokerStatus?.currSet?.length ?? 0)}/4</h2>
           <div className="sets-grid">
-            {(brokerStatus?.currSet ?? []).map((set, index) => (
-              <div
-                key={index}
-                className={`set-card ${set.status === 'completed' ? 'set-card-completed' : ''}`}
-                style={{ borderLeft: `4px solid ${getStatusColor(set.status)}` }}
-              >
-                <div className="set-header">
-                  <h3>Set {index + 1}</h3>
-                  <span className={`set-status ${set.status === 'completed' ? 'set-status-completed' : ''}`}>
-                    {set.status.toUpperCase()}
-                  </span>
-                </div>
+            {(brokerStatus?.currSet ?? []).map((set, index) => {
+              const serverSetName = getServerSetName(index);
+              return (
+                <div
+                  key={index}
+                  className={`set-card ${set.status === 'completed' ? 'set-card-completed' : ''}`}
+                  style={{ borderLeft: `4px solid ${getStatusColor(set.status)}` }}
+                >
+                  <div className="set-header">
+                    <h3>Set {index + 1}</h3>
+                    <span className={`set-status ${set.status === 'completed' ? 'set-status-completed' : ''}`}>
+                      {set.status.toUpperCase()}
+                    </span>
+                  </div>
 
-                 <div className = "set-details">
-                  {set.infraName && (
-                    <p className="infra-name">
-                      <strong>Infra:</strong> {set.infraName}
-                    </p>
-                  )}
-
-                  {set.supportName && set.supportName !== 'pending' && (
-                    <div className="set-support-ack">
-                      <strong>Support Ack:</strong> {set.supportName}
-                    </div>
-                  )}
-
-                  <div className="set-progress-info">
-                    {set.status === 'started' && (!set.endTime || set.endTime === 'Present') && (
-                      <button onClick={() => handleResumeSet(index, set)} className="complete-btn">
-                        Resume This Set
-                      </button>
+                  <div className="set-details">
+                    {serverSetName && (
+                      <p className="server-set-name">
+                        <strong>Server Set:</strong> {serverSetName}
+                      </p>
                     )}
-                    {set.status === 'completed' && (
-                      <div className="set-completed">
-                        <span>✅ Completed</span>
+
+                    {set.infraName && (
+                      <p className="infra-name">
+                        <strong>Infra:</strong> {set.infraName}
+                      </p>
+                    )}
+
+                    {set.supportName && set.supportName !== 'pending' && (
+                      <div className="set-support-ack">
+                        <strong>Support Ack:</strong> {set.supportName}
                       </div>
                     )}
+
+                    <div className="set-progress-info">
+                      {set.status === 'started' && (!set.endTime || set.endTime === 'Present') && (
+                        <button onClick={() => handleResumeSet(index, set)} className="complete-btn">
+                          Resume This Set
+                        </button>
+                      )}
+                      {set.status === 'completed' && (
+                        <div className="set-completed">
+                          <span>✅ Completed</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
 
             {(!brokerStatus?.currSet || brokerStatus.currSet.length < 4) && isOperations && (
               <div
@@ -1229,17 +1299,64 @@ const TasksList = () => {
         </div>
       )}
 
-      {/* UPDATED SET START MODAL WITH TWO-STEP FLOW */}
+      {/* UPDATED SET START MODAL WITH SERVER SET SELECTION */}
       {showSetModal && (
         <div className="modal-overlay" onClick={handleSetModalCancel}>
-          <div className="modal-container" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-container server-set-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h2>🔐 Start Set {selectedSetIndex + 1}</h2>
-              <p>Choose how to provide infra team details</p>
+              <p>
+                {showServerSetSelection 
+                  ? 'Select which server set you will be working on'
+                  : 'Choose how to provide infra team details'}
+              </p>
             </div>
 
-            {!showSetManualForm ? (
-              // CHOICE SCREEN
+            {showServerSetSelection ? (
+              // SERVER SET SELECTION STEP
+              <div className="server-set-selection">
+                <div className="form-group">
+                  <label>Server Set</label>
+                  <select
+                    value={selectedServerSet}
+                    onChange={(e) => setSelectedServerSet(e.target.value)}
+                    className="form-input server-set-dropdown"
+                    required
+                  >
+                    <option value="">-- Select a Server Set --</option>
+                    {serverSets.map((set, idx) => (
+                      <option key={idx} value={set.name}>
+                        {set.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {selectedServerSet && (
+                  <div className="server-list-preview">
+                    <h4>📋 Servers in this set:</h4>
+                    <div className="server-numbers">
+                      {serverSets.find(s => s.name === selectedServerSet)?.servers}
+                    </div>
+                  </div>
+                )}
+
+                <div className="modal-actions" style={{ marginTop: '2rem' }}>
+                  <button type="button" onClick={handleSetModalCancel} className="btn-secondary">
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleServerSetConfirm}
+                    className="btn-primary"
+                    disabled={!selectedServerSet}
+                  >
+                    Continue →
+                  </button>
+                </div>
+              </div>
+            ) : !showSetManualForm ? (
+              // CHOICE SCREEN (after server set selection)
               <div className="modal-choice-container">
                 <button
                   type="button"
@@ -1267,6 +1384,16 @@ const TasksList = () => {
                 </button>
 
                 <div className="modal-actions" style={{ marginTop: '1.5rem' }}>
+                  <button 
+                    type="button" 
+                    onClick={() => {
+                      setShowServerSetSelection(true);
+                      setSelectedServerSet('');
+                    }} 
+                    className="btn-secondary"
+                  >
+                    ← Back to Server Selection
+                  </button>
                   <button type="button" onClick={handleSetModalCancel} className="btn-secondary">
                     Cancel
                   </button>
@@ -1322,7 +1449,7 @@ const TasksList = () => {
         </div>
       )}
 
-      {/* UPDATED SUPPORT ACK MODAL WITH TWO-STEP FLOW */}
+      {/* SUPPORT ACK MODAL (unchanged) */}
       {supportAckModal && isSupport && (
         <div className="modal-overlay" onClick={handleSupportModalCancel}>
           <div className="modal-container" onClick={(e) => e.stopPropagation()}>
@@ -1420,6 +1547,12 @@ const TasksList = () => {
           <div className="user-info-banner">
             <div className="user-info-content">
               <span className="user-label">📍 Current Set: Set {selectedSetIndex + 1} of 4</span>
+
+              {getServerSetName(selectedSetIndex) && (
+                <span className="server-set-badge">
+                  🖥️ {getServerSetName(selectedSetIndex)}
+                </span>
+              )}
 
               {brokerStatus?.currSet?.[selectedSetIndex]?.infraName && (
                 <span className="infra-info">
