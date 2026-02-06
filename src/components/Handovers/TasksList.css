@@ -864,7 +864,6 @@
 /* ===== TIMELINE ===== */
 .timeline-container {
   position: relative;
-  padding: 1rem 0;
 }
 
 .timeline-step {
