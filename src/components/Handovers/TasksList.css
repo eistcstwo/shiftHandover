@@ -1662,3 +1662,177 @@ select:focus-visible {
     padding: 0.85rem;
   }
 }
+/* =====================================================================
+   ADDITIONS — append these rules to the bottom of TasksList.css
+   ===================================================================== */
+
+/* ── Reset Session Button (header) ─────────────────────────────────── */
+.btn-reset-session {
+  padding: 0.75rem 1.5rem;
+  background: linear-gradient(135deg, rgba(255, 118, 117, 0.15) 0%, rgba(214, 48, 49, 0.1) 100%);
+  color: #ff7675;
+  border: 2px solid rgba(255, 118, 117, 0.35);
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 4px 15px rgba(255, 118, 117, 0.12);
+}
+
+.btn-reset-session::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(255, 118, 117, 0.2);
+  transform: translate(-50%, -50%);
+  transition: width 0.6s, height 0.6s;
+}
+
+.btn-reset-session:hover:not(:disabled) {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 30px rgba(255, 118, 117, 0.3);
+  background: linear-gradient(135deg, rgba(255, 118, 117, 0.25) 0%, rgba(214, 48, 49, 0.18) 100%);
+  border-color: #ff7675;
+}
+
+.btn-reset-session:hover:not(:disabled)::before {
+  width: 300px;
+  height: 300px;
+}
+
+.btn-reset-session:active:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.btn-reset-session:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ── Danger button (used inside the confirm dialog) ─────────────────── */
+.btn-danger {
+  padding: 0.9rem 1.75rem;
+  background: linear-gradient(135deg, rgba(255, 118, 117, 0.25) 0%, rgba(214, 48, 49, 0.2) 100%);
+  color: #ff7675;
+  border: 2px solid rgba(255, 118, 117, 0.5);
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  box-shadow: 0 4px 15px rgba(255, 118, 117, 0.2);
+}
+
+.btn-danger:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(255, 118, 117, 0.4);
+  background: linear-gradient(135deg, rgba(255, 118, 117, 0.38) 0%, rgba(214, 48, 49, 0.3) 100%);
+  border-color: #ff7675;
+}
+
+.btn-danger:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.btn-danger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ── Reset Confirmation Modal ───────────────────────────────────────── */
+.reset-confirm-modal {
+  max-width: 500px;
+  border-color: rgba(255, 118, 117, 0.35) !important;
+  box-shadow: 0 20px 60px rgba(255, 118, 117, 0.15), 0 0 0 1px rgba(255, 118, 117, 0.1) !important;
+}
+
+.reset-warning-icon {
+  font-size: 3.5rem;
+  margin-bottom: 0.75rem;
+  animation: warnPulse 1.8s ease-in-out infinite;
+}
+
+@keyframes warnPulse {
+  0%, 100% { transform: scale(1);    opacity: 1; }
+  50%       { transform: scale(1.12); opacity: 0.8; }
+}
+
+/* Override the gradient text colour to use the danger red for this modal */
+.reset-confirm-modal .modal-header h2 {
+  background: linear-gradient(135deg, #ff7675 0%, #d63031 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.reset-confirm-modal .modal-header p {
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  line-height: 1.6;
+  margin-top: 0.5rem;
+}
+
+.reset-confirm-modal .modal-header p strong {
+  color: #ff7675;
+}
+
+.reset-confirm-details {
+  background: rgba(255, 118, 117, 0.06);
+  border: 1px solid rgba(255, 118, 117, 0.2);
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.75rem;
+}
+
+.reset-confirm-details ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.reset-confirm-details ul li {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.reset-modal-actions {
+  justify-content: flex-end;
+  gap: 1rem;
+}
+
+/* ── Responsive tweaks ──────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .btn-reset-session {
+    width: 100%;
+    text-align: center;
+  }
+
+  .reset-confirm-modal {
+    max-width: 95%;
+  }
+
+  .reset-modal-actions {
+    flex-direction: column-reverse;
+  }
+
+  .reset-modal-actions button {
+    width: 100%;
+  }
+}
