@@ -6,7 +6,9 @@ import {
   getBrokerRestartStatus,
   startBrokerRestartTask,
   updateSubRestart,
-  updateSetRestart
+  updateSetRestart,
+  deleteSetRestart,
+  deleteBrokerRestart
 } from '../../Api/HandOverApi';
 
 const TasksList = () => {
@@ -24,10 +26,13 @@ const TasksList = () => {
   const [allSetsCompleted, setAllSetsCompleted] = useState(false);
   const [newSessionLoading, setNewSessionLoading] = useState(false);
 
-  // ── NEW: Reset confirmation dialog state ──────────────────────────────────
+  // Reset / delete dialog state
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
-  // ─────────────────────────────────────────────────────────────────────────
+  // 'choose' | 'deleteSet' | 'deleteAll'
+  const [resetStep, setResetStep] = useState('choose');
+  const [deleteSetForm, setDeleteSetForm] = useState({ subSetId: '', ackDesc: '' });
+  const [deleteAllForm, setDeleteAllForm] = useState({ userInfraId: '' });
 
   // Refs to track state and prevent race conditions
   const isInitializing = useRef(true);
@@ -38,45 +43,40 @@ const TasksList = () => {
   // State for set selection modal
   const [showSetModal, setShowSetModal] = useState(false);
   const [selectedSetIndex, setSelectedSetIndex] = useState(null);
-  const [setStartData, setSetStartData] = useState({
-    infraName: '',
-    infraId: ''
-  });
+  const [setStartData, setSetStartData] = useState({ infraName: '', infraId: '' });
   const [showSetManualForm, setShowSetManualForm] = useState(false);
   const [selectedServerSet, setSelectedServerSet] = useState('');
   const [showServerSetSelection, setShowServerSetSelection] = useState(false);
   const [showCustomSetForm, setShowCustomSetForm] = useState(false);
-  const [customSetData, setCustomSetData] = useState({
-    name: '',
-    servers: ''
-  });
+  const [customSetData, setCustomSetData] = useState({ name: '', servers: '' });
 
   // Predefined server sets
   const [serverSets, setServerSets] = useState([
     {
       name: '25 Series - Set 1',
-      servers: '155, 156, 157, 173, 174, 73, 74, 55, 56, 57, 63, 64, 163, 164, 10, 11, 12, 110, 111, 112, 41, 42, 43, 141, 142, 143, 31, 32, 134, 135, 192, 196, 197, 68, 69, 168, 169'
+      servers:
+        '155, 156, 157, 173, 174, 73, 74, 55, 56, 57, 63, 64, 163, 164, 10, 11, 12, 110, 111, 112, 41, 42, 43, 141, 142, 143, 31, 32, 134, 135, 192, 196, 197, 68, 69, 168, 169'
     },
     {
       name: '25 Series - Set 2',
-      servers: '158, 159, 160, 175, 176, 75, 58, 59, 65, 66, 67, 165, 166, 13, 14, 113, 114, 115, 44, 45, 144, 145, 146, 33, 34, 131, 132, 133, 190, 191, 194, 195, 70, 71, 170, 171'
+      servers:
+        '158, 159, 160, 175, 176, 75, 58, 59, 65, 66, 67, 165, 166, 13, 14, 113, 114, 115, 44, 45, 144, 145, 146, 33, 34, 131, 132, 133, 190, 191, 194, 195, 70, 71, 170, 171'
     },
     {
       name: '24 Series - Set 3',
-      servers: '158, 159, 160, 175, 176, 75, 58, 59, 65, 66, 67, 165, 166, 13, 14, 113, 114, 115, 44, 45, 144, 145, 146, 33, 34, 131, 132, 133, 190, 191, 194, 195, 70, 71, 170, 171'
+      servers:
+        '158, 159, 160, 175, 176, 75, 58, 59, 65, 66, 67, 165, 166, 13, 14, 113, 114, 115, 44, 45, 144, 145, 146, 33, 34, 131, 132, 133, 190, 191, 194, 195, 70, 71, 170, 171'
     },
     {
       name: '24 Series - Set 4',
-      servers: '155, 156, 157, 173, 174, 73, 74, 55, 56, 57, 63, 64, 163, 164, 10, 11, 12, 110, 111, 112, 41, 42, 43, 141, 142, 143, 31, 32, 134, 135, 192, 196, 197, 68, 69, 168, 169'
+      servers:
+        '155, 156, 157, 173, 174, 73, 74, 55, 56, 57, 63, 64, 163, 164, 10, 11, 12, 110, 111, 112, 41, 42, 43, 141, 142, 143, 31, 32, 134, 135, 192, 196, 197, 68, 69, 168, 169'
     }
   ]);
 
   // State for support acknowledgment modal
   const [supportAckModal, setSupportAckModal] = useState(false);
-  const [supportAckData, setSupportAckData] = useState({
-    name: '',
-    id: ''
-  });
+  const [supportAckData, setSupportAckData] = useState({ name: '', id: '' });
   const [showSupportManualForm, setShowSupportManualForm] = useState(false);
 
   // State for current step tracking
@@ -87,31 +87,35 @@ const TasksList = () => {
 
   // Checklist steps definition
   const [checklistSteps, setChecklistSteps] = useState([
-    { id: 1,  title: 'CACHE UPDATED AFTER 12:00 A.M.',          description: 'Ensure cache is updated after midnight',              completed: false, completedTime: null },
-    { id: 2,  title: 'SETS READY FOR RESTART',                   description: 'Prepare all server sets for restart',               completed: false, completedTime: null },
-    { id: 3,  title: 'ISOLATOR DOWN',                            description: 'Bring isolator down for maintenance',               completed: false, completedTime: null },
-    { id: 4,  title: 'BROKER STOPPED',                           description: 'Stop all broker services',                          completed: false, completedTime: null },
-    { id: 5,  title: 'HEARTBEAT & CACHE BROKER STARTED',         description: 'Start heartbeat and cache broker services',         completed: false, completedTime: null },
-    { id: 6,  title: 'ALL BROKER STARTED',                       description: 'Start all broker services',                         completed: false, completedTime: null },
-    { id: 7,  title: 'CACHE HIT & WORKLOAD DONE',                description: 'Verify cache hits and complete workload',           completed: false, completedTime: null },
-    { id: 8,  title: 'UDP CHANGES (TIMEOUT & URL CHANGES)',      description: 'Apply UDP configuration changes',                   completed: false, completedTime: null },
-    { id: 9,  title: 'LOGS VERIFICATION DONE',                   description: 'Verify all system logs',                           completed: false, completedTime: null },
-    { id: 10, title: 'ISOLATOR UP',                              description: 'Bring isolator back online',                        completed: false, completedTime: null },
-    { id: 11, title: 'INFORM END OF ACTIVITY TO SUPPORT TEAM',   description: 'Notify support team about activity completion',     completed: false, completedTime: null, requiresAck: true, ackBy: null, ackTime: null }
+    { id: 1,  title: 'CACHE UPDATED AFTER 12:00 A.M.',         description: 'Ensure cache is updated after midnight',           completed: false, completedTime: null },
+    { id: 2,  title: 'SETS READY FOR RESTART',                  description: 'Prepare all server sets for restart',              completed: false, completedTime: null },
+    { id: 3,  title: 'ISOLATOR DOWN',                           description: 'Bring isolator down for maintenance',              completed: false, completedTime: null },
+    { id: 4,  title: 'BROKER STOPPED',                          description: 'Stop all broker services',                         completed: false, completedTime: null },
+    { id: 5,  title: 'HEARTBEAT & CACHE BROKER STARTED',        description: 'Start heartbeat and cache broker services',        completed: false, completedTime: null },
+    { id: 6,  title: 'ALL BROKER STARTED',                      description: 'Start all broker services',                        completed: false, completedTime: null },
+    { id: 7,  title: 'CACHE HIT & WORKLOAD DONE',               description: 'Verify cache hits and complete workload',          completed: false, completedTime: null },
+    { id: 8,  title: 'UDP CHANGES (TIMEOUT & URL CHANGES)',     description: 'Apply UDP configuration changes',                  completed: false, completedTime: null },
+    { id: 9,  title: 'LOGS VERIFICATION DONE',                  description: 'Verify all system logs',                          completed: false, completedTime: null },
+    { id: 10, title: 'ISOLATOR UP',                             description: 'Bring isolator back online',                       completed: false, completedTime: null },
+    { id: 11, title: 'INFORM END OF ACTIVITY TO SUPPORT TEAM',  description: 'Notify support team about activity completion',    completed: false, completedTime: null, requiresAck: true, ackBy: null, ackTime: null }
   ]);
 
-  // Helper to normalize API response
+  // ── Helper to normalize API response ──────────────────────────────────────
   const normalizeBrokerStatus = (statusData) => {
     if (!statusData) return null;
     console.log('Normalizing broker status:', statusData);
-    if (statusData.currSet && typeof statusData.currSet === 'object' && !Array.isArray(statusData.currSet)) {
+    if (
+      statusData.currSet &&
+      typeof statusData.currSet === 'object' &&
+      !Array.isArray(statusData.currSet)
+    ) {
       console.log('Converting currSet from object to array');
       return { ...statusData, currSet: [statusData.currSet] };
     }
     return statusData;
   };
 
-  // STEP 1: Initialize
+  // ── INIT ──────────────────────────────────────────────────────────────────
   useEffect(() => {
     initializeRestartId();
     return () => {
@@ -144,13 +148,18 @@ const TasksList = () => {
     }
   }, [currentStep, selectedSetIndex]);
 
-  // Extract subSetsId from multiple response shapes
+  // ── Extract subSetsId from multiple response shapes ───────────────────────
   const extractSubsetId = (input) => {
     let response = input;
     if (typeof input === 'string') {
-      try { response = JSON.parse(input); } catch (e) { return undefined; }
+      try {
+        response = JSON.parse(input);
+      } catch (e) {
+        return undefined;
+      }
     }
     if (!response || typeof response !== 'object') return undefined;
+
     const pickId = (obj) => {
       if (!obj || typeof obj !== 'object') return undefined;
       if (obj.subSetsId != null) return obj.subSetsId;
@@ -158,12 +167,19 @@ const TasksList = () => {
       if (obj.subsetId  != null) return obj.subsetId;
       return undefined;
     };
+
     const topLevelId = pickId(response);
     if (topLevelId != null) return topLevelId;
-    if (response.currSet && typeof response.currSet === 'object' && !Array.isArray(response.currSet)) {
+
+    if (
+      response.currSet &&
+      typeof response.currSet === 'object' &&
+      !Array.isArray(response.currSet)
+    ) {
       const id = pickId(response.currSet);
       if (id != null) return id;
     }
+
     if (response.currSet && Array.isArray(response.currSet)) {
       const activeSets = response.currSet.filter(
         (set) => set && set.status === 'started' && (!set.endTime || set.endTime === 'Present')
@@ -175,6 +191,7 @@ const TasksList = () => {
       const id = pickId(response.currSet[response.currSet.length - 1]);
       if (id != null) return id;
     }
+
     console.warn('subset id not found in response.');
     return undefined;
   };
@@ -193,7 +210,7 @@ const TasksList = () => {
 
         if (isSupport && normalizedStatus?.currSet && normalizedStatus.currSet.length >= 4) {
           const completedCount = normalizedStatus.currSet.filter(
-            (set) => set.status === 'completed' && (set.endTime && set.endTime !== 'Present')
+            (set) => set.status === 'completed' && set.endTime && set.endTime !== 'Present'
           ).length;
           if (completedCount >= 4) {
             for (let i = 0; i < 4; i++) {
@@ -234,7 +251,7 @@ const TasksList = () => {
   const processBrokerStatus = async (statusResponse, rid, silent = false) => {
     if (statusResponse.currSet && statusResponse.currSet.length >= 4) {
       const completedCount = statusResponse.currSet.filter(
-        (set) => set.status === 'completed' && (set.endTime && set.endTime !== 'Present')
+        (set) => set.status === 'completed' && set.endTime && set.endTime !== 'Present'
       ).length;
       if (completedCount >= 4) {
         setAllSetsCompleted(true);
@@ -269,6 +286,7 @@ const TasksList = () => {
         const lastActiveSet = activeSets[activeSets.length - 1];
         const setIndex = statusResponse.currSet.indexOf(lastActiveSet);
         setSelectedSetIndex(setIndex);
+
         const subsetId = extractSubsetId(lastActiveSet);
         if (subsetId) {
           setCurrentSubsetId(subsetId);
@@ -281,13 +299,14 @@ const TasksList = () => {
             if (!silent) logActivity('INFO', `Using stored subset ID: ${storedSubsetId}`);
           }
         }
+
         if (lastActiveSet.subTasks && lastActiveSet.subTasks.length > 0) {
           const completedStepsCount = lastActiveSet.subTasks.length;
           setCurrentStep(completedStepsCount + 1);
           const updatedSteps = [...checklistSteps];
           lastActiveSet.subTasks.forEach((task, index) => {
             if (updatedSteps[index]) {
-              updatedSteps[index].completed = true;
+              updatedSteps[index].completed    = true;
               updatedSteps[index].completedTime = task.completion || new Date().toISOString();
             }
           });
@@ -312,8 +331,8 @@ const TasksList = () => {
 
   const fetchBrokerStatus = async (rid, silent = false) => {
     try {
-      const statusResponse = await getBrokerRestartStatus(rid);
-      const normalizedStatus = normalizeBrokerStatus(statusResponse);
+      const statusResponse    = await getBrokerRestartStatus(rid);
+      const normalizedStatus  = normalizeBrokerStatus(statusResponse);
       setBrokerStatus(normalizedStatus);
       if (!silent) logActivity('API_SUCCESS', 'Broker status fetched', normalizedStatus);
       await processBrokerStatus(normalizedStatus, rid, silent);
@@ -323,9 +342,110 @@ const TasksList = () => {
     }
   };
 
-  // ── NEW: handleResetSession ───────────────────────────────────────────────
-  // Wipes all local state + localStorage and calls getRestartId + opens the
-  // Set-1 start modal so the user immediately hits startBrokerRestartTask.
+  // ── Open reset dialog ─────────────────────────────────────────────────────
+  const handleOpenResetConfirm = () => {
+    if (!isOperations) {
+      alert('Only Operations team can reset the session.');
+      return;
+    }
+    setResetStep('choose');
+    setDeleteSetForm({ subSetId: '', ackDesc: '' });
+    setDeleteAllForm({ userInfraId: '' });
+    setShowResetConfirm(true);
+  };
+
+  // ── DELETE SPECIFIC SET ───────────────────────────────────────────────────
+  const handleDeleteSet = async (e) => {
+    e.preventDefault();
+    if (!deleteSetForm.subSetId || !deleteSetForm.ackDesc.trim()) {
+      alert('Please fill in all fields.');
+      return;
+    }
+    setResetLoading(true);
+    logActivity('DELETE_SET', `Deleting sub-set ID: ${deleteSetForm.subSetId}`);
+    try {
+      await deleteSetRestart(Number(deleteSetForm.subSetId), deleteSetForm.ackDesc.trim());
+      logActivity('API_SUCCESS', `Set ${deleteSetForm.subSetId} deleted successfully`);
+      setShowResetConfirm(false);
+      // Refresh to reflect deletion
+      if (restartId) await fetchBrokerStatus(restartId);
+    } catch (error) {
+      console.error('deleteSetRestart error:', error);
+      logActivity('API_ERROR', `deleteSetRestart failed: ${error.message}`);
+      alert(`Failed to delete set: ${error.message}`);
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
+  // ── DELETE ENTIRE SESSION ─────────────────────────────────────────────────
+  const handleDeleteAll = async (e) => {
+    e.preventDefault();
+    if (!deleteAllForm.userInfraId.trim()) {
+      alert('Please enter your Infra ID.');
+      return;
+    }
+    setResetLoading(true);
+    logActivity('DELETE_ALL', `Deleting entire restart session ${restartId}`);
+    try {
+      await deleteBrokerRestart(restartId, Number(deleteAllForm.userInfraId));
+      logActivity('API_SUCCESS', `Entire restart session ${restartId} deleted`);
+
+      // Stop timers / polling
+      if (timer) { clearInterval(timer); setTimer(null); }
+      if (statusPollingInterval.current) {
+        clearInterval(statusPollingInterval.current);
+        statusPollingInterval.current = null;
+      }
+
+      // Clear localStorage
+      const idsToClear = new Set(
+        [String(restartId), localStorage.getItem('brokerRestartId')].filter(Boolean)
+      );
+      idsToClear.forEach((id) => {
+        for (let i = 0; i < 4; i++) {
+          localStorage.removeItem(`currentSubsetId_${id}_${i}`);
+          localStorage.removeItem(`infraId_${id}_${i}`);
+          localStorage.removeItem(`infraName_${id}_${i}`);
+          localStorage.removeItem(`serverSet_${id}_${i}`);
+          localStorage.removeItem(`serverList_${id}_${i}`);
+        }
+      });
+      localStorage.removeItem('brokerRestartId');
+
+      // Reset all React state
+      setAllSetsCompleted(false);
+      setRestartId(null);
+      setBrokerStatus(null);
+      setSelectedSetIndex(null);
+      setCurrentSubsetId(null);
+      setCurrentStep(1);
+      setTimeElapsed(0);
+      setActivityLog([]);
+      setChecklistSteps((prev) =>
+        prev.map((s) => ({ ...s, completed: false, completedTime: null, ackBy: null, ackTime: null }))
+      );
+
+      // Get fresh restart ID
+      const response = await getRestartId();
+      const newId = response.restartId;
+      setRestartId(newId);
+      localStorage.setItem('brokerRestartId', newId);
+      logActivity('API_SUCCESS', `New restart ID obtained after delete: ${newId}`);
+
+      await fetchBrokerStatus(newId, true);
+      setShowResetConfirm(false);
+      logActivity('DELETE_ALL', 'Session deleted — ready to start fresh');
+    } catch (error) {
+      console.error('deleteBrokerRestart error:', error);
+      logActivity('API_ERROR', `deleteBrokerRestart failed: ${error.message}`);
+      alert(`Failed to delete session: ${error.message}`);
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
+  // ── LEGACY handleResetSession (kept for "Start New Session" from completion page) ──
   const handleResetSession = async () => {
     if (!isOperations) {
       alert('Only Operations team can reset the session.');
@@ -333,16 +453,13 @@ const TasksList = () => {
     }
     setResetLoading(true);
     logActivity('RESET', 'Resetting session — clearing all data and starting fresh');
-
     try {
-      // 1. Stop any running timers / polling
       if (timer) { clearInterval(timer); setTimer(null); }
       if (statusPollingInterval.current) {
         clearInterval(statusPollingInterval.current);
         statusPollingInterval.current = null;
       }
 
-      // 2. Clear localStorage for current (and the last known) restart session
       const idsToClear = new Set();
       if (restartId) idsToClear.add(String(restartId));
       const stored = localStorage.getItem('brokerRestartId');
@@ -359,7 +476,6 @@ const TasksList = () => {
       });
       localStorage.removeItem('brokerRestartId');
 
-      // 3. Reset all React state
       setAllSetsCompleted(false);
       setRestartId(null);
       setBrokerStatus(null);
@@ -378,17 +494,14 @@ const TasksList = () => {
       }));
       setChecklistSteps(resetSteps);
 
-      // 4. Get a brand-new restart ID from the backend
       const response = await getRestartId();
       const newRestartId = response.restartId;
       setRestartId(newRestartId);
       localStorage.setItem('brokerRestartId', newRestartId);
       logActivity('API_SUCCESS', `New restart ID obtained after reset: ${newRestartId}`);
 
-      // 5. Fetch fresh status (will show 0 sets started)
       await fetchBrokerStatus(newRestartId, true);
 
-      // 6. Close confirm dialog and immediately open the Start-Set-1 modal
       setShowResetConfirm(false);
       setSelectedSetIndex(0);
       setShowSetModal(true);
@@ -408,7 +521,6 @@ const TasksList = () => {
       setResetLoading(false);
     }
   };
-  // ─────────────────────────────────────────────────────────────────────────
 
   const handleStartNewSession = async () => {
     if (!isOperations) {
@@ -519,7 +631,9 @@ const TasksList = () => {
     try {
       const selectedSet = serverSets.find((s) => s.name === selectedServerSet);
       const serverList  = selectedSet ? selectedSet.servers : '';
-      logActivity('SET_START', `Starting set ${selectedSetIndex + 1}`, { infraName, infraId, serverSet: selectedServerSet, serverList });
+      logActivity('SET_START', `Starting set ${selectedSetIndex + 1}`, {
+        infraName, infraId, serverSet: selectedServerSet, serverList
+      });
 
       let restartIdToPass = null;
       const setNumber = selectedSetIndex + 1;
@@ -579,7 +693,7 @@ const TasksList = () => {
         localStorage.setItem(`serverList_${currentRestartId}_${selectedSetIndex}`, serverList);
       }
 
-      if (allSetsCompleted) { setAllSetsCompleted(false); }
+      if (allSetsCompleted) setAllSetsCompleted(false);
 
       const normalizedResponse = normalizeBrokerStatus(response);
       setBrokerStatus(normalizedResponse);
@@ -654,11 +768,18 @@ const TasksList = () => {
       }
 
       const updatedSteps = [...checklistSteps];
-      updatedSteps[stepId - 1] = { ...updatedSteps[stepId - 1], completed: true, completedTime: new Date().toISOString() };
+      updatedSteps[stepId - 1] = {
+        ...updatedSteps[stepId - 1],
+        completed: true,
+        completedTime: new Date().toISOString()
+      };
       setChecklistSteps(updatedSteps);
 
       if (stepId < checklistSteps.length) {
-        setTimeout(() => { setCurrentStep(stepId + 1); setTimeElapsed(0); }, 500);
+        setTimeout(() => {
+          setCurrentStep(stepId + 1);
+          setTimeElapsed(0);
+        }, 500);
       }
     } catch (error) {
       console.error('Error completing step:', error);
@@ -701,7 +822,13 @@ const TasksList = () => {
       logActivity('API_SUCCESS', `Support acknowledgment by ${supportName} (${supportId})`, updateResponse);
 
       const updatedSteps = [...checklistSteps];
-      updatedSteps[10] = { ...updatedSteps[10], completed: true, completedTime: new Date().toISOString(), ackBy: supportName, ackTime: new Date().toISOString() };
+      updatedSteps[10] = {
+        ...updatedSteps[10],
+        completed: true,
+        completedTime: new Date().toISOString(),
+        ackBy: supportName,
+        ackTime: new Date().toISOString()
+      };
       setChecklistSteps(updatedSteps);
 
       localStorage.removeItem(`infraId_${restartId}_${completedSetIndex}`);
@@ -709,12 +836,12 @@ const TasksList = () => {
       localStorage.removeItem(`serverSet_${restartId}_${completedSetIndex}`);
       localStorage.removeItem(`serverList_${restartId}_${completedSetIndex}`);
 
-      const statusResponse    = await getBrokerRestartStatus(restartId);
-      const normalizedStatus  = normalizeBrokerStatus(statusResponse);
+      const statusResponse   = await getBrokerRestartStatus(restartId);
+      const normalizedStatus = normalizeBrokerStatus(statusResponse);
       setBrokerStatus(normalizedStatus);
 
       const completedCount = normalizedStatus.currSet?.filter(
-        (set) => set.status === 'completed' && (set.endTime && set.endTime !== 'Present')
+        (set) => set.status === 'completed' && set.endTime && set.endTime !== 'Present'
       ).length ?? 0;
 
       setSupportAckModal(false);
@@ -734,7 +861,10 @@ const TasksList = () => {
         setChecklistSteps(resetStepsAfterAck);
         setCurrentStep(1);
         setTimeElapsed(0);
-        logActivity('SET_COMPLETE', `Set ${completedSetIndex + 1} completed. Ready for next set (${completedCount + 1}/4)`);
+        logActivity(
+          'SET_COMPLETE',
+          `Set ${completedSetIndex + 1} completed. Ready for next set (${completedCount + 1}/4)`
+        );
         await processBrokerStatus(normalizedStatus, restartId);
       }
     } catch (error) {
@@ -779,7 +909,7 @@ const TasksList = () => {
       const updatedSteps = [...checklistSteps];
       set.subTasks.forEach((task, taskIndex) => {
         if (updatedSteps[taskIndex]) {
-          updatedSteps[taskIndex].completed    = true;
+          updatedSteps[taskIndex].completed     = true;
           updatedSteps[taskIndex].completedTime = task.completion || new Date().toISOString();
         }
       });
@@ -842,12 +972,18 @@ const TasksList = () => {
 
   const getServerSetName = (setIndex) => {
     if (!restartId) return null;
-    return localStorage.getItem(`serverSet_${restartId}_${setIndex}`) || brokerStatus?.currSet?.[setIndex]?.serverSet;
+    return (
+      localStorage.getItem(`serverSet_${restartId}_${setIndex}`) ||
+      brokerStatus?.currSet?.[setIndex]?.serverSet
+    );
   };
 
   const getServerList = (setIndex) => {
     if (!restartId) return null;
-    return localStorage.getItem(`serverList_${restartId}_${setIndex}`) || brokerStatus?.currSet?.[setIndex]?.serverList;
+    return (
+      localStorage.getItem(`serverList_${restartId}_${setIndex}`) ||
+      brokerStatus?.currSet?.[setIndex]?.serverList
+    );
   };
 
   // ── RENDER ────────────────────────────────────────────────────────────────
@@ -888,19 +1024,28 @@ const TasksList = () => {
                     <span className="set-status set-status-completed">✅ COMPLETED</span>
                   </div>
                   <div className="set-details">
-                    {serverSetName && <p className="server-set-name"><strong>Server Set:</strong> {serverSetName}</p>}
+                    {serverSetName && (
+                      <p className="server-set-name">
+                        <strong>Server Set:</strong> {serverSetName}
+                      </p>
+                    )}
                     {serverList && (
                       <div className="server-list-display">
                         <strong>Servers:</strong>
                         <div className="server-numbers-compact">{serverList}</div>
                       </div>
                     )}
-                    {set.infraName && <p className="infra-name"><strong>Infrastructure:</strong> {set.infraName}</p>}
+                    {set.infraName && (
+                      <p className="infra-name"><strong>Infrastructure:</strong> {set.infraName}</p>
+                    )}
                     {set.supportName && (
                       <div className="set-support-ack">
                         <strong>Support Acknowledgment:</strong> {set.supportName}
                         {set.supportTime && set.supportTime !== 'Pending' && (
-                          <><br /><small>{format(new Date(set.supportTime), 'MMM d, h:mm:ss a')}</small></>
+                          <>
+                            <br />
+                            <small>{format(new Date(set.supportTime), 'MMM d, h:mm:ss a')}</small>
+                          </>
                         )}
                       </div>
                     )}
@@ -913,9 +1058,12 @@ const TasksList = () => {
             })}
           </div>
           {isOperations && (
-            <button onClick={handleStartNewSession} className="btn-primary"
+            <button
+              onClick={handleStartNewSession}
+              className="btn-primary"
               style={{ marginTop: '2rem', fontSize: '1rem', padding: '1rem 2rem' }}
-              disabled={newSessionLoading}>
+              disabled={newSessionLoading}
+            >
               {newSessionLoading ? 'Starting New Session...' : '🔄 Start New Broker Restart Session'}
             </button>
           )}
@@ -929,8 +1077,20 @@ const TasksList = () => {
                 <div key={index} className="log-entry">
                   <div className="log-time">{format(new Date(log.timestamp), 'HH:mm:ss')}</div>
                   <div className="log-message">{log.message}</div>
-                  <div className={`log-type ${log.type.includes('SUCCESS') ? 'api-success' : log.type.includes('ERROR') ? 'api-error' : 'api-call'}`}>
-                    {log.type.includes('SUCCESS') ? 'SUCCESS' : log.type.includes('ERROR') ? 'ERROR' : 'API'}
+                  <div
+                    className={`log-type ${
+                      log.type.includes('SUCCESS')
+                        ? 'api-success'
+                        : log.type.includes('ERROR')
+                        ? 'api-error'
+                        : 'api-call'
+                    }`}
+                  >
+                    {log.type.includes('SUCCESS')
+                      ? 'SUCCESS'
+                      : log.type.includes('ERROR')
+                      ? 'ERROR'
+                      : 'API'}
                   </div>
                 </div>
               ))}
@@ -941,53 +1101,218 @@ const TasksList = () => {
     );
   }
 
-  // Normal page
+  // ── NORMAL PAGE ───────────────────────────────────────────────────────────
   return (
     <div className="tasks-list-page">
 
-      {/* ── RESET CONFIRMATION DIALOG ─────────────────────────────────────── */}
+      {/* ══════════════════════════════════════════════════════════════════════
+          RESET / DELETE CONFIRMATION DIALOG  (multi-step)
+      ══════════════════════════════════════════════════════════════════════ */}
       {showResetConfirm && (
-        <div className="modal-overlay" onClick={() => !resetLoading && setShowResetConfirm(false)}>
-          <div className="modal-container reset-confirm-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <div className="reset-warning-icon">⚠️</div>
-              <h2>Reset &amp; Start New Session?</h2>
-              <p>
-                This will <strong>discard all current progress</strong> — including any sets that
-                are started but not yet completed — and immediately begin a brand-new restart
-                session from Set 1.
-              </p>
-            </div>
-            <div className="reset-confirm-details">
-              <ul>
-                <li>🗑️ All in-progress set data will be cleared</li>
-                <li>🔢 A new Restart ID will be obtained from the server</li>
-                <li>▶️ You will be taken straight to the Start Set 1 screen</li>
-              </ul>
-            </div>
-            <div className="modal-actions reset-modal-actions">
-              <button
-                type="button"
-                onClick={() => setShowResetConfirm(false)}
-                className="btn-secondary"
-                disabled={resetLoading}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleResetSession}
-                className="btn-danger"
-                disabled={resetLoading}
-              >
-                {resetLoading ? '⏳ Resetting...' : '🔁 Yes, Reset & Start Fresh'}
-              </button>
-            </div>
+        <div
+          className="modal-overlay"
+          onClick={() => !resetLoading && setShowResetConfirm(false)}
+        >
+          <div
+            className="modal-container reset-confirm-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+
+            {/* ── STEP 1: CHOOSE ACTION ─────────────────────────────────── */}
+            {resetStep === 'choose' && (
+              <>
+                <div className="modal-header">
+                  <div className="reset-warning-icon">⚠️</div>
+                  <h2>Reset / Delete Session</h2>
+                  <p>
+                    Choose an action below. Both options are{' '}
+                    <strong>irreversible</strong>.
+                  </p>
+                </div>
+
+                <div className="reset-choice-grid">
+                  {/* Delete a specific set */}
+                  <button
+                    type="button"
+                    className="btn-choice btn-choice-secondary"
+                    onClick={() => setResetStep('deleteSet')}
+                  >
+                    <div className="btn-choice-icon">🗂️</div>
+                    <div className="btn-choice-content">
+                      <h3>Delete a Specific Set</h3>
+                      <p>
+                        Remove one set from the current session using its
+                        Sub-Set ID
+                      </p>
+                    </div>
+                  </button>
+
+                  {/* Delete entire session */}
+                  <button
+                    type="button"
+                    className="btn-choice btn-choice-danger"
+                    onClick={() => setResetStep('deleteAll')}
+                  >
+                    <div className="btn-choice-icon">🔥</div>
+                    <div className="btn-choice-content">
+                      <h3>Delete Entire Session</h3>
+                      <p>
+                        Wipe all sets &amp; start a completely new restart
+                        session
+                      </p>
+                    </div>
+                  </button>
+                </div>
+
+                <div className="modal-actions" style={{ marginTop: '1.5rem' }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowResetConfirm(false)}
+                    className="btn-secondary"
+                    disabled={resetLoading}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* ── STEP 2a: DELETE SPECIFIC SET ──────────────────────────── */}
+            {resetStep === 'deleteSet' && (
+              <>
+                <div className="modal-header">
+                  <div className="reset-warning-icon">🗂️</div>
+                  <h2>Delete a Specific Set</h2>
+                  <p>Provide the Sub-Set ID and a reason for deletion.</p>
+                </div>
+
+                <form onSubmit={handleDeleteSet} className="modal-form">
+                  <div className="form-group">
+                    <label>Sub-Set ID</label>
+                    <input
+                      type="number"
+                      value={deleteSetForm.subSetId}
+                      onChange={(e) =>
+                        setDeleteSetForm({ ...deleteSetForm, subSetId: e.target.value })
+                      }
+                      placeholder="e.g. 3"
+                      required
+                      className="form-input"
+                      min="1"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Reason / Description</label>
+                    <textarea
+                      value={deleteSetForm.ackDesc}
+                      onChange={(e) =>
+                        setDeleteSetForm({ ...deleteSetForm, ackDesc: e.target.value })
+                      }
+                      placeholder="e.g. Deleting this set because servers were already restarted manually"
+                      required
+                      className="form-input"
+                      rows="3"
+                      style={{ resize: 'vertical' }}
+                    />
+                  </div>
+                  <div className="modal-actions">
+                    <button
+                      type="button"
+                      onClick={() => setResetStep('choose')}
+                      className="btn-secondary"
+                      disabled={resetLoading}
+                    >
+                      ← Back
+                    </button>
+                    <button
+                      type="submit"
+                      className="btn-danger"
+                      disabled={resetLoading}
+                    >
+                      {resetLoading ? '⏳ Deleting...' : '🗑️ Delete Set'}
+                    </button>
+                  </div>
+                </form>
+              </>
+            )}
+
+            {/* ── STEP 2b: DELETE ENTIRE SESSION ────────────────────────── */}
+            {resetStep === 'deleteAll' && (
+              <>
+                <div className="modal-header">
+                  <div className="reset-warning-icon">🔥</div>
+                  <h2>Delete Entire Session</h2>
+                  <p>
+                    This will permanently delete{' '}
+                    <strong>Restart ID {restartId}</strong> and all its sets.
+                    Enter your Infra ID to confirm.
+                  </p>
+                </div>
+
+                <form onSubmit={handleDeleteAll} className="modal-form">
+                  <div className="form-group">
+                    <label>Your Infra ID</label>
+                    <input
+                      type="text"
+                      value={deleteAllForm.userInfraId}
+                      onChange={(e) =>
+                        setDeleteAllForm({
+                          userInfraId: e.target.value.replace(/\D/g, '').slice(0, 7)
+                        })
+                      }
+                      placeholder="e.g. 245678"
+                      required
+                      className="form-input"
+                      maxLength={7}
+                    />
+                    <small
+                      style={{
+                        display: 'block',
+                        marginTop: '0.5rem',
+                        color: 'var(--text-secondary)',
+                        fontSize: '0.85rem'
+                      }}
+                    >
+                      Numbers only, maximum 7 digits
+                    </small>
+                  </div>
+
+                  <div className="reset-confirm-details">
+                    <ul>
+                      <li>🗑️ All sets under this session will be wiped</li>
+                      <li>🔢 A new Restart ID will be obtained from the server</li>
+                      <li>▶️ You will be returned to the fresh start screen</li>
+                    </ul>
+                  </div>
+
+                  <div className="modal-actions">
+                    <button
+                      type="button"
+                      onClick={() => setResetStep('choose')}
+                      className="btn-secondary"
+                      disabled={resetLoading}
+                    >
+                      ← Back
+                    </button>
+                    <button
+                      type="submit"
+                      className="btn-danger"
+                      disabled={resetLoading}
+                    >
+                      {resetLoading ? '⏳ Deleting...' : '🔥 Delete Entire Session'}
+                    </button>
+                  </div>
+                </form>
+              </>
+            )}
+
           </div>
         </div>
       )}
-      {/* ──────────────────────────────────────────────────────────────────── */}
 
+      {/* ══════════════════════════════════════════════════════════════════════
+          PAGE HEADER
+      ══════════════════════════════════════════════════════════════════════ */}
       <div className="tasks-list-header">
         <div className="header-content">
           <h1>📝 Night Broker Restart Checklist</h1>
@@ -998,19 +1323,27 @@ const TasksList = () => {
             </p>
             <p>
               <strong>User Level:</strong>{' '}
-              {isSupport ? 'Support Team' : isOperations ? 'Infra Team' : (rawUserLevel || 'Guest')}
+              {isSupport
+                ? 'Support Team'
+                : isOperations
+                ? 'Infra Team'
+                : rawUserLevel || 'Guest'}
             </p>
-            <button onClick={handleRefreshStatus} className="btn-refresh-status" disabled={loading}>
+            <button
+              onClick={handleRefreshStatus}
+              className="btn-refresh-status"
+              disabled={loading}
+            >
               {loading ? '🔄 Refreshing...' : '🔄 Refresh Status'}
             </button>
 
-            {/* ── NEW RESET BUTTON ── only visible to operations */}
+            {/* Reset button — operations only */}
             {isOperations && (
               <button
-                onClick={() => setShowResetConfirm(true)}
+                onClick={handleOpenResetConfirm}
                 className="btn-reset-session"
                 disabled={loading || resetLoading}
-                title="Discard current progress and start a brand-new session"
+                title="Delete a set or wipe the entire session"
               >
                 🔁 Reset &amp; Start New
               </button>
@@ -1019,6 +1352,9 @@ const TasksList = () => {
         </div>
       </div>
 
+      {/* ══════════════════════════════════════════════════════════════════════
+          SETS OVERVIEW
+      ══════════════════════════════════════════════════════════════════════ */}
       {selectedSetIndex === null && (
         <div className="sets-section">
           <h2>📊 Available Sets {(brokerStatus?.currSet?.length ?? 0)}/4</h2>
@@ -1027,35 +1363,55 @@ const TasksList = () => {
               const serverSetName = getServerSetName(index);
               const serverList    = getServerList(index);
               return (
-                <div key={index}
+                <div
+                  key={index}
                   className={`set-card ${set.status === 'completed' ? 'set-card-completed' : ''}`}
-                  style={{ borderLeft: `4px solid ${getStatusColor(set.status)}` }}>
+                  style={{ borderLeft: `4px solid ${getStatusColor(set.status)}` }}
+                >
                   <div className="set-header">
                     <h3>Set {index + 1}</h3>
-                    <span className={`set-status ${set.status === 'completed' ? 'set-status-completed' : ''}`}>
+                    <span
+                      className={`set-status ${
+                        set.status === 'completed' ? 'set-status-completed' : ''
+                      }`}
+                    >
                       {set.status.toUpperCase()}
                     </span>
                   </div>
                   <div className="set-details">
-                    {serverSetName && <p className="server-set-name"><strong>Server Set:</strong> {serverSetName}</p>}
+                    {serverSetName && (
+                      <p className="server-set-name">
+                        <strong>Server Set:</strong> {serverSetName}
+                      </p>
+                    )}
                     {serverList && (
                       <div className="server-list-display">
                         <strong>Servers:</strong>
                         <div className="server-numbers-compact">{serverList}</div>
                       </div>
                     )}
-                    {set.infraName && <p className="infra-name"><strong>Infra:</strong> {set.infraName}</p>}
+                    {set.infraName && (
+                      <p className="infra-name"><strong>Infra:</strong> {set.infraName}</p>
+                    )}
                     {set.supportName && set.supportName !== 'pending' && (
-                      <div className="set-support-ack"><strong>Support Ack:</strong> {set.supportName}</div>
+                      <div className="set-support-ack">
+                        <strong>Support Ack:</strong> {set.supportName}
+                      </div>
                     )}
                     <div className="set-progress-info">
-                      {set.status === 'started' && (!set.endTime || set.endTime === 'Present') && (
-                        <button onClick={() => handleResumeSet(index, set)} className="complete-btn">
-                          Resume This Set
-                        </button>
-                      )}
+                      {set.status === 'started' &&
+                        (!set.endTime || set.endTime === 'Present') && (
+                          <button
+                            onClick={() => handleResumeSet(index, set)}
+                            className="complete-btn"
+                          >
+                            Resume This Set
+                          </button>
+                        )}
                       {set.status === 'completed' && (
-                        <div className="set-completed"><span>✅ Completed</span></div>
+                        <div className="set-completed">
+                          <span>✅ Completed</span>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -1063,21 +1419,30 @@ const TasksList = () => {
               );
             })}
 
-            {(!brokerStatus?.currSet || brokerStatus.currSet.length < 4) && isOperations && (
-              <div onClick={() => handleSetStart(getNextSetIndex())} className="set-card click-prompt"
-                style={{ borderLeft: '4px solid #74b9ff' }}>
-                <h3>➕ Start Set {getNextSetIndex() + 1}</h3>
-                <p>Click to begin</p>
-              </div>
-            )}
+            {(!brokerStatus?.currSet || brokerStatus.currSet.length < 4) &&
+              isOperations && (
+                <div
+                  onClick={() => handleSetStart(getNextSetIndex())}
+                  className="set-card click-prompt"
+                  style={{ borderLeft: '4px solid #74b9ff' }}
+                >
+                  <h3>➕ Start Set {getNextSetIndex() + 1}</h3>
+                  <p>Click to begin</p>
+                </div>
+              )}
           </div>
         </div>
       )}
 
-      {/* SET START MODAL */}
+      {/* ══════════════════════════════════════════════════════════════════════
+          SET START MODAL
+      ══════════════════════════════════════════════════════════════════════ */}
       {showSetModal && (
         <div className="modal-overlay" onClick={handleSetModalCancel}>
-          <div className="modal-container server-set-modal" onClick={(e) => e.stopPropagation()}>
+          <div
+            className="modal-container server-set-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="modal-header">
               <h2>🔐 Start Set {selectedSetIndex + 1}</h2>
               <p>
@@ -1093,26 +1458,50 @@ const TasksList = () => {
               <div className="server-set-selection">
                 <div className="form-group">
                   <label>Server Set</label>
-                  <select value={selectedServerSet} onChange={(e) => setSelectedServerSet(e.target.value)}
-                    className="form-input server-set-dropdown" required>
+                  <select
+                    value={selectedServerSet}
+                    onChange={(e) => setSelectedServerSet(e.target.value)}
+                    className="form-input server-set-dropdown"
+                    required
+                  >
                     <option value="">-- Select a Server Set --</option>
                     {serverSets.map((set, idx) => (
-                      <option key={idx} value={set.name}>{set.name}{set.isCustom ? ' (Custom)' : ''}</option>
+                      <option key={idx} value={set.name}>
+                        {set.name}{set.isCustom ? ' (Custom)' : ''}
+                      </option>
                     ))}
                   </select>
                 </div>
                 {selectedServerSet && (
                   <div className="server-list-preview">
                     <h4>📋 Servers in this set:</h4>
-                    <div className="server-numbers">{serverSets.find((s) => s.name === selectedServerSet)?.servers}</div>
+                    <div className="server-numbers">
+                      {serverSets.find((s) => s.name === selectedServerSet)?.servers}
+                    </div>
                   </div>
                 )}
                 <div className="modal-actions" style={{ marginTop: '2rem' }}>
-                  <button type="button" onClick={handleCreateCustomSet} className="btn-secondary" style={{ marginRight: 'auto' }}>
+                  <button
+                    type="button"
+                    onClick={handleCreateCustomSet}
+                    className="btn-secondary"
+                    style={{ marginRight: 'auto' }}
+                  >
                     ➕ Create Custom Set
                   </button>
-                  <button type="button" onClick={handleSetModalCancel} className="btn-secondary">Cancel</button>
-                  <button type="button" onClick={handleServerSetConfirm} className="btn-primary" disabled={!selectedServerSet}>
+                  <button
+                    type="button"
+                    onClick={handleSetModalCancel}
+                    className="btn-secondary"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleServerSetConfirm}
+                    className="btn-primary"
+                    disabled={!selectedServerSet}
+                  >
                     Continue →
                   </button>
                 </div>
@@ -1121,37 +1510,77 @@ const TasksList = () => {
               <form onSubmit={handleCustomSetSubmit} className="modal-form">
                 <div className="form-group">
                   <label>Custom Set Name</label>
-                  <input type="text" value={customSetData.name}
-                    onChange={(e) => setCustomSetData({ ...customSetData, name: e.target.value })}
-                    placeholder="e.g., Production Set A" required className="form-input" />
+                  <input
+                    type="text"
+                    value={customSetData.name}
+                    onChange={(e) =>
+                      setCustomSetData({ ...customSetData, name: e.target.value })
+                    }
+                    placeholder="e.g., Production Set A"
+                    required
+                    className="form-input"
+                  />
                 </div>
                 <div className="form-group">
                   <label>Server Numbers (comma-separated)</label>
-                  <textarea value={customSetData.servers}
-                    onChange={(e) => setCustomSetData({ ...customSetData, servers: e.target.value })}
-                    placeholder="e.g., 155, 156, 157, 173, 174" required className="form-input"
-                    rows="4" style={{ resize: 'vertical', fontFamily: "'Courier New', monospace" }} />
-                  <small style={{ display: 'block', marginTop: '0.5rem', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                  <textarea
+                    value={customSetData.servers}
+                    onChange={(e) =>
+                      setCustomSetData({ ...customSetData, servers: e.target.value })
+                    }
+                    placeholder="e.g., 155, 156, 157, 173, 174"
+                    required
+                    className="form-input"
+                    rows="4"
+                    style={{ resize: 'vertical', fontFamily: "'Courier New', monospace" }}
+                  />
+                  <small
+                    style={{
+                      display: 'block',
+                      marginTop: '0.5rem',
+                      color: 'var(--text-secondary)',
+                      fontSize: '0.85rem'
+                    }}
+                  >
                     Enter server numbers separated by commas
                   </small>
                 </div>
                 <div className="modal-actions">
-                  <button type="button" onClick={() => { setShowCustomSetForm(false); setShowServerSetSelection(true); setCustomSetData({ name: '', servers: '' }); }} className="btn-secondary">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowCustomSetForm(false);
+                      setShowServerSetSelection(true);
+                      setCustomSetData({ name: '', servers: '' });
+                    }}
+                    className="btn-secondary"
+                  >
                     Back
                   </button>
-                  <button type="submit" className="btn-primary">Create &amp; Select</button>
+                  <button type="submit" className="btn-primary">
+                    Create &amp; Select
+                  </button>
                 </div>
               </form>
             ) : !showSetManualForm ? (
               <div className="modal-choice-container">
-                <button type="button" onClick={handleUseCurrentUserInfoForSet} className="btn-choice btn-choice-primary" disabled={loading}>
+                <button
+                  type="button"
+                  onClick={handleUseCurrentUserInfoForSet}
+                  className="btn-choice btn-choice-primary"
+                  disabled={loading}
+                >
                   <div className="btn-choice-icon">👤</div>
                   <div className="btn-choice-content">
                     <h3>Use Current User Info</h3>
                     <p>Automatically fill with your logged-in details</p>
                   </div>
                 </button>
-                <button type="button" onClick={handleEnterDetailsManuallyForSet} className="btn-choice btn-choice-secondary">
+                <button
+                  type="button"
+                  onClick={handleEnterDetailsManuallyForSet}
+                  className="btn-choice btn-choice-secondary"
+                >
                   <div className="btn-choice-icon">✍️</div>
                   <div className="btn-choice-content">
                     <h3>Enter Details Manually</h3>
@@ -1159,30 +1588,70 @@ const TasksList = () => {
                   </div>
                 </button>
                 <div className="modal-actions" style={{ marginTop: '1.5rem' }}>
-                  <button type="button" onClick={() => { setShowServerSetSelection(true); setSelectedServerSet(''); }} className="btn-secondary">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowServerSetSelection(true);
+                      setSelectedServerSet('');
+                    }}
+                    className="btn-secondary"
+                  >
                     ← Back to Server Selection
                   </button>
-                  <button type="button" onClick={handleSetModalCancel} className="btn-secondary">Cancel</button>
+                  <button
+                    type="button"
+                    onClick={handleSetModalCancel}
+                    className="btn-secondary"
+                  >
+                    Cancel
+                  </button>
                 </div>
               </div>
             ) : (
               <form onSubmit={handleSetStartSubmit} className="modal-form">
                 <div className="form-group">
                   <label>Infra Team Member Name</label>
-                  <input type="text" value={setStartData.infraName}
-                    onChange={(e) => setSetStartData({ ...setStartData, infraName: e.target.value })}
-                    placeholder="Enter infra name" required className="form-input" />
+                  <input
+                    type="text"
+                    value={setStartData.infraName}
+                    onChange={(e) =>
+                      setSetStartData({ ...setStartData, infraName: e.target.value })
+                    }
+                    placeholder="Enter infra name"
+                    required
+                    className="form-input"
+                  />
                 </div>
                 <div className="form-group">
                   <label>Infra Team Member ADID/TCS ID</label>
-                  <input type="text" value={setStartData.infraId} onChange={handleInfraIdInput}
-                    placeholder="Enter infra ID (max 7 digits)" required className="form-input" maxLength={7} />
-                  <small style={{ display: 'block', marginTop: '0.5rem', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                  <input
+                    type="text"
+                    value={setStartData.infraId}
+                    onChange={handleInfraIdInput}
+                    placeholder="Enter infra ID (max 7 digits)"
+                    required
+                    className="form-input"
+                    maxLength={7}
+                  />
+                  <small
+                    style={{
+                      display: 'block',
+                      marginTop: '0.5rem',
+                      color: 'var(--text-secondary)',
+                      fontSize: '0.85rem'
+                    }}
+                  >
                     Numbers only, maximum 7 digits
                   </small>
                 </div>
                 <div className="modal-actions">
-                  <button type="button" onClick={() => setShowSetManualForm(false)} className="btn-secondary">Back</button>
+                  <button
+                    type="button"
+                    onClick={() => setShowSetManualForm(false)}
+                    className="btn-secondary"
+                  >
+                    Back
+                  </button>
                   <button type="submit" disabled={loading} className="btn-primary">
                     {loading ? 'Starting...' : 'Start Set'}
                   </button>
@@ -1193,7 +1662,9 @@ const TasksList = () => {
         </div>
       )}
 
-      {/* SUPPORT ACK MODAL */}
+      {/* ══════════════════════════════════════════════════════════════════════
+          SUPPORT ACK MODAL
+      ══════════════════════════════════════════════════════════════════════ */}
       {supportAckModal && isSupport && (
         <div className="modal-overlay" onClick={handleSupportModalCancel}>
           <div className="modal-container" onClick={(e) => e.stopPropagation()}>
@@ -1203,14 +1674,23 @@ const TasksList = () => {
             </div>
             {!showSupportManualForm ? (
               <div className="modal-choice-container">
-                <button type="button" onClick={handleUseCurrentUserInfoForSupport} className="btn-choice btn-choice-primary" disabled={loading}>
+                <button
+                  type="button"
+                  onClick={handleUseCurrentUserInfoForSupport}
+                  className="btn-choice btn-choice-primary"
+                  disabled={loading}
+                >
                   <div className="btn-choice-icon">👤</div>
                   <div className="btn-choice-content">
                     <h3>Use Current User Info</h3>
                     <p>Automatically fill with your logged-in details</p>
                   </div>
                 </button>
-                <button type="button" onClick={handleEnterDetailsManuallyForSupport} className="btn-choice btn-choice-secondary">
+                <button
+                  type="button"
+                  onClick={handleEnterDetailsManuallyForSupport}
+                  className="btn-choice btn-choice-secondary"
+                >
                   <div className="btn-choice-icon">✍️</div>
                   <div className="btn-choice-content">
                     <h3>Enter Details Manually</h3>
@@ -1218,27 +1698,60 @@ const TasksList = () => {
                   </div>
                 </button>
                 <div className="modal-actions" style={{ marginTop: '1.5rem' }}>
-                  <button type="button" onClick={handleSupportModalCancel} className="btn-secondary">Cancel</button>
+                  <button
+                    type="button"
+                    onClick={handleSupportModalCancel}
+                    className="btn-secondary"
+                  >
+                    Cancel
+                  </button>
                 </div>
               </div>
             ) : (
               <form onSubmit={handleSupportAckSubmit} className="modal-form">
                 <div className="form-group">
                   <label>Support Team Member Name</label>
-                  <input type="text" value={supportAckData.name}
-                    onChange={(e) => setSupportAckData({ ...supportAckData, name: e.target.value })}
-                    placeholder="Enter name" required className="form-input" />
+                  <input
+                    type="text"
+                    value={supportAckData.name}
+                    onChange={(e) =>
+                      setSupportAckData({ ...supportAckData, name: e.target.value })
+                    }
+                    placeholder="Enter name"
+                    required
+                    className="form-input"
+                  />
                 </div>
                 <div className="form-group">
                   <label>Support Member ADID/TCS ID</label>
-                  <input type="text" value={supportAckData.id} onChange={handleSupportIdInput}
-                    placeholder="Enter ID (max 7 digits)" required className="form-input" maxLength={7} />
-                  <small style={{ display: 'block', marginTop: '0.5rem', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                  <input
+                    type="text"
+                    value={supportAckData.id}
+                    onChange={handleSupportIdInput}
+                    placeholder="Enter ID (max 7 digits)"
+                    required
+                    className="form-input"
+                    maxLength={7}
+                  />
+                  <small
+                    style={{
+                      display: 'block',
+                      marginTop: '0.5rem',
+                      color: 'var(--text-secondary)',
+                      fontSize: '0.85rem'
+                    }}
+                  >
                     Numbers only, maximum 7 digits
                   </small>
                 </div>
                 <div className="modal-actions">
-                  <button type="button" onClick={() => setShowSupportManualForm(false)} className="btn-secondary">Back</button>
+                  <button
+                    type="button"
+                    onClick={() => setShowSupportManualForm(false)}
+                    className="btn-secondary"
+                  >
+                    Back
+                  </button>
                   <button type="submit" disabled={loading} className="btn-primary">
                     {loading ? 'Processing...' : 'Complete Set'}
                   </button>
@@ -1249,16 +1762,25 @@ const TasksList = () => {
         </div>
       )}
 
+      {/* ══════════════════════════════════════════════════════════════════════
+          ACTIVE SET — CHECKLIST
+      ══════════════════════════════════════════════════════════════════════ */}
       {selectedSetIndex !== null && (
         <>
           <div className="user-info-banner">
             <div className="user-info-content">
-              <span className="user-label">📍 Current Set: Set {selectedSetIndex + 1} of 4</span>
+              <span className="user-label">
+                📍 Current Set: Set {selectedSetIndex + 1} of 4
+              </span>
               {getServerSetName(selectedSetIndex) && (
-                <span className="server-set-badge">🖥️ {getServerSetName(selectedSetIndex)}</span>
+                <span className="server-set-badge">
+                  🖥️ {getServerSetName(selectedSetIndex)}
+                </span>
               )}
               {brokerStatus?.currSet?.[selectedSetIndex]?.infraName && (
-                <span className="infra-info">Infra: {brokerStatus?.currSet?.[selectedSetIndex]?.infraName}</span>
+                <span className="infra-info">
+                  Infra: {brokerStatus?.currSet?.[selectedSetIndex]?.infraName}
+                </span>
               )}
             </div>
             <div className="current-timer">⏱️ Step Time: {formatTime(timeElapsed)}</div>
@@ -1267,22 +1789,33 @@ const TasksList = () => {
           {getServerList(selectedSetIndex) && (
             <div className="current-server-list-section">
               <h3>🖥️ Servers in Current Set</h3>
-              <div className="server-list-display-box">{getServerList(selectedSetIndex)}</div>
+              <div className="server-list-display-box">
+                {getServerList(selectedSetIndex)}
+              </div>
             </div>
           )}
 
           <div className="checklist-section">
             <h2>📋 Restart Procedure Checklist</h2>
             {!isOperations && (
-              <p style={{ color: 'var(--warning-yellow)', marginBottom: '1.5rem' }}>👁️ Read-Only View</p>
+              <p style={{ color: 'var(--warning-yellow)', marginBottom: '1.5rem' }}>
+                👁️ Read-Only View
+              </p>
             )}
             <div className="timeline-container">
               {checklistSteps.map((step, index) => (
-                <div key={step.id} ref={currentStep === step.id ? currentStepRef : null}
-                  className={`timeline-step ${step.completed ? 'completed' : ''} ${currentStep === step.id ? 'current' : ''}`}>
+                <div
+                  key={step.id}
+                  ref={currentStep === step.id ? currentStepRef : null}
+                  className={`timeline-step ${step.completed ? 'completed' : ''} ${
+                    currentStep === step.id ? 'current' : ''
+                  }`}
+                >
                   <div className="step-marker">
                     <div className="step-number">{step.id}</div>
-                    {index < checklistSteps.length - 1 && <div className="step-connector"></div>}
+                    {index < checklistSteps.length - 1 && (
+                      <div className="step-connector"></div>
+                    )}
                   </div>
                   <div className="step-content">
                     <div className="step-header">
@@ -1301,66 +1834,117 @@ const TasksList = () => {
                     {step.completedTime && (
                       <div className="step-details">
                         <div className="detail-item">
-                          <strong>Completed at:</strong> {format(new Date(step.completedTime), 'h:mm:ss a')}
+                          <strong>Completed at:</strong>{' '}
+                          {format(new Date(step.completedTime), 'h:mm:ss a')}
                         </div>
                       </div>
                     )}
                     {step.id === 11 && step.ackBy && (
                       <div className="ack-info">
                         <strong>Acknowledged by:</strong> {step.ackBy}
-                        {step.ackTime && <> at {format(new Date(step.ackTime), 'h:mm:ss a')}</>}
+                        {step.ackTime && (
+                          <> at {format(new Date(step.ackTime), 'h:mm:ss a')}</>
+                        )}
                       </div>
                     )}
                     <div className="step-actions">
-                      {isOperations && currentStep === step.id && step.id !== 11 && !step.completed && (
-                        <button onClick={() => completeStep(step.id)} className="btn-complete-step" disabled={processingStep.current}>
-                          {processingStep.current ? 'Processing...' : '✓ Mark as Complete'}
-                        </button>
-                      )}
-                      {isSupport && currentStep === 11 && step.id === 11 && !step.completed && (
-                        <button onClick={handleSupportAckClick} className="btn-complete-step">
-                          Acknowledge as Support Team
-                        </button>
-                      )}
-                      {!isSupport && currentStep === 11 && step.id === 11 && !step.completed && (
-                        <div className="support-only-message">
-                          <p>⏳ Waiting for Support team acknowledgment...</p>
-                        </div>
-                      )}
+                      {isOperations &&
+                        currentStep === step.id &&
+                        step.id !== 11 &&
+                        !step.completed && (
+                          <button
+                            onClick={() => completeStep(step.id)}
+                            className="btn-complete-step"
+                            disabled={processingStep.current}
+                          >
+                            {processingStep.current ? 'Processing...' : '✓ Mark as Complete'}
+                          </button>
+                        )}
+                      {isSupport &&
+                        currentStep === 11 &&
+                        step.id === 11 &&
+                        !step.completed && (
+                          <button
+                            onClick={handleSupportAckClick}
+                            className="btn-complete-step"
+                          >
+                            Acknowledge as Support Team
+                          </button>
+                        )}
+                      {!isSupport &&
+                        currentStep === 11 &&
+                        step.id === 11 &&
+                        !step.completed && (
+                          <div className="support-only-message">
+                            <p>⏳ Waiting for Support team acknowledgment...</p>
+                          </div>
+                        )}
                     </div>
                   </div>
                 </div>
               ))}
             </div>
-            <div style={{ marginTop: '2rem', padding: '1.5rem', background: 'rgba(46, 213, 255, 0.05)', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+
+            <div
+              style={{
+                marginTop: '2rem',
+                padding: '1.5rem',
+                background: 'rgba(46, 213, 255, 0.05)',
+                borderRadius: '12px',
+                border: '1px solid var(--border-color)'
+              }}
+            >
               <p style={{ margin: '0 0 0.5rem 0', color: 'var(--text-secondary)' }}>
-                <strong style={{ color: 'var(--primary-blue)' }}>Progress:</strong> {currentStep - 1} of 11 steps completed
+                <strong style={{ color: 'var(--primary-blue)' }}>Progress:</strong>{' '}
+                {currentStep - 1} of 11 steps completed
               </p>
               <p style={{ margin: 0, color: 'var(--text-secondary)' }}>
-                <strong style={{ color: 'var(--primary-blue)' }}>Current Step:</strong> {currentStep} — {checklistSteps[currentStep - 1]?.title}
+                <strong style={{ color: 'var(--primary-blue)' }}>Current Step:</strong>{' '}
+                {currentStep} — {checklistSteps[currentStep - 1]?.title}
               </p>
             </div>
           </div>
         </>
       )}
 
+      {/* ══════════════════════════════════════════════════════════════════════
+          ACTIVITY LOG
+      ══════════════════════════════════════════════════════════════════════ */}
       <div className="activity-log-section">
         <h2>📜 Recent Activity Log</h2>
-        <button onClick={() => setActivityLog([])} disabled={activityLog.length === 0}
-          style={{ marginBottom: '1rem' }} className="btn-secondary">
+        <button
+          onClick={() => setActivityLog([])}
+          disabled={activityLog.length === 0}
+          style={{ marginBottom: '1rem' }}
+          className="btn-secondary"
+        >
           Clear Log
         </button>
         <div className="activity-log-container">
           {activityLog.length > 0 ? (
             activityLog.map((log, index) => (
               <div key={index} className="log-entry">
-                <div className="log-time">{format(new Date(log.timestamp), 'HH:mm:ss')}</div>
+                <div className="log-time">
+                  {format(new Date(log.timestamp), 'HH:mm:ss')}
+                </div>
                 <div className="log-message">{log.message}</div>
-                <div className={`log-type ${log.type.toLowerCase().replace('_', '-')}`}>{log.type}</div>
+                <div
+                  className={`log-type ${log.type.toLowerCase().replace('_', '-')}`}
+                >
+                  {log.type}
+                </div>
               </div>
             ))
           ) : (
-            <p style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '2rem' }}>No activity logs yet.</p>
+            <p
+              style={{
+                textAlign: 'center',
+                color: 'var(--text-secondary)',
+                padding: '2rem'
+              }}
+            >
+              No activity logs yet.
+            </p>
           )}
         </div>
       </div>
@@ -1370,4 +1954,3 @@ const TasksList = () => {
 };
 
 export default TasksList;
-
