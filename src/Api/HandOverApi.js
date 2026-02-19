@@ -1,4 +1,21 @@
-ut: 30000,
+import axios from 'axios';
+
+const api = axios.create({
+  baseURL: process.env.REACT_APP_API_BASE_URL || '/api',
+});
+
+// ========== HANDOVER APIs ==========
+
+export const getHandovers = async () => {
+  try {
+    const uid = localStorage.getItem('uidd');
+    const password = localStorage.getItem('password');
+    if (!uid || !password) {
+      throw new Error('Authentication credentials not found in localStorage');
+    }
+    const payload = { uidd: uid, password };
+    const response = await api.post('/get_Handover/', payload, {
+      timeout: 30000,
       headers: {
         'Content-Type': 'application/json',
       }
@@ -193,7 +210,14 @@ export const getBrokerRestartStatus = async (restartId) => {
 // setNumber indicates which set (1-4) is being started
 // serverSetName is the name of the selected server set
 // serverList is the comma-separated list of server numbers
-export const startBrokerRestartTask = async (infraId, infraName, restartId = null, setNumber = null, serverSetName = null, serverList = null) => {
+export const startBrokerRestartTask = async (
+  infraId,
+  infraName,
+  restartId = null,
+  setNumber = null,
+  serverSetName = null,
+  serverList = null
+) => {
   try {
     const payload = {
       infraId: infraId,
@@ -237,7 +261,6 @@ export const startBrokerRestartTask = async (infraId, infraName, restartId = nul
 };
 
 // STEP 5: Update sub-restart (mark step as complete)
-// Now includes currentSubSetUserId parameter
 export const updateSubRestart = async (description, subSetsId, currentSubSetUserId = null) => {
   try {
     const payload = {
@@ -267,14 +290,12 @@ export const updateSubRestart = async (description, subSetsId, currentSubSetUser
   }
 };
 
-// STEP 6: Update support acknowledgment (REMOVED - replaced by updateSetRestart)
-
-// NEW: Update set restart with completion status
+// STEP 6: Update set restart with completion status
 export const updateSetRestart = async (supportId, supportName, subSetsId) => {
   try {
     const payload = {
-      status: "completed",
-      suportId: supportId,  // Note: API uses 'suportId' (typo in backend)
+      status: 'completed',
+      suportId: supportId, // Note: API uses 'suportId' (typo in backend)
       supportName: supportName,
       subSetsId: subSetsId
     };
@@ -292,6 +313,56 @@ export const updateSetRestart = async (supportId, supportName, subSetsId) => {
     return response.data;
   } catch (error) {
     console.error('updateSetRestart error:', error);
+    throw error;
+  }
+};
+
+// DELETE: Remove a specific set from a restart session
+export const deleteSetRestart = async (subSetId, ackDesc) => {
+  try {
+    const payload = {
+      subSetId: subSetId,
+      ackDesc: ackDesc
+    };
+
+    console.log('deleteSetRestart payload:', payload);
+
+    const response = await api.post('/deleteSetRestart/', payload, {
+      timeout: 30000,
+      headers: {
+        'Content-Type': 'application/json',
+      }
+    });
+
+    console.log('deleteSetRestart response:', response);
+    return response.data;
+  } catch (error) {
+    console.error('deleteSetRestart error:', error);
+    throw error;
+  }
+};
+
+// DELETE: Remove the entire broker restart activity / session
+export const deleteBrokerRestart = async (restartId, userInfraId) => {
+  try {
+    const payload = {
+      restartId: restartId,
+      userInfraId: userInfraId
+    };
+
+    console.log('deleteBrokerRestart payload:', payload);
+
+    const response = await api.post('/deleteBrokerRestart/', payload, {
+      timeout: 30000,
+      headers: {
+        'Content-Type': 'application/json',
+      }
+    });
+
+    console.log('deleteBrokerRestart response:', response);
+    return response.data;
+  } catch (error) {
+    console.error('deleteBrokerRestart error:', error);
     throw error;
   }
 };
