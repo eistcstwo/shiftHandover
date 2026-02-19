@@ -1,39 +1,4 @@
-import axios from 'axios';
-
-// Create axios instance with custom configuration
-const api = axios.create({
-  baseURL: 'https://10.191.171.12:5443/EISHOME_TEST/shiftHandover',
-  timeout: 100000,
-  headers: {
-    'Content-Type': 'application/json',
-  }
-});
-
-// === AXIOS REQUEST INTERCEPTOR ===
-api.interceptors.request.use(
-  (config) => {
-    const sessionId = localStorage.getItem('sessionid');
-    if (sessionId) {
-      config.headers.Authorization = `Bearer ${sessionId}`;
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  }
-);
-// === END INTERCEPTOR ===
-
-export const getHandovers = async () => {
-  try {
-    const uid = localStorage.getItem('uidd');
-    const password = localStorage.getItem('password');
-    if (!uid || !password) {
-      throw new Error('Authentication credentials not found in localStorage');
-    }
-    const payload = { uid, password };
-    const response = await api.post('/get_Handover/', payload, {
-      timeout: 30000,
+ut: 30000,
       headers: {
         'Content-Type': 'application/json',
       }
