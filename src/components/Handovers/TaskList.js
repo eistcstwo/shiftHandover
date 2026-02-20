@@ -431,13 +431,13 @@ const TasksList = () => {
     setResetLoading(true);
     logActivity('DELETE_ALL', `Deleting entire restart session ${restartId}`);
     try {
-      const infraIdNum = parseInt(deleteAllForm.userInfraId, 10);
-      if (!infraIdNum || isNaN(infraIdNum)) {
+      const infraIdStr = deleteAllForm.userInfraId.trim();
+      if (!infraIdStr) {
         alert('Infra ID is invalid. Please refresh and try again.');
         setResetLoading(false);
         return;
       }
-      await deleteBrokerRestart(restartId, infraIdNum, deleteAllForm.ackDesc.trim());
+      await deleteBrokerRestart(restartId, infraIdStr, deleteAllForm.ackDesc.trim());
       logActivity('API_SUCCESS', `Entire restart session ${restartId} deleted`);
 
       // Stop timers / polling
@@ -1003,7 +1003,7 @@ const TasksList = () => {
   };
 
   const handleInfraIdInput = (e) => {
-    const limited = e.target.value.replace(/\D/g, '').slice(0, 7);
+    const limited = e.target.value.slice(0, 10);
     setSetStartData({ ...setStartData, infraId: limited });
   };
 
@@ -1672,10 +1672,10 @@ const TasksList = () => {
                     type="text"
                     value={setStartData.infraId}
                     onChange={handleInfraIdInput}
-                    placeholder="Enter infra ID (max 7 digits)"
+                    placeholder="Enter infra ID (e.g. v1018696)"
                     required
                     className="form-input"
-                    maxLength={7}
+                    maxLength={10}
                   />
                   <small
                     style={{
@@ -1685,7 +1685,7 @@ const TasksList = () => {
                       fontSize: '0.85rem'
                     }}
                   >
-                    Numbers only, maximum 7 digits
+                    Alphanumeric ID, maximum 10 characters
                   </small>
                 </div>
                 <div className="modal-actions">
