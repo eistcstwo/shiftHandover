@@ -401,7 +401,7 @@ const TasksList = () => {
     setResetLoading(true);
     logActivity('DELETE_ALL', `Deleting entire restart session ${restartId}`);
     try {
-      await deleteBrokerRestart(restartId, Number(deleteAllForm.userInfraId));
+      await deleteBrokerRestart(restartId, Number(deleteAllForm.userInfraId), deleteAllForm.ackDesc.trim());
       logActivity('API_SUCCESS', `Entire restart session ${restartId} deleted`);
 
       // Stop timers / polling
