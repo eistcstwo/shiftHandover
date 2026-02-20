@@ -348,18 +348,48 @@ const TasksList = () => {
       alert('Only Operations team can reset the session.');
       return;
     }
-    // Auto-populate deleteSet form: use the current working set's subsetId
-    const autoSubSetId = currentSubsetId ?? '';
 
-    // Auto-populate deleteAll form: pull infraId for the active set from localStorage
-    const autoInfraId =
-      selectedSetIndex !== null && restartId
-        ? localStorage.getItem(`infraId_${restartId}_${selectedSetIndex}`) ?? ''
-        : '';
+    // Auto-populate deleteSet form: use the current working set's subsetId
+    const autoSubSetId = (currentSubsetId !== null && currentSubsetId !== undefined)
+      ? String(currentSubsetId)
+      : '';
+
+    // Resolve the restart ID — use state value, fall back to localStorage string
+    const rid = restartId ?? localStorage.getItem('brokerRestartId');
+
+    // Helper: check a raw localStorage value is a real usable string
+    const isValid = (v) => v && v !== 'null' && v !== 'undefined' && v.trim() !== '';
+
+    // Auto-populate deleteAll: infraId_${brokerRestartId}_${currentSet}
+    let autoInfraId = '';
+
+    // 1. Exact key: current active set index
+    if (rid !== null && rid !== undefined && selectedSetIndex !== null) {
+      const val = localStorage.getItem(`infraId_${rid}_${selectedSetIndex}`);
+      if (isValid(val)) autoInfraId = val.trim();
+    }
+
+    // 2. Scan all 4 slots using the resolved rid
+    if (!autoInfraId && rid !== null && rid !== undefined) {
+      for (let i = 0; i < 4; i++) {
+        const val = localStorage.getItem(`infraId_${rid}_${i}`);
+        if (isValid(val)) { autoInfraId = val.trim(); break; }
+      }
+    }
+
+    // 3. Fall back to brokerStatus API data
+    if (!autoInfraId && brokerStatus?.currSet) {
+      for (const set of brokerStatus.currSet) {
+        const v = set?.infraId != null ? String(set.infraId) : '';
+        if (isValid(v)) { autoInfraId = v; break; }
+      }
+    }
+
+    console.log('[ResetConfirm] rid:', rid, 'selectedSetIndex:', selectedSetIndex, 'autoInfraId:', autoInfraId, 'autoSubSetId:', autoSubSetId);
 
     setResetStep('choose');
-    setDeleteSetForm({ subSetId: String(autoSubSetId), ackDesc: '' });
-    setDeleteAllForm({ userInfraId: String(autoInfraId), ackDesc: '' });
+    setDeleteSetForm({ subSetId: autoSubSetId, ackDesc: '' });
+    setDeleteAllForm({ userInfraId: autoInfraId, ackDesc: '' });
     setShowResetConfirm(true);
   };
 
@@ -401,7 +431,13 @@ const TasksList = () => {
     setResetLoading(true);
     logActivity('DELETE_ALL', `Deleting entire restart session ${restartId}`);
     try {
-      await deleteBrokerRestart(restartId, Number(deleteAllForm.userInfraId), deleteAllForm.ackDesc.trim());
+      const infraIdNum = parseInt(deleteAllForm.userInfraId, 10);
+      if (!infraIdNum || isNaN(infraIdNum)) {
+        alert('Infra ID is invalid. Please refresh and try again.');
+        setResetLoading(false);
+        return;
+      }
+      await deleteBrokerRestart(restartId, infraIdNum, deleteAllForm.ackDesc.trim());
       logActivity('API_SUCCESS', `Entire restart session ${restartId} deleted`);
 
       // Stop timers / polling
