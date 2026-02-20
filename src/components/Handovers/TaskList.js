@@ -349,10 +349,26 @@ const TasksList = () => {
       return;
     }
 
-    // Auto-populate deleteSet form: use the current working set's subsetId
-    const autoSubSetId = (currentSubsetId !== null && currentSubsetId !== undefined)
-      ? String(currentSubsetId)
-      : '';
+    // Auto-populate deleteSet form: find the latest subSetsId from statusBrokerRestart response
+    // Priority: active/started set first, then last set in the array
+    let autoSubSetId = '';
+    if (brokerStatus?.currSet && Array.isArray(brokerStatus.currSet) && brokerStatus.currSet.length > 0) {
+      // 1. Find the latest active (started) set
+      const activeSets = brokerStatus.currSet.filter(
+        (set) => set && set.status === 'started' && (!set.endTime || set.endTime === 'Present')
+      );
+      const targetSet = activeSets.length > 0
+        ? activeSets[activeSets.length - 1]                        // latest active set
+        : brokerStatus.currSet[brokerStatus.currSet.length - 1];   // fallback: last set in array
+
+      // 2. Extract subSetsId — check all possible field name variants
+      const subId = targetSet?.subSetsId ?? targetSet?.subSetId ?? targetSet?.subsetId ?? null;
+      if (subId != null) autoSubSetId = String(subId);
+    }
+    // Final fallback: use currentSubsetId state if brokerStatus didn't yield anything
+    if (!autoSubSetId && currentSubsetId != null) {
+      autoSubSetId = String(currentSubsetId);
+    }
 
     // Resolve the restart ID — use state value, fall back to localStorage string
     const rid = restartId ?? localStorage.getItem('brokerRestartId');
@@ -396,15 +412,46 @@ const TasksList = () => {
   // ── DELETE SPECIFIC SET ───────────────────────────────────────────────────
   const handleDeleteSet = async (e) => {
     e.preventDefault();
-    if (!deleteSetForm.subSetId || !deleteSetForm.ackDesc.trim()) {
-      alert('Please fill in all fields.');
+    if (!deleteSetForm.ackDesc.trim()) {
+      alert('Please enter a reason / description.');
       return;
     }
     setResetLoading(true);
-    logActivity('DELETE_SET', `Deleting sub-set ID: ${deleteSetForm.subSetId}`);
     try {
-      await deleteSetRestart(Number(deleteSetForm.subSetId), deleteSetForm.ackDesc.trim());
-      logActivity('API_SUCCESS', `Set ${deleteSetForm.subSetId} deleted successfully`);
+      // Fresh-fetch the latest status so we always have the most current subSetsId
+      const latestStatus = await getBrokerRestartStatus(restartId);
+      const normalized   = normalizeBrokerStatus(latestStatus);
+
+      // Find the latest subSetsId from currSet
+      let latestSubSetId = null;
+      if (normalized?.currSet && Array.isArray(normalized.currSet) && normalized.currSet.length > 0) {
+        // Prefer the last active (started) set
+        const activeSets = normalized.currSet.filter(
+          (set) => set && set.status === 'started' && (!set.endTime || set.endTime === 'Present')
+        );
+        const targetSet = activeSets.length > 0
+          ? activeSets[activeSets.length - 1]
+          : normalized.currSet[normalized.currSet.length - 1];
+
+        latestSubSetId =
+          targetSet?.subSetsId ?? targetSet?.subSetId ?? targetSet?.subsetId ?? null;
+      }
+
+      // Fall back to what was pre-populated in the form / currentSubsetId state
+      if (latestSubSetId == null) {
+        latestSubSetId = deleteSetForm.subSetId || currentSubsetId;
+      }
+
+      if (!latestSubSetId) {
+        alert('Could not determine the Sub-Set ID. Please refresh and try again.');
+        setResetLoading(false);
+        return;
+      }
+
+      logActivity('DELETE_SET', `Deleting sub-set ID: ${latestSubSetId}`);
+      // Send subSetId as the exact type returned by the API (string preserved)
+      await deleteSetRestart(latestSubSetId, deleteSetForm.ackDesc.trim());
+      logActivity('API_SUCCESS', `Sub-set ${latestSubSetId} deleted successfully`);
       setShowResetConfirm(false);
       // Refresh to reflect deletion
       if (restartId) await fetchBrokerStatus(restartId);
@@ -1236,13 +1283,10 @@ const TasksList = () => {
                 </div>
 
                 <form onSubmit={handleDeleteSet} className="modal-form">
-                  {/* Read-only: auto-populated from currentSubsetId */}
+                  {/* Info: subSetId is fetched fresh from statusBrokerRestart at submit time */}
                   <div className="form-group">
-                    <label>Sub-Set ID</label>
                     <div className="readonly-info-box">
-                      {deleteSetForm.subSetId
-                        ? <>🔑 <strong>{deleteSetForm.subSetId}</strong><span className="readonly-badge">Auto-detected</span></>
-                        : <span className="readonly-missing">⚠️ No active subset found</span>}
+                      ℹ️ The latest Sub-Set ID will be fetched live from the server when you confirm.
                     </div>
                   </div>
 
@@ -1272,9 +1316,9 @@ const TasksList = () => {
                     <button
                       type="submit"
                       className="btn-danger"
-                      disabled={resetLoading || !deleteSetForm.subSetId}
+                      disabled={resetLoading}
                     >
-                      {resetLoading ? '⏳ Deleting...' : '🗑️ Delete Set'}
+                      {resetLoading ? '⏳ Fetching & Deleting...' : '🗑️ Delete Set'}
                     </button>
                   </div>
                 </form>
