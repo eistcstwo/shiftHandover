@@ -32,7 +32,7 @@ const TasksList = () => {
   // 'choose' | 'deleteSet' | 'deleteAll'
   const [resetStep, setResetStep] = useState('choose');
   const [deleteSetForm, setDeleteSetForm] = useState({ subSetId: '', ackDesc: '' });
-  const [deleteAllForm, setDeleteAllForm] = useState({ userInfraId: '' });
+  const [deleteAllForm, setDeleteAllForm] = useState({ userInfraId: '', ackDesc: '' });
 
   // Refs to track state and prevent race conditions
   const isInitializing = useRef(true);
@@ -348,9 +348,18 @@ const TasksList = () => {
       alert('Only Operations team can reset the session.');
       return;
     }
+    // Auto-populate deleteSet form: use the current working set's subsetId
+    const autoSubSetId = currentSubsetId ?? '';
+
+    // Auto-populate deleteAll form: pull infraId for the active set from localStorage
+    const autoInfraId =
+      selectedSetIndex !== null && restartId
+        ? localStorage.getItem(`infraId_${restartId}_${selectedSetIndex}`) ?? ''
+        : '';
+
     setResetStep('choose');
-    setDeleteSetForm({ subSetId: '', ackDesc: '' });
-    setDeleteAllForm({ userInfraId: '' });
+    setDeleteSetForm({ subSetId: String(autoSubSetId), ackDesc: '' });
+    setDeleteAllForm({ userInfraId: String(autoInfraId), ackDesc: '' });
     setShowResetConfirm(true);
   };
 
@@ -382,7 +391,11 @@ const TasksList = () => {
   const handleDeleteAll = async (e) => {
     e.preventDefault();
     if (!deleteAllForm.userInfraId.trim()) {
-      alert('Please enter your Infra ID.');
+      alert('Infra ID is required.');
+      return;
+    }
+    if (!deleteAllForm.ackDesc.trim()) {
+      alert('Please enter a reason / description.');
       return;
     }
     setResetLoading(true);
@@ -1182,27 +1195,23 @@ const TasksList = () => {
               <>
                 <div className="modal-header">
                   <div className="reset-warning-icon">🗂️</div>
-                  <h2>Delete a Specific Set</h2>
-                  <p>Provide the Sub-Set ID and a reason for deletion.</p>
+                  <h2>Delete Current Working Set</h2>
+                  <p>Enter a reason to confirm deletion of the active set.</p>
                 </div>
 
                 <form onSubmit={handleDeleteSet} className="modal-form">
+                  {/* Read-only: auto-populated from currentSubsetId */}
                   <div className="form-group">
                     <label>Sub-Set ID</label>
-                    <input
-                      type="number"
-                      value={deleteSetForm.subSetId}
-                      onChange={(e) =>
-                        setDeleteSetForm({ ...deleteSetForm, subSetId: e.target.value })
-                      }
-                      placeholder="e.g. 3"
-                      required
-                      className="form-input"
-                      min="1"
-                    />
+                    <div className="readonly-info-box">
+                      {deleteSetForm.subSetId
+                        ? <>🔑 <strong>{deleteSetForm.subSetId}</strong><span className="readonly-badge">Auto-detected</span></>
+                        : <span className="readonly-missing">⚠️ No active subset found</span>}
+                    </div>
                   </div>
+
                   <div className="form-group">
-                    <label>Reason / Description</label>
+                    <label>Reason / Description <span className="required-star">*</span></label>
                     <textarea
                       value={deleteSetForm.ackDesc}
                       onChange={(e) =>
@@ -1227,7 +1236,7 @@ const TasksList = () => {
                     <button
                       type="submit"
                       className="btn-danger"
-                      disabled={resetLoading}
+                      disabled={resetLoading || !deleteSetForm.subSetId}
                     >
                       {resetLoading ? '⏳ Deleting...' : '🗑️ Delete Set'}
                     </button>
@@ -1245,36 +1254,35 @@ const TasksList = () => {
                   <p>
                     This will permanently delete{' '}
                     <strong>Restart ID {restartId}</strong> and all its sets.
-                    Enter your Infra ID to confirm.
+                    Enter a reason to confirm.
                   </p>
                 </div>
 
                 <form onSubmit={handleDeleteAll} className="modal-form">
+                  {/* Read-only: auto-populated from localStorage infraId of active set */}
                   <div className="form-group">
-                    <label>Your Infra ID</label>
-                    <input
-                      type="text"
-                      value={deleteAllForm.userInfraId}
+                    <label>Infra ID (Current Set)</label>
+                    <div className="readonly-info-box">
+                      {deleteAllForm.userInfraId
+                        ? <>🪪 <strong>{deleteAllForm.userInfraId}</strong><span className="readonly-badge">Auto-detected</span></>
+                        : <span className="readonly-missing">⚠️ Infra ID not found in session</span>}
+                    </div>
+                  </div>
+
+                  {/* Description / reason — required */}
+                  <div className="form-group">
+                    <label>Reason / Description <span className="required-star">*</span></label>
+                    <textarea
+                      value={deleteAllForm.ackDesc}
                       onChange={(e) =>
-                        setDeleteAllForm({
-                          userInfraId: e.target.value.replace(/\D/g, '').slice(0, 7)
-                        })
+                        setDeleteAllForm({ ...deleteAllForm, ackDesc: e.target.value })
                       }
-                      placeholder="e.g. 245678"
+                      placeholder="e.g. Restarting the entire session due to incorrect server set selection"
                       required
                       className="form-input"
-                      maxLength={7}
+                      rows="3"
+                      style={{ resize: 'vertical' }}
                     />
-                    <small
-                      style={{
-                        display: 'block',
-                        marginTop: '0.5rem',
-                        color: 'var(--text-secondary)',
-                        fontSize: '0.85rem'
-                      }}
-                    >
-                      Numbers only, maximum 7 digits
-                    </small>
                   </div>
 
                   <div className="reset-confirm-details">
@@ -1297,7 +1305,7 @@ const TasksList = () => {
                     <button
                       type="submit"
                       className="btn-danger"
-                      disabled={resetLoading}
+                      disabled={resetLoading || !deleteAllForm.userInfraId}
                     >
                       {resetLoading ? '⏳ Deleting...' : '🔥 Delete Entire Session'}
                     </button>
