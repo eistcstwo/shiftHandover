@@ -343,11 +343,12 @@ export const deleteSetRestart = async (subSetId, ackDesc) => {
 };
 
 // DELETE: Remove the entire broker restart activity / session
-export const deleteBrokerRestart = async (restartId, userInfraId) => {
+export const deleteBrokerRestart = async (restartId, userInfraId, ackDesc) => {
   try {
     const payload = {
       restartId: restartId,
-      userInfraId: userInfraId
+      userInfraId: userInfraId,
+      ackDesc: ackDesc
     };
 
     console.log('deleteBrokerRestart payload:', payload);
