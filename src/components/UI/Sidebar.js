@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { FiHome, FiBarChart2, FiFileText, FiChevronLeft, FiChevronRight } from 'react-icons/fi';
+import { FiHome, FiBarChart2, FiFileText, FiChevronLeft, FiChevronRight, FiBook } from 'react-icons/fi';
 import './Sidebar.css';
 
 const Sidebar = ({ userLevel }) => {
@@ -58,6 +58,18 @@ const Sidebar = ({ userLevel }) => {
             </NavLink>
           </li>
         )}
+
+        {/* Knowledge Database — visible to all users */}
+        <li>
+          <NavLink 
+            to="/knowledge-base" 
+            className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}
+            title="Knowledge Database"
+          >
+            <FiBook className="nav-icon" />
+            {isOpen && <span>Knowledge Database</span>}
+          </NavLink>
+        </li>
       </ul>
     </nav>
   );
