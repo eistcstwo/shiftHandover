@@ -14,7 +14,7 @@ import BillingAnalysis from "./components/BillingAnalysis/BillingAnalysis";
 import HistorySummary from "./components/Handovers/HistorySummary";
 import TasksBucket from "./components/Handovers/TasksBucket";
 import TasksList from './components/Handovers/TasksList';
-
+import KnowledgeBase from './components/Handovers/KnowledgeBase';
 import "./App.css";
 
 /* -------------------------------------------------------
@@ -161,6 +161,9 @@ function App() {
                     </ProtectedRoute>
                   }
                 />
+
+                <Route path="/knowledge-base" element={<KnowledgeBase />} />
+
               </Routes>
             </div>
           </div>
