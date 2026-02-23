@@ -1,3 +1,13 @@
 
 path('createKDB/',views.createKDB,name="createKDB"),
 path('getKDB',views.getKDB,name="getKDB")
+
+
+
+{
+"applicaion" : ,
+"description": ,
+"dateOfOccurence": ,
+"resolution": ,
+"userCreated_id": 
+}
