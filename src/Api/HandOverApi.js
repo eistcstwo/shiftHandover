@@ -205,11 +205,6 @@ export const getBrokerRestartStatus = async (restartId) => {
 };
 
 // STEP 3 & 4: Start broker restart task
-// If restartId is provided and currSet.length < 4, it creates a new subset
-// If restartId is NOT provided (undefined/null), it starts a completely new restart session
-// setNumber indicates which set (1-4) is being started
-// serverSetName is the name of the selected server set
-// serverList is the comma-separated list of server numbers
 export const startBrokerRestartTask = async (
   infraId,
   infraName,
@@ -224,17 +219,14 @@ export const startBrokerRestartTask = async (
       infraName: infraName
     };
 
-    // Only include restartId if it's provided and we want to add to existing session
     if (restartId !== null && restartId !== undefined) {
       payload.restartId = restartId;
     }
 
-    // Include setNumber if provided
     if (setNumber !== null && setNumber !== undefined) {
       payload.setNumber = setNumber;
     }
 
-    // Include server set information if provided
     if (serverSetName !== null && serverSetName !== undefined) {
       payload.serverSet = serverSetName;
     }
@@ -268,7 +260,6 @@ export const updateSubRestart = async (description, subSetsId, currentSubSetUser
       subSetsId: subSetsId
     };
 
-    // Include currentSubSetUserId if provided
     if (currentSubSetUserId !== null && currentSubSetUserId !== undefined) {
       payload.currentSubSetUserId = currentSubSetUserId;
     }
@@ -364,6 +355,56 @@ export const deleteBrokerRestart = async (restartId, userInfraId, ackDesc) => {
     return response.data;
   } catch (error) {
     console.error('deleteBrokerRestart error:', error);
+    throw error;
+  }
+};
+
+// ========== KNOWLEDGE DATABASE APIs ==========
+
+export const getKDB = async () => {
+  try {
+    const response = await api.post('/getKDB', {}, {
+      timeout: 30000,
+      headers: {
+        'Content-Type': 'application/json',
+      }
+    });
+    console.log('getKDB response:', response);
+    return response.data;
+  } catch (error) {
+    console.error('getKDB error:', error);
+    throw error;
+  }
+};
+
+export const createKDB = async (entryData) => {
+  try {
+    const uid = localStorage.getItem('uidd');
+    if (!uid) {
+      throw new Error('Authentication credentials not found');
+    }
+
+    const payload = {
+      applicaion: entryData.applicaion || '',
+      description: entryData.description || '',
+      dateOfOccurence: entryData.dateOfOccurence || '',
+      resolution: entryData.resolution || '',
+      userCreated_id: uid,
+    };
+
+    console.log('createKDB payload:', payload);
+
+    const response = await api.post('/createKDB/', payload, {
+      timeout: 30000,
+      headers: {
+        'Content-Type': 'application/json',
+      }
+    });
+
+    console.log('createKDB response:', response);
+    return response.data;
+  } catch (error) {
+    console.error('createKDB error:', error);
     throw error;
   }
 };
