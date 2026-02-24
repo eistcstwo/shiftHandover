@@ -1,0 +1,22 @@
+@csrf_exempt
+def updateKDB(request) :
+if request-method=
+"POST"
+try:
+data = İson. loads (request.body)
+user - None
+if data. get ("userCreated id"):
+user - Usermaster. objects.get (AdId-data l"userCreated 4d"1)
+kId-data. get ("kId")
+issue - knowledgeIssueDB.objects.getkId-kId)
+for key, value in data.items (): setattr (issue, key, value)
+it user:
+issue. userCreated - user
+issue. save ()
+return JsonResponse (f
+"status";"succes"
+"id"; issue, kId
+except Exception as e:
+print (e)
+return JsonResponse (("error"; str(e)),status-400)
+IsonResponse (| "error"; "Invalid request"), status=405)
