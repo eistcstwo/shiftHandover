@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { format } from 'date-fns';
 import { getKDB, createKDB, updateKDB } from '../../Api/HandOverApi';
+import * as XLSX from 'xlsx';
 import './KnowledgeBase.css';
 
 // ── Create / Edit Modal ────────────────────────────────────────────────────
@@ -256,6 +257,7 @@ const KnowledgeBase = () => {
   const [success, setSuccess] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editEntry, setEditEntry] = useState(null); // entry being edited
+  const [downloading, setDownloading] = useState(false);
 
   // Filters
   const [search, setSearch] = useState('');
@@ -330,6 +332,112 @@ const KnowledgeBase = () => {
     }).length;
   }, [entries]);
 
+  // ── Excel Download Function ──────────────────────────────────────────────
+  const downloadExcel = async () => {
+    if (filteredEntries.length === 0) {
+      setError('No entries to download.');
+      setTimeout(() => setError(''), 3000);
+      return;
+    }
+
+    setDownloading(true);
+    try {
+      // Prepare data for Excel
+      const excelData = filteredEntries.map((entry, index) => ({
+        'S.No': index + 1,
+        'Application': entry.applicaion || entry.application || 'N/A',
+        'Date of Occurrence': entry.dateOfOccurence || entry.dateOfOccurrence || 'N/A',
+        'Issue Description': entry.description || 'N/A',
+        'Resolution': entry.resolution || 'N/A',
+        'Logged By (User ID)': entry.userCreated_id || 'N/A',
+        'Entry ID': entry.id || entry.kdbId || entry.kdb_id || entry.kId || 'N/A'
+      }));
+
+      // Create worksheet
+      const ws = XLSX.utils.json_to_sheet(excelData);
+
+      // Set column widths
+      const colWidths = [
+        { wch: 5 },  // S.No
+        { wch: 20 }, // Application
+        { wch: 15 }, // Date
+        { wch: 50 }, // Description
+        { wch: 50 }, // Resolution
+        { wch: 15 }, // Logged By
+        { wch: 15 }  // Entry ID
+      ];
+      ws['!cols'] = colWidths;
+
+      // Create workbook
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Knowledge Base');
+
+      // Generate filename with current date
+      const date = format(new Date(), 'yyyy-MM-dd');
+      const filename = `knowledge-base_${date}.xlsx`;
+
+      // Download file
+      XLSX.writeFile(wb, filename);
+
+      setSuccess(`✅ Excel file downloaded successfully! (${filteredEntries.length} entries)`);
+      setTimeout(() => setSuccess(''), 4000);
+    } catch (err) {
+      console.error('Excel download error:', err);
+      setError('Failed to generate Excel file. Please try again.');
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  // ── Download All Entries (without filters) ───────────────────────────────
+  const downloadAllEntries = async () => {
+    if (entries.length === 0) {
+      setError('No entries to download.');
+      setTimeout(() => setError(''), 3000);
+      return;
+    }
+
+    setDownloading(true);
+    try {
+      const excelData = entries.map((entry, index) => ({
+        'S.No': index + 1,
+        'Application': entry.applicaion || entry.application || 'N/A',
+        'Date of Occurrence': entry.dateOfOccurence || entry.dateOfOccurrence || 'N/A',
+        'Issue Description': entry.description || 'N/A',
+        'Resolution': entry.resolution || 'N/A',
+        'Logged By (User ID)': entry.userCreated_id || 'N/A',
+        'Entry ID': entry.id || entry.kdbId || entry.kdb_id || entry.kId || 'N/A'
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(excelData);
+      ws['!cols'] = [
+        { wch: 5 },  // S.No
+        { wch: 20 }, // Application
+        { wch: 15 }, // Date
+        { wch: 50 }, // Description
+        { wch: 50 }, // Resolution
+        { wch: 15 }, // Logged By
+        { wch: 15 }  // Entry ID
+      ];
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Knowledge Base');
+
+      const date = format(new Date(), 'yyyy-MM-dd');
+      const filename = `knowledge-base_all_${date}.xlsx`;
+
+      XLSX.writeFile(wb, filename);
+
+      setSuccess(`✅ All entries downloaded successfully! (${entries.length} entries)`);
+      setTimeout(() => setSuccess(''), 4000);
+    } catch (err) {
+      console.error('Excel download error:', err);
+      setError('Failed to generate Excel file. Please try again.');
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   // ── Handle modal success ─────────────────────────────────────────────────
   const handleModalSuccess = (isEdit) => {
     setShowCreateModal(false);
@@ -356,6 +464,31 @@ const KnowledgeBase = () => {
           >
             {loading ? '⏳ Loading...' : '🔄 Refresh'}
           </button>
+          
+          {/* Excel Download Dropdown */}
+          <div className="kdb-download-dropdown">
+            <button
+              className="btn-kdb-download"
+              disabled={downloading || entries.length === 0}
+            >
+              {downloading ? '⏳ Downloading...' : '📥 Download Excel'}
+            </button>
+            <div className="kdb-download-dropdown-content">
+              <button 
+                onClick={downloadExcel}
+                disabled={downloading || filteredEntries.length === 0}
+              >
+                📊 Download Current View ({filteredEntries.length})
+              </button>
+              <button 
+                onClick={downloadAllEntries}
+                disabled={downloading || entries.length === 0}
+              >
+                📋 Download All Entries ({entries.length})
+              </button>
+            </div>
+          </div>
+
           <button
             className="btn-kdb-primary"
             onClick={() => setShowCreateModal(true)}
