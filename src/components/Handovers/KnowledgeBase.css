@@ -261,7 +261,6 @@
   padding: 1.5rem;
   margin-bottom: 1.25rem;
   transition: all 0.25s ease;
-  cursor: pointer;
   position: relative;
   overflow: hidden;
 }
@@ -341,11 +340,10 @@
 
 .kdb-entry-meta {
   display: flex;
-  align-items: center;
-  gap: 1rem;
+  align-items: flex-end;
+  gap: 0.75rem;
   flex-shrink: 0;
   flex-direction: column;
-  align-items: flex-end;
 }
 
 .kdb-entry-date {
@@ -356,6 +354,34 @@
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.06);
   white-space: nowrap;
+}
+
+/* ===== ENTRY ACTION BUTTONS ROW ===== */
+.kdb-entry-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.kdb-edit-btn {
+  background: none;
+  border: 1px solid rgba(138, 43, 226, 0.3);
+  color: #c084fc;
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 0.35rem 0.85rem;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  font-weight: 600;
+  white-space: nowrap;
+  font-family: inherit;
+}
+
+.kdb-edit-btn:hover {
+  background: rgba(138, 43, 226, 0.15);
+  border-color: rgba(138, 43, 226, 0.55);
+  color: #d8b4fe;
+  box-shadow: 0 0 10px rgba(138, 43, 226, 0.2);
 }
 
 .kdb-expand-btn {
@@ -369,6 +395,7 @@
   transition: all 0.2s ease;
   font-weight: 600;
   white-space: nowrap;
+  font-family: inherit;
 }
 
 .kdb-expand-btn:hover {
@@ -508,7 +535,7 @@
   cursor: not-allowed;
 }
 
-/* ===== CREATE FORM MODAL ===== */
+/* ===== CREATE / EDIT FORM MODAL ===== */
 .kdb-modal-overlay {
   position: fixed;
   top: 0;
@@ -774,9 +801,13 @@
   .kdb-modal-footer button { width: 100%; }
 
   .kdb-entry-header { flex-direction: column; }
-  .kdb-entry-meta { flex-direction: row; align-items: center; }
+  .kdb-entry-meta { flex-direction: row; align-items: center; flex-wrap: wrap; }
 
   .kdb-stats {
     grid-template-columns: repeat(2, 1fr);
+  }
+
+  .kdb-entry-actions {
+    flex-wrap: wrap;
   }
 }
