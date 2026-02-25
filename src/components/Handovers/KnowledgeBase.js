@@ -1,8 +1,75 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { format } from 'date-fns';
 import { getKDB, createKDB, updateKDB } from '../../Api/HandOverApi';
-import * as XLSX from 'xlsx';
 import './KnowledgeBase.css';
+
+// ── CSV Download Utility ───────────────────────────────────────────────────
+const downloadCSV = (data, filename) => {
+  if (!data || data.length === 0) return;
+
+  // Define CSV headers
+  const headers = [
+    'S.No',
+    'Application',
+    'Date of Occurrence',
+    'Issue Description',
+    'Resolution',
+    'Logged By (User ID)',
+    'Entry ID'
+  ];
+
+  // Convert data to CSV rows
+  const csvRows = [];
+  
+  // Add headers
+  csvRows.push(headers.join(','));
+
+  // Add data rows
+  data.forEach((item, index) => {
+    const row = [
+      index + 1,
+      escapeCSV(item.applicaion || item.application || 'N/A'),
+      escapeCSV(item.dateOfOccurence || item.dateOfOccurrence || 'N/A'),
+      escapeCSV(item.description || 'N/A'),
+      escapeCSV(item.resolution || 'N/A'),
+      escapeCSV(item.userCreated_id || 'N/A'),
+      escapeCSV(item.id || item.kdbId || item.kdb_id || item.kId || 'N/A')
+    ];
+    csvRows.push(row.join(','));
+  });
+
+  // Combine all rows
+  const csvString = csvRows.join('\n');
+
+  // Create and trigger download
+  const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+  
+  link.setAttribute('href', url);
+  link.setAttribute('download', filename);
+  link.style.visibility = 'hidden';
+  
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+};
+
+// Helper function to escape CSV fields (handles commas, quotes, and newlines)
+const escapeCSV = (field) => {
+  if (field === null || field === undefined) return '';
+  
+  const stringField = String(field);
+  
+  // Check if field needs escaping (contains comma, quote, or newline)
+  if (stringField.includes(',') || stringField.includes('"') || stringField.includes('\n') || stringField.includes('\r')) {
+    // Replace double quotes with two double quotes
+    return `"${stringField.replace(/"/g, '""')}"`;
+  }
+  
+  return stringField;
+};
 
 // ── Create / Edit Modal ────────────────────────────────────────────────────
 const EntryModal = ({ onClose, onSuccess, editEntry = null }) => {
@@ -256,7 +323,7 @@ const KnowledgeBase = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [editEntry, setEditEntry] = useState(null); // entry being edited
+  const [editEntry, setEditEntry] = useState(null);
   const [downloading, setDownloading] = useState(false);
 
   // Filters
@@ -332,9 +399,9 @@ const KnowledgeBase = () => {
     }).length;
   }, [entries]);
 
-  // ── Excel Download Function ──────────────────────────────────────────────
-  const downloadExcel = async () => {
-    if (filteredEntries.length === 0) {
+  // ── CSV Download Functions ──────────────────────────────────────────────
+  const downloadCSV = (dataToDownload, type) => {
+    if (dataToDownload.length === 0) {
       setError('No entries to download.');
       setTimeout(() => setError(''), 3000);
       return;
@@ -342,100 +409,92 @@ const KnowledgeBase = () => {
 
     setDownloading(true);
     try {
-      // Prepare data for Excel
-      const excelData = filteredEntries.map((entry, index) => ({
-        'S.No': index + 1,
-        'Application': entry.applicaion || entry.application || 'N/A',
-        'Date of Occurrence': entry.dateOfOccurence || entry.dateOfOccurrence || 'N/A',
-        'Issue Description': entry.description || 'N/A',
-        'Resolution': entry.resolution || 'N/A',
-        'Logged By (User ID)': entry.userCreated_id || 'N/A',
-        'Entry ID': entry.id || entry.kdbId || entry.kdb_id || entry.kId || 'N/A'
-      }));
-
-      // Create worksheet
-      const ws = XLSX.utils.json_to_sheet(excelData);
-
-      // Set column widths
-      const colWidths = [
-        { wch: 5 },  // S.No
-        { wch: 20 }, // Application
-        { wch: 15 }, // Date
-        { wch: 50 }, // Description
-        { wch: 50 }, // Resolution
-        { wch: 15 }, // Logged By
-        { wch: 15 }  // Entry ID
-      ];
-      ws['!cols'] = colWidths;
-
-      // Create workbook
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Knowledge Base');
-
       // Generate filename with current date
       const date = format(new Date(), 'yyyy-MM-dd');
-      const filename = `knowledge-base_${date}.xlsx`;
+      const filename = type === 'all' 
+        ? `knowledge-base_all_${date}.csv`
+        : `knowledge-base_filtered_${date}.csv`;
 
-      // Download file
-      XLSX.writeFile(wb, filename);
+      // Define CSV headers
+      const headers = [
+        'S.No',
+        'Application',
+        'Date of Occurrence',
+        'Issue Description',
+        'Resolution',
+        'Logged By (User ID)',
+        'Entry ID'
+      ];
 
-      setSuccess(`✅ Excel file downloaded successfully! (${filteredEntries.length} entries)`);
+      // Convert data to CSV rows
+      const csvRows = [];
+      
+      // Add headers
+      csvRows.push(headers.join(','));
+
+      // Add data rows
+      dataToDownload.forEach((item, index) => {
+        const row = [
+          index + 1,
+          escapeCSV(item.applicaion || item.application || 'N/A'),
+          escapeCSV(item.dateOfOccurence || item.dateOfOccurrence || 'N/A'),
+          escapeCSV(item.description || 'N/A'),
+          escapeCSV(item.resolution || 'N/A'),
+          escapeCSV(item.userCreated_id || 'N/A'),
+          escapeCSV(item.id || item.kdbId || item.kdb_id || item.kId || 'N/A')
+        ];
+        csvRows.push(row.join(','));
+      });
+
+      // Combine all rows
+      const csvString = csvRows.join('\n');
+
+      // Create and trigger download
+      const blob = new Blob(['\uFEFF' + csvString], { type: 'text/csv;charset=utf-8;' }); // Add BOM for UTF-8
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      
+      link.setAttribute('href', url);
+      link.setAttribute('download', filename);
+      link.style.visibility = 'hidden';
+      
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      setSuccess(`✅ CSV file downloaded successfully! (${dataToDownload.length} entries)`);
       setTimeout(() => setSuccess(''), 4000);
     } catch (err) {
-      console.error('Excel download error:', err);
-      setError('Failed to generate Excel file. Please try again.');
+      console.error('CSV download error:', err);
+      setError('Failed to generate CSV file. Please try again.');
     } finally {
       setDownloading(false);
     }
   };
 
-  // ── Download All Entries (without filters) ───────────────────────────────
-  const downloadAllEntries = async () => {
-    if (entries.length === 0) {
-      setError('No entries to download.');
-      setTimeout(() => setError(''), 3000);
-      return;
+  // Helper function to escape CSV fields (handles commas, quotes, and newlines)
+  const escapeCSV = (field) => {
+    if (field === null || field === undefined) return '';
+    
+    const stringField = String(field);
+    
+    // Check if field needs escaping (contains comma, quote, or newline)
+    if (stringField.includes(',') || stringField.includes('"') || stringField.includes('\n') || stringField.includes('\r')) {
+      // Replace double quotes with two double quotes and wrap in quotes
+      return `"${stringField.replace(/"/g, '""')}"`;
     }
+    
+    return stringField;
+  };
 
-    setDownloading(true);
-    try {
-      const excelData = entries.map((entry, index) => ({
-        'S.No': index + 1,
-        'Application': entry.applicaion || entry.application || 'N/A',
-        'Date of Occurrence': entry.dateOfOccurence || entry.dateOfOccurrence || 'N/A',
-        'Issue Description': entry.description || 'N/A',
-        'Resolution': entry.resolution || 'N/A',
-        'Logged By (User ID)': entry.userCreated_id || 'N/A',
-        'Entry ID': entry.id || entry.kdbId || entry.kdb_id || entry.kId || 'N/A'
-      }));
+  // ── Download handlers ────────────────────────────────────────────────────
+  const handleDownloadFiltered = () => {
+    downloadCSV(filteredEntries, 'filtered');
+  };
 
-      const ws = XLSX.utils.json_to_sheet(excelData);
-      ws['!cols'] = [
-        { wch: 5 },  // S.No
-        { wch: 20 }, // Application
-        { wch: 15 }, // Date
-        { wch: 50 }, // Description
-        { wch: 50 }, // Resolution
-        { wch: 15 }, // Logged By
-        { wch: 15 }  // Entry ID
-      ];
-
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Knowledge Base');
-
-      const date = format(new Date(), 'yyyy-MM-dd');
-      const filename = `knowledge-base_all_${date}.xlsx`;
-
-      XLSX.writeFile(wb, filename);
-
-      setSuccess(`✅ All entries downloaded successfully! (${entries.length} entries)`);
-      setTimeout(() => setSuccess(''), 4000);
-    } catch (err) {
-      console.error('Excel download error:', err);
-      setError('Failed to generate Excel file. Please try again.');
-    } finally {
-      setDownloading(false);
-    }
+  const handleDownloadAll = () => {
+    downloadCSV(entries, 'all');
   };
 
   // ── Handle modal success ─────────────────────────────────────────────────
@@ -465,23 +524,23 @@ const KnowledgeBase = () => {
             {loading ? '⏳ Loading...' : '🔄 Refresh'}
           </button>
           
-          {/* Excel Download Dropdown */}
+          {/* CSV Download Dropdown */}
           <div className="kdb-download-dropdown">
             <button
               className="btn-kdb-download"
               disabled={downloading || entries.length === 0}
             >
-              {downloading ? '⏳ Downloading...' : '📥 Download Excel'}
+              {downloading ? '⏳ Downloading...' : '📥 Download CSV'}
             </button>
             <div className="kdb-download-dropdown-content">
               <button 
-                onClick={downloadExcel}
+                onClick={handleDownloadFiltered}
                 disabled={downloading || filteredEntries.length === 0}
               >
                 📊 Download Current View ({filteredEntries.length})
               </button>
               <button 
-                onClick={downloadAllEntries}
+                onClick={handleDownloadAll}
                 disabled={downloading || entries.length === 0}
               >
                 📋 Download All Entries ({entries.length})
