@@ -1,15 +1,17 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { format } from 'date-fns';
-import { getKDB, createKDB } from '../../Api/HandOverApi';
+import { getKDB, createKDB, updateKDB } from '../../Api/HandOverApi';
 import './KnowledgeBase.css';
 
 // ── Create / Edit Modal ────────────────────────────────────────────────────
-const CreateEntryModal = ({ onClose, onSuccess }) => {
+const EntryModal = ({ onClose, onSuccess, editEntry = null }) => {
+  const isEdit = !!editEntry;
+
   const [form, setForm] = useState({
-    applicaion: '',
-    description: '',
-    dateOfOccurence: '',
-    resolution: '',
+    applicaion: editEntry?.applicaion || editEntry?.application || '',
+    description: editEntry?.description || '',
+    dateOfOccurence: editEntry?.dateOfOccurence || editEntry?.dateOfOccurrence || '',
+    resolution: editEntry?.resolution || '',
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -30,10 +32,15 @@ const CreateEntryModal = ({ onClose, onSuccess }) => {
     setSubmitting(true);
     setError('');
     try {
-      await createKDB(form);
+      if (isEdit) {
+        const kId = editEntry.kId || editEntry.id || editEntry.kdb_id || editEntry.kdbId;
+        await updateKDB({ ...form, kId });
+      } else {
+        await createKDB(form);
+      }
       onSuccess();
     } catch (err) {
-      setError(err.message || 'Failed to create entry. Please try again.');
+      setError(err.message || `Failed to ${isEdit ? 'update' : 'create'} entry. Please try again.`);
     } finally {
       setSubmitting(false);
     }
@@ -43,8 +50,14 @@ const CreateEntryModal = ({ onClose, onSuccess }) => {
     <div className="kdb-modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="kdb-modal">
         <div className="kdb-modal-header">
-          <h2 className="kdb-modal-title">📝 New Knowledge Entry</h2>
-          <p className="kdb-modal-subtitle">Document an issue and its resolution for the team</p>
+          <h2 className="kdb-modal-title">
+            {isEdit ? '✏️ Edit Knowledge Entry' : '📝 New Knowledge Entry'}
+          </h2>
+          <p className="kdb-modal-subtitle">
+            {isEdit
+              ? 'Update the issue description or resolution'
+              : 'Document an issue and its resolution for the team'}
+          </p>
         </div>
 
         <div className="kdb-modal-body">
@@ -54,7 +67,7 @@ const CreateEntryModal = ({ onClose, onSuccess }) => {
             </div>
           )}
 
-          <form id="kdb-create-form" onSubmit={handleSubmit} className="kdb-form">
+          <form id="kdb-entry-form" onSubmit={handleSubmit} className="kdb-form">
             <div className="kdb-form-row">
               <div className="kdb-form-group">
                 <label>
@@ -126,11 +139,15 @@ const CreateEntryModal = ({ onClose, onSuccess }) => {
           </button>
           <button
             type="submit"
-            form="kdb-create-form"
+            form="kdb-entry-form"
             className="btn-kdb-primary"
             disabled={submitting}
           >
-            {submitting ? '⏳ Saving...' : '✅ Save Entry'}
+            {submitting
+              ? '⏳ Saving...'
+              : isEdit
+              ? '✅ Update Entry'
+              : '✅ Save Entry'}
           </button>
         </div>
       </div>
@@ -139,7 +156,7 @@ const CreateEntryModal = ({ onClose, onSuccess }) => {
 };
 
 // ── Entry Card ─────────────────────────────────────────────────────────────
-const EntryCard = ({ entry }) => {
+const EntryCard = ({ entry, onEdit }) => {
   const [expanded, setExpanded] = useState(false);
 
   const formatDate = (dateStr) => {
@@ -167,13 +184,23 @@ const EntryCard = ({ entry }) => {
           <span className="kdb-entry-date">
             📅 {formatDate(entry.dateOfOccurence || entry.dateOfOccurrence)}
           </span>
-          <button
-            className="kdb-expand-btn"
-            onClick={() => setExpanded((p) => !p)}
-            aria-label={expanded ? 'Collapse' : 'Expand'}
-          >
-            {expanded ? '▲ Collapse' : '▼ View Details'}
-          </button>
+          <div className="kdb-entry-actions">
+            <button
+              className="kdb-edit-btn"
+              onClick={(e) => { e.stopPropagation(); onEdit(entry); }}
+              aria-label="Edit entry"
+              title="Edit this entry"
+            >
+              ✏️ Edit
+            </button>
+            <button
+              className="kdb-expand-btn"
+              onClick={() => setExpanded((p) => !p)}
+              aria-label={expanded ? 'Collapse' : 'Expand'}
+            >
+              {expanded ? '▲ Collapse' : '▼ Details'}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -228,6 +255,7 @@ const KnowledgeBase = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [editEntry, setEditEntry] = useState(null); // entry being edited
 
   // Filters
   const [search, setSearch] = useState('');
@@ -241,7 +269,6 @@ const KnowledgeBase = () => {
       const data = await getKDB();
       console.log('KDB data:', data);
 
-      // Normalise response — backend may return array or object with array key
       let list = [];
       if (Array.isArray(data)) {
         list = data;
@@ -252,7 +279,6 @@ const KnowledgeBase = () => {
       } else if (data && Array.isArray(data.kdbEntries)) {
         list = data.kdbEntries;
       } else if (data && typeof data === 'object') {
-        // Try first array-valued key
         const arrayKey = Object.keys(data).find((k) => Array.isArray(data[k]));
         if (arrayKey) list = data[arrayKey];
       }
@@ -304,10 +330,11 @@ const KnowledgeBase = () => {
     }).length;
   }, [entries]);
 
-  // ── Handle create success ────────────────────────────────────────────────
-  const handleCreateSuccess = () => {
+  // ── Handle modal success ─────────────────────────────────────────────────
+  const handleModalSuccess = (isEdit) => {
     setShowCreateModal(false);
-    setSuccess('✅ Knowledge entry saved successfully!');
+    setEditEntry(null);
+    setSuccess(isEdit ? '✅ Entry updated successfully!' : '✅ Knowledge entry saved successfully!');
     fetchEntries();
     setTimeout(() => setSuccess(''), 4000);
   };
@@ -411,8 +438,9 @@ const KnowledgeBase = () => {
             {filteredEntries.length > 0 ? (
               filteredEntries.map((entry, idx) => (
                 <EntryCard
-                  key={entry.id || entry.kdbId || entry.kdb_id || idx}
+                  key={entry.id || entry.kdbId || entry.kdb_id || entry.kId || idx}
                   entry={entry}
+                  onEdit={(e) => setEditEntry(e)}
                 />
               ))
             ) : (
@@ -430,9 +458,18 @@ const KnowledgeBase = () => {
 
       {/* Create Modal */}
       {showCreateModal && (
-        <CreateEntryModal
+        <EntryModal
           onClose={() => setShowCreateModal(false)}
-          onSuccess={handleCreateSuccess}
+          onSuccess={() => handleModalSuccess(false)}
+        />
+      )}
+
+      {/* Edit Modal */}
+      {editEntry && (
+        <EntryModal
+          editEntry={editEntry}
+          onClose={() => setEditEntry(null)}
+          onSuccess={() => handleModalSuccess(true)}
         />
       )}
     </div>
