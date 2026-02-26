@@ -1,0 +1,37 @@
+tables=["ACCOUNT_EXP_01","ACCOUNT_EXP_02","ACCOUNT_SYS","CUSTOMER_EXP","CUSTOMER_SYS","LOGGING_EXP","LOGGING_SYS","PAYMENT_EXP","PAYMENT_SYS","MISC_EXP","MISC_EXP_EG_SEGREGATED", "MISC_SYS_EG_SEGREGATED","MISC_SYS","IVR_EXP","IVR_SYS","AADHAR_EXP","AADHAR_SYS"]
+
+
+ACCOUNT_EXP_01=["eispraccexp-01","eispraccexp-02","eispraccexp-03","eispraccexp-11","eispraccexp-12","eispraccexp-13","eisdraccexp-01","eisdraccexp-02","eisdraccexp-03","eisdraccexp-11","eisdraccexp-12","eisdraccexp-13"]
+
+ACCOUNT_EXP_02=["eispraccexp-04","eispraccexp-05","eispraccexp-06","eispraccexp-14","eispraccexp-15","eispraccexp-16","eisdraccexp-04","eisdraccexp-05","eisdraccexp-06","eisdraccexp-14","eisdraccexp-15","eisdraccexp-16"]
+
+ACCOUNT_SYS=["eispraccsys-01","eispraccsys-02","eispraccsys-03","eispraccsys-04","eispraccsys-05","eispraccsys-06","eispraccsys-11","eispraccsys-12","eispraccsys-13","eispraccsys-14","eispraccsys-15","eispraccsys-16","eisdraccsys-01","eisdraccsys-02","eisdraccsys-03","eisdraccsys-04","eisdraccsys-05","eisdraccsys-06","eisdraccsys-11","eisdraccsys-12","eisdraccsys-13","eisdraccsys-14","eisdraccsys-15","eisdraccsys-16"]
+
+CUSTOMER_EXP=["eisprcustexp-01","eisprcustexp-02","eisprcustexp-03","eisprcustexp-04","eisprcustexp-05","eisprcustexp-11","eisprcustexp-12","eisprcustexp-13","eisprcustexp-14","eisprcustexp-15","eisdrcustexp-01","eisdrcustexp-02","eisdrcustexp-03","eisdrcustexp-04","eisdrcustexp-05","eisdrcustexp-11","eisdrcustexp-12","eisdrcustexp-13","eisdrcustexp-14","eisdrcustexp-15"]
+
+CUSTOMER_SYS=["eisprcustsys-01","eisprcustsys-02","eisprcustsys-03","eisprcustsys-04","eisprcustsys-05","eisprcustsys-06","eisprcustsys-11","eisprcustsys-12","eisprcustsys-13","eisprcustsys-14","eisprcustsys-15","eisprcustsys-16","eisdrcustsys-01","eisdrcustsys-02","eisdrcustsys-03","eisdrcustsys-04","eisdrcustsys-05","eisdrcustsys-06","eisdrcustsys-11","eisdrcustsys-12","eisdrcustsys-13","eisdrcustsys-14","eisdrcustsys-15","eisdrcustsys-16"]
+
+LOGGING_EXP=["eisprloginexp-01","eisprloginexp-02","eisprloginexp-03","eisprloginexp-04","eisprloginexp-05","eisprloginexp-11","eisprloginexp-12","eisprloginexp-13","eisprloginexp-14","eisprloginexp-15","eisdrloginexp-01","eisdrloginexp-02","eisdrloginexp-03","eisdrloginexp-04","eisdrloginexp-05","eisdrloginexp-11","eisdrloginexp-12","eisdrloginexp-13","eisdrloginexp-14","eisdrloginexp-15"]
+
+LOGGING_SYS=["eisprloginsys-01","eisprloginsys-02","eisprloginsys-03","eisprloginsys-04","eisprloginsys-05","eisprloginsys-06","eisprloginsys-11","eisprloginsys-12","eisprloginsys-13","eisprloginsys-14","eisprloginsys-15","eisprloginsys-16","eisdrloginsys-01","eisdrloginsys-02","eisdrloginsys-03","eisdrloginsys-04","eisdrloginsys-05","eisdrloginsys-06","eisdrloginsys-11","eisdrloginsys-12","eisdrloginsys-13","eisdrloginsys-14","eisdrloginsys-15","eisdrloginsys-16"]
+
+PAYMENT_EXP=["eisprpaymentexp-01","eisprpaymentexp-02","eisprpaymentexp-03","eisprpaymentexp-04","eisprpaymentexp-11","eisprpaymentexp-12","eisprpaymentexp-13","eisprpaymentexp-14","eisdrpaymentexp-01","eisdrpaymentexp-02","eisdrpaymentexp-03","eisdrpaymentexp-04","eisdrpaymentexp-11","eisdrpaymentexp-12","eisdrpaymentexp-13","eisdrpaymentexp-14"]
+
+PAYMENT_SYS=["eisprpaymentsys-01","eisprspaymentsys-02","eisprpaymentsys-03","eisprpaymentsys-04","eisprpaymentsys-05","eisprpaymentsys-11","eisprpaymentsys-12","eisprpaymentsys-13","eisprpaymentsys-14","eisprpaymentsys-15","eisdrpaymentsys-01","eisdrpaymentsys-02","eisdrpaymentsys-03","eisdrpaymentsys-04","eisdrpaymentsys-05","eisdrpaymentsys-11","eisdrpaymentsys-12","eisdrpaymentsys-13","eisdrpaymentsys-14","eisdrpaymentsys-15"]
+
+MISC_EXP=["eisprmiscexp-01","eisprmiscexp-02","eisprmiscexp-03","eisprmiscexp-04","eisprmiscexp-05","eisprmiscexp-11","eisprmiscexp-12","eisprmiscexp-13","eisprmiscexp-14","eisprmiscexp-15","eisdrmiscexp-01","eisdrmiscexp-02","eisdrmiscexp-03","eisdrmiscexp-04","eisdrmiscexp-05","eisdrmiscexp-11","eisdrmiscexp-12","eisdrmiscexp-13","eisdrmiscexp-14","eisdrmiscexp-15"]
+
+MISC_SYS=["eisprmiscsys-01","eisprmiscsys-02","eisprmiscsys-03","eisprmiscsys-04","eisprmiscsys-05","eisprmiscsys-11","eisprmiscsys-12","eisprmiscsys-13","eisprmiscsys-14","eisprmiscsys-15","eisdrmiscsys-01","eisdrmiscsys-02","eisdrmiscsys-03","eisdrmiscsys-04","eisdrmiscsys-05","eisdrmiscsys-11","eisdrmiscsys-12","eisdrmiscsys-13","eisdrmiscsys-14","eisdrmiscsys-15"]
+
+MISC_EXP_EG_SEGREGATED=["Eisprmiscexp-06","Eisprmiscexp-07","eisprmiscexp-08","Eisprmiscexp-09","Eisprmiscexp-16","Eisprmiscexp-17","Eisprmiscexp-18","Eisprmiscexp-19","eisdrmiscexp-06","eisdrmiscexp-07","eisdrmiscexp-08","eisdrmiscexp-09","eisdrmiscexp-16","eisdrmiscexp-17","eisdrmiscexp-18","eisdrmiscexp-19"]
+
+MISC_SYS_EG_SEGREGATED=["eisprmiscsys-06","Eisprmiscsys-07","Eisprmiscsys-08","Eisprmiscsys-09","Eisprmiscsys-16","Eisprmiscsys-17","Eisprmiscsys-18","Eisprmiscsys-19","eisdrmiscsys-06","eisdrmiscsys-07","eisdrmiscsys-08","eisdrmiscsys-09","eisdrmiscsys-16","eisdrmiscsys-17","eisdrmiscsys-18","eisdrmiscsys-19"]
+
+IVR_EXP=["eisprivrexp-01", "eisprivrexp-02", "eisprivrexp-03","eisprivrexp-11", "eisprivrexp-12", "eisprivrexp-13","eisdrivrexp-01", "eisdrivrexp-02", "eisdrivrexp-03","eisdrivrexp-11", "eisdrivrexp-12", "eisdrivrexp-13"]
+
+IVR_SYS=["eisprivrsys-01","eisprivrsys-02","eisprivrsys-03","eisprivrsys-04","eisprivrsys-11","eisprivrsys-12","eisprivrsys-13","eisprivrsys-14","eisdrivrsys-01","eisdrivrsys-02","eisdrivrsys-03","eisdrivrsys-04","eisdrivrsys-11","eisdrivrsys-12","eisdrivrsys-13","eisdrivrsys-14"]
+
+AADHAR_EXP=["eispr-idhubexp-01", "eispr-idhubexp-02", "eispr-idhubexp-03","eispr-idhubexp-11", "eispr-idhubexp-12", "eispr-idhubexp-13","eisdr-idhubexp-01", "eisdr-idhubexp-02", "eisdr-idhubexp-03","eisdr-idhubexp-11", "eisdr-idhubexp-12", "eisdr-idhubexp-13"]
+
+AADHAR_SYS=["eispr-idhubsys-01", "eispr-idhubsys-02", "eispr-idhubsys-03", "eispr-idhubsys-04","eispr-idhubsys-11", "eispr-idhubsys-12", "eispr-idhubsys-13", "eispr-idhubsys-14","eisdr-idhubsys-01", "eisdr-idhubsys-02", "eisdr-idhubsys-03", "eisdr-idhubsys-04","eisdr-idhubsys-11", "eisdr-idhubsys-12", "eisdr-idhubsys-13", "eisdr-idhubsys-14"]
+
