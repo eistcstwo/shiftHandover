@@ -1,414 +1,2050 @@
-import React, { useState, useEffect, createContext, useContext } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
 import { format } from 'date-fns';
-import { getHandovers } from '../../Api/HandOverApi';
-import './HandoverList.css';
+import './TasksList.css';
+import {
+  getRestartId,
+  getBrokerRestartStatus,
+  startBrokerRestartTask,
+  updateSubRestart,
+  updateSetRestart,
+  deleteSetRestart,
+  deleteBrokerRestart
+} from '../../Api/HandOverApi';
 
-// Create context to share handover count across components
-export const HandoverContext = createContext({ hasMultipleHandovers: true });
 
-const HandoverList = ({ onHandoversUpdate }) => {
-  const navigate = useNavigate();
-  const [backendData, setBackendData] = useState({ TeamHandoverDetails: [], Tasksdata: [] });
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [priorityFilter, setPriorityFilter] = useState('all');
+
+const TasksList = () => {
+  // Get user level from localStorage (normalized safely)
+  const rawUserLevel = localStorage.getItem('userlevel') || '';
+  const normalizedUserLevel = rawUserLevel.toLowerCase();
+  const isSupport = normalizedUserLevel === 'support';
+  const isOperations = ['l1', 'l2', 'admin'].includes(normalizedUserLevel);
+
+  // State for restart ID management
+  const [restartId, setRestartId] = useState(null);
+  const [brokerStatus, setBrokerStatus] = useState(null);
+  const [currentSubsetId, setCurrentSubsetId] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [allSetsCompleted, setAllSetsCompleted] = useState(false);
+  const [newSessionLoading, setNewSessionLoading] = useState(false);
 
+  // Reset / delete dialog state
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
+  // 'choose' | 'deleteSet' | 'deleteAll'
+  const [resetStep, setResetStep] = useState('choose');
+  const [deleteSetForm, setDeleteSetForm] = useState({ subSetId: '', ackDesc: '' });
+  const [deleteAllForm, setDeleteAllForm] = useState({ userInfraId: '', ackDesc: '' });
+
+  // Refs to track state and prevent race conditions
+  const isInitializing = useRef(true);
+  const processingStep = useRef(false);
+  const statusPollingInterval = useRef(null);
+  const currentStepRef = useRef(null);
+
+  // State for set selection modal
+  const [showSetModal, setShowSetModal] = useState(false);
+  const [selectedSetIndex, setSelectedSetIndex] = useState(null);
+  const [setStartData, setSetStartData] = useState({ infraName: '', infraId: '' });
+  const [showSetManualForm, setShowSetManualForm] = useState(false);
+  const [selectedServerSet, setSelectedServerSet] = useState('');
+  const [showServerSetSelection, setShowServerSetSelection] = useState(false);
+  const [showCustomSetForm, setShowCustomSetForm] = useState(false);
+  const [customSetData, setCustomSetData] = useState({ name: '', servers: '' });
+
+  // Predefined server sets
+  const [serverSets, setServerSets] = useState([
+    {
+      name: '25 Series - Set 1',
+      servers:
+        '155, 156, 157, 173, 174, 73, 74, 55, 56, 57, 63, 64, 163, 164, 10, 11, 12, 110, 111, 112, 41, 42, 43, 141, 142, 143, 31, 32, 134, 135, 192, 196, 197, 68, 69, 168, 169'
+    },
+    {
+      name: '25 Series - Set 2',
+      servers:
+        '158, 159, 160, 175, 176, 75, 58, 59, 65, 66, 67, 165, 166, 13, 14, 113, 114, 115, 44, 45, 144, 145, 146, 33, 34, 131, 132, 133, 190, 191, 194, 195, 70, 71, 170, 171'
+    },
+    {
+      name: '24 Series - Set 3',
+      servers:
+        '158, 159, 160, 175, 176, 75, 58, 59, 65, 66, 67, 165, 166, 13, 14, 113, 114, 115, 44, 45, 144, 145, 146, 33, 34, 131, 132, 133, 190, 191, 194, 195, 70, 71, 170, 171'
+    },
+    {
+      name: '24 Series - Set 4',
+      servers:
+        '155, 156, 157, 173, 174, 73, 74, 55, 56, 57, 63, 64, 163, 164, 10, 11, 12, 110, 111, 112, 41, 42, 43, 141, 142, 143, 31, 32, 134, 135, 192, 196, 197, 68, 69, 168, 169'
+    }
+  ]);
+
+  // State for support acknowledgment modal
+  const [supportAckModal, setSupportAckModal] = useState(false);
+  const [supportAckData, setSupportAckData] = useState({ name: '', id: '' });
+  const [showSupportManualForm, setShowSupportManualForm] = useState(false);
+
+  // State for current step tracking
+  const [currentStep, setCurrentStep] = useState(1);
+  const [timer, setTimer] = useState(null);
+  const [timeElapsed, setTimeElapsed] = useState(0);
+  const [activityLog, setActivityLog] = useState([]);
+
+  // Checklist steps definition
+  const [checklistSteps, setChecklistSteps] = useState([
+    { id: 1,  title: 'CACHE UPDATED AFTER 12:00 A.M.',         description: 'Ensure cache is updated after midnight',           completed: false, completedTime: null },
+    { id: 2,  title: 'SETS READY FOR RESTART',                  description: 'Prepare all server sets for restart',              completed: false, completedTime: null },
+    { id: 3,  title: 'ISOLATOR DOWN',                           description: 'Bring isolator down for maintenance',              completed: false, completedTime: null },
+    { id: 4,  title: 'BROKER STOPPED',                          description: 'Stop all broker services',                         completed: false, completedTime: null },
+    { id: 5,  title: 'HEARTBEAT & CACHE BROKER STARTED',        description: 'Start heartbeat and cache broker services',        completed: false, completedTime: null },
+    { id: 6,  title: 'ALL BROKER STARTED',                      description: 'Start all broker services',                        completed: false, completedTime: null },
+    { id: 7,  title: 'CACHE HIT & WORKLOAD DONE',               description: 'Verify cache hits and complete workload',          completed: false, completedTime: null },
+    { id: 8,  title: 'UDP CHANGES (TIMEOUT & URL CHANGES)',     description: 'Apply UDP configuration changes',                  completed: false, completedTime: null },
+    { id: 9,  title: 'LOGS VERIFICATION DONE',                  description: 'Verify all system logs',                          completed: false, completedTime: null },
+    { id: 10, title: 'ISOLATOR UP',                             description: 'Bring isolator back online',                       completed: false, completedTime: null },
+    { id: 11, title: 'Server and Brokerwise -count/TD/BD'       description: 'check count/TD/BD ',                               completed: false, completedTime: null},
+    { id: 12, title: 'Check critical services'                  description: 'for YONO 2.0, YONO 1.0, SBICAP, ATM ',              completed: false, completedTime: null},
+    { id: 13, title: 'ARRAY LB Check'            description: 'Critical Services (YONO2 LOGIN - 4034 to 4036 and  5034 to 5036)', completed: false, completedTime: null},
+    { id: 14, title: 'Parameters to be checked' description: 'High response time to be checked on each server, Throughtput, Concurrent connections', completed: false, completedTime: null},
+    { id: 15, title: 'INFORM END OF ACTIVITY TO SUPPORT TEAM',  description: 'Notify support team about activity completion',    completed: false, completedTime: null, requiresAck: true, ackBy: null, ackTime: null }
+  ]);
+
+  // ── Helper to normalize API response ──────────────────────────────────────
+  const normalizeBrokerStatus = (statusData) => {
+    if (!statusData) return null;
+    console.log('Normalizing broker status:', statusData);
+    if (
+      statusData.currSet &&
+      typeof statusData.currSet === 'object' &&
+      !Array.isArray(statusData.currSet)
+    ) {
+      console.log('Converting currSet from object to array');
+      return { ...statusData, currSet: [statusData.currSet] };
+    }
+    return statusData;
+  };
+
+  // ── INIT ──────────────────────────────────────────────────────────────────
   useEffect(() => {
-    fetchHandovers();
+    initializeRestartId();
+    return () => {
+      if (timer) clearInterval(timer);
+      if (statusPollingInterval.current) clearInterval(statusPollingInterval.current);
+    };
   }, []);
 
-  // Auto-redirect effect when data is loaded
+  // Auto-refresh status every 30 seconds
   useEffect(() => {
-    if (!loading && backendData.TeamHandoverDetails.length === 1) {
-      // If there's exactly one handover, redirect to its detail page
-      const singleHandover = backendData.TeamHandoverDetails[0];
-      navigate(`/handover/${singleHandover.handover_id_id}`, { 
-        replace: true,
-        state: { hasMultipleHandovers: false }
+    if (selectedSetIndex !== null && !allSetsCompleted && restartId) {
+      statusPollingInterval.current = setInterval(() => {
+        fetchBrokerStatus(restartId, true);
+      }, 30000);
+    }
+    return () => {
+      if (statusPollingInterval.current) {
+        clearInterval(statusPollingInterval.current);
+        statusPollingInterval.current = null;
+      }
+    };
+  }, [selectedSetIndex, allSetsCompleted, restartId]);
+
+  // Auto-scroll to current step
+  useEffect(() => {
+    if (currentStepRef.current && selectedSetIndex !== null) {
+      setTimeout(() => {
+        currentStepRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 300);
+    }
+  }, [currentStep, selectedSetIndex]);
+
+  // ── Extract subSetsId from multiple response shapes ───────────────────────
+  const extractSubsetId = (input) => {
+    let response = input;
+    if (typeof input === 'string') {
+      try {
+        response = JSON.parse(input);
+      } catch (e) {
+        return undefined;
+      }
+    }
+    if (!response || typeof response !== 'object') return undefined;
+
+    const pickId = (obj) => {
+      if (!obj || typeof obj !== 'object') return undefined;
+      if (obj.subSetsId != null) return obj.subSetsId;
+      if (obj.subSetId  != null) return obj.subSetId;
+      if (obj.subsetId  != null) return obj.subsetId;
+      return undefined;
+    };
+
+    const topLevelId = pickId(response);
+    if (topLevelId != null) return topLevelId;
+
+    if (
+      response.currSet &&
+      typeof response.currSet === 'object' &&
+      !Array.isArray(response.currSet)
+    ) {
+      const id = pickId(response.currSet);
+      if (id != null) return id;
+    }
+
+    if (response.currSet && Array.isArray(response.currSet)) {
+      const activeSets = response.currSet.filter(
+        (set) => set && set.status === 'started' && (!set.endTime || set.endTime === 'Present')
+      );
+      if (activeSets.length > 0) {
+        const id = pickId(activeSets[activeSets.length - 1]);
+        if (id != null) return id;
+      }
+      const id = pickId(response.currSet[response.currSet.length - 1]);
+      if (id != null) return id;
+    }
+
+    console.warn('subset id not found in response.');
+    return undefined;
+  };
+
+  const initializeRestartId = async () => {
+    setLoading(true);
+    try {
+      const storedRestartId = localStorage.getItem('brokerRestartId');
+      if (storedRestartId) {
+        setRestartId(parseInt(storedRestartId));
+        logActivity('INIT', `Using stored restart ID: ${storedRestartId}`);
+        const statusResponse = await getBrokerRestartStatus(parseInt(storedRestartId));
+        const normalizedStatus = normalizeBrokerStatus(statusResponse);
+        setBrokerStatus(normalizedStatus);
+        logActivity('API_SUCCESS', 'Broker status fetched', normalizedStatus);
+
+        if (isSupport && normalizedStatus?.currSet && normalizedStatus.currSet.length >= 4) {
+          const completedCount = normalizedStatus.currSet.filter(
+            (set) => set.status === 'completed' && set.endTime && set.endTime !== 'Present'
+          ).length;
+          if (completedCount >= 4) {
+            for (let i = 0; i < 4; i++) {
+              localStorage.removeItem(`currentSubsetId_${storedRestartId}_${i}`);
+              localStorage.removeItem(`infraId_${storedRestartId}_${i}`);
+              localStorage.removeItem(`infraName_${storedRestartId}_${i}`);
+              localStorage.removeItem(`serverSet_${storedRestartId}_${i}`);
+              localStorage.removeItem(`serverList_${storedRestartId}_${i}`);
+            }
+            localStorage.removeItem('brokerRestartId');
+            setAllSetsCompleted(false);
+            const response = await getRestartId();
+            const newRestartId = response.restartId;
+            setRestartId(newRestartId);
+            localStorage.setItem('brokerRestartId', newRestartId);
+            await fetchBrokerStatus(newRestartId);
+            return;
+          }
+        }
+        await processBrokerStatus(normalizedStatus, parseInt(storedRestartId));
+      } else {
+        const response = await getRestartId();
+        const newRestartId = response.restartId;
+        setRestartId(newRestartId);
+        localStorage.setItem('brokerRestartId', newRestartId);
+        logActivity('API_SUCCESS', `New restart ID obtained: ${newRestartId}`, response);
+        await fetchBrokerStatus(newRestartId);
+      }
+    } catch (error) {
+      console.error('Error initializing restart ID:', error);
+      logActivity('API_ERROR', `Failed to initialize: ${error.message}`);
+    } finally {
+      setLoading(false);
+      isInitializing.current = false;
+    }
+  };
+
+  const processBrokerStatus = async (statusResponse, rid, silent = false) => {
+    if (statusResponse.currSet && statusResponse.currSet.length >= 4) {
+      const completedCount = statusResponse.currSet.filter(
+        (set) => set.status === 'completed' && set.endTime && set.endTime !== 'Present'
+      ).length;
+      if (completedCount >= 4) {
+        setAllSetsCompleted(true);
+        setSelectedSetIndex(null);
+        setCurrentSubsetId(null);
+        if (!silent) logActivity('INFO', 'All 4 sets completed. Ready to start new session.');
+        return;
+      }
+    }
+
+    if (statusResponse.currSet && statusResponse.currSet.length > 0) {
+      statusResponse.currSet.forEach((set, index) => {
+        if (set.infraId && set.infraName) {
+          const storedInfraId   = localStorage.getItem(`infraId_${rid}_${index}`);
+          const storedInfraName = localStorage.getItem(`infraName_${rid}_${index}`);
+          if (!storedInfraId || !storedInfraName) {
+            localStorage.setItem(`infraId_${rid}_${index}`, set.infraId);
+            localStorage.setItem(`infraName_${rid}_${index}`, set.infraName);
+            if (set.serverSet)  localStorage.setItem(`serverSet_${rid}_${index}`, set.serverSet);
+            if (set.serverList) localStorage.setItem(`serverList_${rid}_${index}`, set.serverList);
+            if (!silent) logActivity('RESTORE', `Restored infra info from API for set ${index + 1}`);
+          }
+        }
       });
     }
-  }, [loading, backendData.TeamHandoverDetails, navigate]);
 
-  // Call the parent callback to update handovers
-  useEffect(() => {
-    if (!loading && onHandoversUpdate) {
-      onHandoversUpdate(backendData);
-    }
-  }, [backendData, loading, onHandoversUpdate]);
-
-  const fetchHandovers = async () => {
-  setLoading(true);
-  setError(null);
-
-  try {
-    console.log('Fetching handovers from API...');
-    const data = await getHandovers();
-
-    console.log('API Response:', data);
-
-    // Ensure the data has the expected structure
-    if (!data) {
-      throw new Error('No data received from API');
-    }
-
-    // Handle case where fields might be missing
-    const teamHandoverDetails = data.TeamHandoverDetails || [];
-    const tasksData = data.Tasksdata || [];
-
-    setBackendData({
-      TeamHandoverDetails: teamHandoverDetails,
-      Tasksdata: tasksData
-    });
-
-    if (teamHandoverDetails.length === 0) {
-      setError('No handover data available for your team');
-    }
-  } catch (err) {
-    setError(`Failed to fetch handovers: ${err.message}`);
-    console.error('Error fetching handovers:', err);
-    setBackendData({ TeamHandoverDetails: [], Tasksdata: [] });
-  } finally {
-    setLoading(false);
-  }
-};
-
-  const { TeamHandoverDetails = [], Tasksdata = [] } = backendData;
-
-  // Group tasks by handover_id_id
-  const tasksByHandover = Tasksdata.reduce((acc, task) => {
-    if (!acc[task.handover_id_id]) {
-      acc[task.handover_id_id] = [];
-    }
-    acc[task.handover_id_id].push(task);
-    return acc;
-  }, {});
-
-  // Calculate task statistics
-  const taskStats = {
-    pending: Tasksdata.filter(t => t.status === 'open' || t.status === 'pending').length,
-    'in-progress': Tasksdata.filter(t => t.status === 'in progress' || t.status === 'in-progress').length,
-    completed: Tasksdata.filter(t => t.status === 'completed' || t.status === 'closed').length
-  };
-
-  // Map backend priority to display class
-  const getPriorityClass = (priority) => {
-    if (!priority) return 'priority-medium';
-    const priorityLower = priority.toLowerCase();
-    return `priority-${priorityLower}`;
-  };
-
-  // Map backend status to display format
-  const getStatusDisplay = (status) => {
-    if (!status) return 'pending';
-    const statusMap = {
-      'open': 'pending',
-      'pending': 'pending',
-      'in progress': 'in-progress',
-      'in-progress': 'in-progress',
-      'completed': 'completed',
-      'closed': 'completed'
-    };
-    return statusMap[status.toLowerCase()] || 'pending';
-  };
-
-  // Get priority badge class
-  const getPriorityBadgeClass = (priority) => {
-    if (!priority) return 'priority-badge priority-medium';
-    return `priority-badge priority-${priority.toLowerCase()}`;
-  };
-
-  // Get status badge class
-  const getStatusBadgeClass = (status) => {
-    const displayStatus = getStatusDisplay(status);
-    return `status-badge ${displayStatus}`;
-  };
-
-  // Get status display text
-  const getStatusText = (status) => {
-    if (!status) return 'Pending';
-    const statusMap = {
-      'open': 'Open',
-      'pending': 'Pending',
-      'in progress': 'In Progress',
-      'in-progress': 'In Progress',
-      'completed': 'Completed',
-      'closed': 'Completed'
-    };
-    return statusMap[status.toLowerCase()] || status;
-  };
-
-  // Filter handovers based on selected filters
-  const filteredHandovers = TeamHandoverDetails.filter(handover => {
-    const handoverTasks = tasksByHandover[handover.handover_id_id] || [];
-
-    if (statusFilter !== 'all') {
-      const hasMatchingStatus = handoverTasks.some(task =>
-        getStatusDisplay(task.status) === statusFilter
+    if (statusResponse.currSet && statusResponse.currSet.length > 0) {
+      const activeSets = statusResponse.currSet.filter(
+        (set) => set.status === 'started' && (!set.endTime || set.endTime === 'Present')
       );
-      if (!hasMatchingStatus) return false;
+      if (activeSets.length > 0) {
+        const lastActiveSet = activeSets[activeSets.length - 1];
+        const setIndex = statusResponse.currSet.indexOf(lastActiveSet);
+        setSelectedSetIndex(setIndex);
+
+        const subsetId = extractSubsetId(lastActiveSet);
+        if (subsetId) {
+          setCurrentSubsetId(subsetId);
+          localStorage.setItem(`currentSubsetId_${rid}_${setIndex}`, subsetId);
+          if (!silent) logActivity('INFO', `Found active subset ID: ${subsetId} for set ${setIndex + 1}`);
+        } else {
+          const storedSubsetId = localStorage.getItem(`currentSubsetId_${rid}_${setIndex}`);
+          if (storedSubsetId) {
+            setCurrentSubsetId(storedSubsetId);
+            if (!silent) logActivity('INFO', `Using stored subset ID: ${storedSubsetId}`);
+          }
+        }
+
+        if (lastActiveSet.subTasks && lastActiveSet.subTasks.length > 0) {
+          const completedStepsCount = lastActiveSet.subTasks.length;
+          setCurrentStep(completedStepsCount + 1);
+          const updatedSteps = [...checklistSteps];
+          lastActiveSet.subTasks.forEach((task, index) => {
+            if (updatedSteps[index]) {
+              updatedSteps[index].completed    = true;
+              updatedSteps[index].completedTime = task.completion || new Date().toISOString();
+            }
+          });
+          setChecklistSteps(updatedSteps);
+          if (!silent) logActivity('RESUME', `Resuming set ${setIndex + 1} from step ${completedStepsCount + 1}`);
+        } else {
+          if (!silent) logActivity('RESUME', `Starting new set ${setIndex + 1} from step 1`);
+          setCurrentStep(1);
+        }
+        if (!timer) startTimer();
+      } else {
+        if (!silent) logActivity('INFO', 'No active set found. Ready to start a new set.');
+        setSelectedSetIndex(null);
+        setCurrentSubsetId(null);
+      }
+    } else {
+      if (!silent) logActivity('INFO', 'No sets started yet. Ready to begin.');
+      setSelectedSetIndex(null);
+      setCurrentSubsetId(null);
     }
+  };
 
-    if (priorityFilter !== 'all') {
-      const hasMatchingPriority = handoverTasks.some(task =>
-        task.priority?.toLowerCase() === priorityFilter
-      );
-      if (!hasMatchingPriority) return false;
-    }
-
-    return true;
-  });
-
-  // Format date safely
-  const formatDate = (dateString) => {
-    if (!dateString) return '-';
+  const fetchBrokerStatus = async (rid, silent = false) => {
     try {
-      return format(new Date(dateString), 'MMM d, yyyy h:mm a');
-    } catch (e) {
-      return '-';
+      const statusResponse    = await getBrokerRestartStatus(rid);
+      const normalizedStatus  = normalizeBrokerStatus(statusResponse);
+      setBrokerStatus(normalizedStatus);
+      if (!silent) logActivity('API_SUCCESS', 'Broker status fetched', normalizedStatus);
+      await processBrokerStatus(normalizedStatus, rid, silent);
+    } catch (error) {
+      console.error('Error fetching broker status:', error);
+      if (!silent) logActivity('API_ERROR', `Failed to fetch status: ${error.message}`);
     }
   };
 
-  // Don't render anything if loading or if there's only one handover (will auto-redirect)
-  if (loading) {
+  // ── Open reset dialog ─────────────────────────────────────────────────────
+  const handleOpenResetConfirm = () => {
+    if (!isOperations) {
+      alert('Only Operations team can reset the session.');
+      return;
+    }
+
+    // Auto-populate deleteSet form: find the latest subSetsId from statusBrokerRestart response
+    // Priority: active/started set first, then last set in the array
+    let autoSubSetId = '';
+    if (brokerStatus?.currSet && Array.isArray(brokerStatus.currSet) && brokerStatus.currSet.length > 0) {
+      // 1. Find the latest active (started) set
+      const activeSets = brokerStatus.currSet.filter(
+        (set) => set && set.status === 'started' && (!set.endTime || set.endTime === 'Present')
+      );
+      const targetSet = activeSets.length > 0
+        ? activeSets[activeSets.length - 1]                        // latest active set
+        : brokerStatus.currSet[brokerStatus.currSet.length - 1];   // fallback: last set in array
+
+      // 2. Extract subSetsId — check all possible field name variants
+      const subId = targetSet?.subSetsId ?? targetSet?.subSetId ?? targetSet?.subsetId ?? null;
+      if (subId != null) autoSubSetId = String(subId);
+    }
+    // Final fallback: use currentSubsetId state if brokerStatus didn't yield anything
+    if (!autoSubSetId && currentSubsetId != null) {
+      autoSubSetId = String(currentSubsetId);
+    }
+
+    // Resolve the restart ID — use state value, fall back to localStorage string
+    const rid = restartId ?? localStorage.getItem('brokerRestartId');
+
+    // Helper: check a raw localStorage value is a real usable string
+    const isValid = (v) => v && v !== 'null' && v !== 'undefined' && v.trim() !== '';
+
+    // Auto-populate deleteAll: infraId_${brokerRestartId}_${currentSet}
+    let autoInfraId = '';
+
+    // 1. Exact key: current active set index
+    if (rid !== null && rid !== undefined && selectedSetIndex !== null) {
+      const val = localStorage.getItem(`infraId_${rid}_${selectedSetIndex}`);
+      if (isValid(val)) autoInfraId = val.trim();
+    }
+
+    // 2. Scan all 4 slots using the resolved rid
+    if (!autoInfraId && rid !== null && rid !== undefined) {
+      for (let i = 0; i < 4; i++) {
+        const val = localStorage.getItem(`infraId_${rid}_${i}`);
+        if (isValid(val)) { autoInfraId = val.trim(); break; }
+      }
+    }
+
+    // 3. Fall back to brokerStatus API data
+    if (!autoInfraId && brokerStatus?.currSet) {
+      for (const set of brokerStatus.currSet) {
+        const v = set?.infraId != null ? String(set.infraId) : '';
+        if (isValid(v)) { autoInfraId = v; break; }
+      }
+    }
+
+    console.log('[ResetConfirm] rid:', rid, 'selectedSetIndex:', selectedSetIndex, 'autoInfraId:', autoInfraId, 'autoSubSetId:', autoSubSetId);
+
+    setResetStep('choose');
+    setDeleteSetForm({ subSetId: autoSubSetId, ackDesc: '' });
+    setDeleteAllForm({ userInfraId: autoInfraId, ackDesc: '' });
+    setShowResetConfirm(true);
+  };
+
+  // ── DELETE SPECIFIC SET ───────────────────────────────────────────────────
+  const handleDeleteSet = async (e) => {
+    e.preventDefault();
+    if (!deleteSetForm.ackDesc.trim()) {
+      alert('Please enter a reason / description.');
+      return;
+    }
+    setResetLoading(true);
+    try {
+      // Fresh-fetch the latest status so we always have the most current subSetsId
+      const latestStatus = await getBrokerRestartStatus(restartId);
+      const normalized   = normalizeBrokerStatus(latestStatus);
+
+      // Find the latest subSetsId from currSet
+      let latestSubSetId = null;
+      if (normalized?.currSet && Array.isArray(normalized.currSet) && normalized.currSet.length > 0) {
+        // Prefer the last active (started) set
+        const activeSets = normalized.currSet.filter(
+          (set) => set && set.status === 'started' && (!set.endTime || set.endTime === 'Present')
+        );
+        const targetSet = activeSets.length > 0
+          ? activeSets[activeSets.length - 1]
+          : normalized.currSet[normalized.currSet.length - 1];
+
+        latestSubSetId =
+          targetSet?.subSetsId ?? targetSet?.subSetId ?? targetSet?.subsetId ?? null;
+      }
+
+      // Fall back to what was pre-populated in the form / currentSubsetId state
+      if (latestSubSetId == null) {
+        latestSubSetId = deleteSetForm.subSetId || currentSubsetId;
+      }
+
+      if (!latestSubSetId) {
+        alert('Could not determine the Sub-Set ID. Please refresh and try again.');
+        setResetLoading(false);
+        return;
+      }
+
+      logActivity('DELETE_SET', `Deleting sub-set ID: ${latestSubSetId}`);
+      // Send subSetId as the exact type returned by the API (string preserved)
+      await deleteSetRestart(latestSubSetId, deleteSetForm.ackDesc.trim());
+      logActivity('API_SUCCESS', `Sub-set ${latestSubSetId} deleted successfully`);
+      setShowResetConfirm(false);
+      // Refresh to reflect deletion
+      if (restartId) await fetchBrokerStatus(restartId);
+    } catch (error) {
+      console.error('deleteSetRestart error:', error);
+      logActivity('API_ERROR', `deleteSetRestart failed: ${error.message}`);
+      alert(`Failed to delete set: ${error.message}`);
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
+  // ── DELETE ENTIRE SESSION ─────────────────────────────────────────────────
+  const handleDeleteAll = async (e) => {
+    e.preventDefault();
+    if (!deleteAllForm.userInfraId.trim()) {
+      alert('Infra ID is required.');
+      return;
+    }
+    if (!deleteAllForm.ackDesc.trim()) {
+      alert('Please enter a reason / description.');
+      return;
+    }
+    setResetLoading(true);
+    logActivity('DELETE_ALL', `Deleting entire restart session ${restartId}`);
+    try {
+      const infraIdStr = deleteAllForm.userInfraId.trim();
+      if (!infraIdStr) {
+        alert('Infra ID is invalid. Please refresh and try again.');
+        setResetLoading(false);
+        return;
+      }
+      await deleteBrokerRestart(restartId, infraIdStr, deleteAllForm.ackDesc.trim());
+      logActivity('API_SUCCESS', `Entire restart session ${restartId} deleted`);
+
+      // Stop timers / polling
+      if (timer) { clearInterval(timer); setTimer(null); }
+      if (statusPollingInterval.current) {
+        clearInterval(statusPollingInterval.current);
+        statusPollingInterval.current = null;
+      }
+
+      // Clear localStorage
+      const idsToClear = new Set(
+        [String(restartId), localStorage.getItem('brokerRestartId')].filter(Boolean)
+      );
+      idsToClear.forEach((id) => {
+        for (let i = 0; i < 4; i++) {
+          localStorage.removeItem(`currentSubsetId_${id}_${i}`);
+          localStorage.removeItem(`infraId_${id}_${i}`);
+          localStorage.removeItem(`infraName_${id}_${i}`);
+          localStorage.removeItem(`serverSet_${id}_${i}`);
+          localStorage.removeItem(`serverList_${id}_${i}`);
+        }
+      });
+      localStorage.removeItem('brokerRestartId');
+
+      // Reset all React state
+      setAllSetsCompleted(false);
+      setRestartId(null);
+      setBrokerStatus(null);
+      setSelectedSetIndex(null);
+      setCurrentSubsetId(null);
+      setCurrentStep(1);
+      setTimeElapsed(0);
+      setActivityLog([]);
+      setChecklistSteps((prev) =>
+        prev.map((s) => ({ ...s, completed: false, completedTime: null, ackBy: null, ackTime: null }))
+      );
+
+      // Get fresh restart ID
+      const response = await getRestartId();
+      const newId = response.restartId;
+      setRestartId(newId);
+      localStorage.setItem('brokerRestartId', newId);
+      logActivity('API_SUCCESS', `New restart ID obtained after delete: ${newId}`);
+
+      await fetchBrokerStatus(newId, true);
+      setShowResetConfirm(false);
+      logActivity('DELETE_ALL', 'Session deleted — ready to start fresh');
+    } catch (error) {
+      console.error('deleteBrokerRestart error:', error);
+      logActivity('API_ERROR', `deleteBrokerRestart failed: ${error.message}`);
+      alert(`Failed to delete session: ${error.message}`);
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
+  // ── LEGACY handleResetSession (kept for "Start New Session" from completion page) ──
+  const handleResetSession = async () => {
+    if (!isOperations) {
+      alert('Only Operations team can reset the session.');
+      return;
+    }
+    setResetLoading(true);
+    logActivity('RESET', 'Resetting session — clearing all data and starting fresh');
+    try {
+      if (timer) { clearInterval(timer); setTimer(null); }
+      if (statusPollingInterval.current) {
+        clearInterval(statusPollingInterval.current);
+        statusPollingInterval.current = null;
+      }
+
+      const idsToClear = new Set();
+      if (restartId) idsToClear.add(String(restartId));
+      const stored = localStorage.getItem('brokerRestartId');
+      if (stored) idsToClear.add(stored);
+
+      idsToClear.forEach((id) => {
+        for (let i = 0; i < 4; i++) {
+          localStorage.removeItem(`currentSubsetId_${id}_${i}`);
+          localStorage.removeItem(`infraId_${id}_${i}`);
+          localStorage.removeItem(`infraName_${id}_${i}`);
+          localStorage.removeItem(`serverSet_${id}_${i}`);
+          localStorage.removeItem(`serverList_${id}_${i}`);
+        }
+      });
+      localStorage.removeItem('brokerRestartId');
+
+      setAllSetsCompleted(false);
+      setRestartId(null);
+      setBrokerStatus(null);
+      setSelectedSetIndex(null);
+      setCurrentSubsetId(null);
+      setCurrentStep(1);
+      setTimeElapsed(0);
+      setActivityLog([]);
+
+      const resetSteps = checklistSteps.map((step) => ({
+        ...step,
+        completed: false,
+        completedTime: null,
+        ackBy: null,
+        ackTime: null
+      }));
+      setChecklistSteps(resetSteps);
+
+      const response = await getRestartId();
+      const newRestartId = response.restartId;
+      setRestartId(newRestartId);
+      localStorage.setItem('brokerRestartId', newRestartId);
+      logActivity('API_SUCCESS', `New restart ID obtained after reset: ${newRestartId}`);
+
+      await fetchBrokerStatus(newRestartId, true);
+
+      setShowResetConfirm(false);
+      setSelectedSetIndex(0);
+      setShowSetModal(true);
+      setShowServerSetSelection(true);
+      setShowSetManualForm(false);
+      setShowCustomSetForm(false);
+      setSelectedServerSet('');
+      setCustomSetData({ name: '', servers: '' });
+      setSetStartData({ infraName: '', infraId: '' });
+
+      logActivity('RESET', 'Session reset complete — ready to start Set 1');
+    } catch (error) {
+      console.error('Error resetting session:', error);
+      logActivity('API_ERROR', `Reset failed: ${error.message}`);
+      alert(`Reset failed: ${error.message}`);
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
+  const handleStartNewSession = async () => {
+    if (!isOperations) {
+      alert('Only Operations team can start new sessions.');
+      return;
+    }
+    logActivity('NEW_SESSION', 'Starting new broker restart session from completion page');
+    try {
+      if (restartId) {
+        for (let i = 0; i < 4; i++) {
+          localStorage.removeItem(`currentSubsetId_${restartId}_${i}`);
+          localStorage.removeItem(`infraId_${restartId}_${i}`);
+          localStorage.removeItem(`infraName_${restartId}_${i}`);
+          localStorage.removeItem(`serverSet_${restartId}_${i}`);
+          localStorage.removeItem(`serverList_${restartId}_${i}`);
+        }
+      }
+      localStorage.removeItem('brokerRestartId');
+      setAllSetsCompleted(false);
+      setRestartId(null);
+      setBrokerStatus(null);
+      setSelectedSetIndex(0);
+      setCurrentSubsetId(null);
+      setCurrentStep(1);
+      setActivityLog([]);
+      const resetSteps = checklistSteps.map((step) => ({
+        ...step, completed: false, completedTime: null, ackBy: null, ackTime: null
+      }));
+      setChecklistSteps(resetSteps);
+      if (timer) { clearInterval(timer); setTimer(null); }
+      logActivity('NEW_SESSION', 'Session reset complete. Opening modal to start Set 1.');
+      setShowSetModal(true);
+      setShowServerSetSelection(true);
+      setShowSetManualForm(false);
+      setShowCustomSetForm(false);
+      setSelectedServerSet('');
+      setCustomSetData({ name: '', servers: '' });
+      setSetStartData({ infraName: '', infraId: '' });
+    } catch (error) {
+      console.error('Error starting new session:', error);
+      logActivity('API_ERROR', `Failed to start new session: ${error.message}`);
+      alert(`Failed to start new session: ${error.message}`);
+    }
+  };
+
+  const handleSetStart = (setIndex) => {
+    if (!isOperations) {
+      alert('Only Operations team can start new sets.');
+      return;
+    }
+    setSelectedSetIndex(setIndex);
+    setShowSetModal(true);
+    setShowServerSetSelection(true);
+    setShowSetManualForm(false);
+    setShowCustomSetForm(false);
+    setSelectedServerSet('');
+    setCustomSetData({ name: '', servers: '' });
+    setSetStartData({ infraName: '', infraId: '' });
+  };
+
+  const handleServerSetConfirm = () => {
+    if (!selectedServerSet) {
+      alert('Please select a server set before proceeding.');
+      return;
+    }
+    logActivity('SERVER_SET', `Selected server set: ${selectedServerSet}`);
+    setShowServerSetSelection(false);
+  };
+
+  const handleCreateCustomSet = () => {
+    setShowServerSetSelection(false);
+    setShowCustomSetForm(true);
+    setCustomSetData({ name: '', servers: '' });
+  };
+
+  const handleCustomSetSubmit = (e) => {
+    e.preventDefault();
+    if (!customSetData.name.trim()) { alert('Please enter a name for the custom set.'); return; }
+    if (!customSetData.servers.trim()) { alert('Please enter server numbers.'); return; }
+    const newSet = { name: customSetData.name.trim(), servers: customSetData.servers.trim(), isCustom: true };
+    setServerSets([...serverSets, newSet]);
+    setSelectedServerSet(newSet.name);
+    logActivity('CUSTOM_SET', `Created custom server set: ${newSet.name}`);
+    setShowCustomSetForm(false);
+    setCustomSetData({ name: '', servers: '' });
+  };
+
+  const handleUseCurrentUserInfoForSet = async () => {
+    const uidd     = localStorage.getItem('uidd') || '';
+    const username = localStorage.getItem('username') || '';
+    if (!uidd || !username) {
+      alert('User information not found. Please enter details manually.');
+      return;
+    }
+    logActivity('USER_INFO', `Auto-filled with current user: ${username} (${uidd})`);
+    await submitSetStart(username, uidd);
+  };
+
+  const handleEnterDetailsManuallyForSet = () => {
+    setShowSetManualForm(true);
+    setSetStartData({ infraName: '', infraId: '' });
+  };
+
+  const submitSetStart = async (infraName, infraId) => {
+    if (processingStep.current) return;
+    processingStep.current = true;
+    setLoading(true);
+    try {
+      const selectedSet = serverSets.find((s) => s.name === selectedServerSet);
+      const serverList  = selectedSet ? selectedSet.servers : '';
+      logActivity('SET_START', `Starting set ${selectedSetIndex + 1}`, {
+        infraName, infraId, serverSet: selectedServerSet, serverList
+      });
+
+      let restartIdToPass = null;
+      const setNumber = selectedSetIndex + 1;
+
+      if (!brokerStatus?.currSet || brokerStatus.currSet.length === 0) {
+        restartIdToPass = null;
+        logActivity('INFO', 'Starting first set — creating new session');
+      } else if (!allSetsCompleted && brokerStatus?.currSet?.length > 0) {
+        restartIdToPass = restartId;
+        logActivity('INFO', `Continuing session ${restartId} with set ${setNumber}`);
+      }
+
+      logActivity('INFO', `Calling API with restartId: ${restartIdToPass ?? 'null'}, setNumber: ${setNumber}`);
+
+      const response = await startBrokerRestartTask(
+        infraId,
+        infraName,
+        restartIdToPass,
+        setNumber,
+        selectedServerSet,
+        serverList
+      );
+
+      logActivity('API_SUCCESS', `Set ${selectedSetIndex + 1} started successfully`, response);
+
+      if (response.brokerRestartId) {
+        const newRestartId = response.brokerRestartId;
+        if (newRestartId !== restartId) {
+          setRestartId(newRestartId);
+          localStorage.setItem('brokerRestartId', newRestartId);
+          logActivity('INFO', `New restart ID from response: ${newRestartId}`);
+        }
+      }
+
+      let subsetId = extractSubsetId(response);
+      if (!subsetId && response.currSet) {
+        if (Array.isArray(response.currSet) && response.currSet[selectedSetIndex]) {
+          subsetId = extractSubsetId(response.currSet[selectedSetIndex]);
+        } else if (typeof response.currSet === 'object' && !Array.isArray(response.currSet)) {
+          subsetId = extractSubsetId(response.currSet);
+        }
+      }
+      if (!subsetId) {
+        logActivity('ERROR', 'No subset ID returned. Full response: ' + JSON.stringify(response));
+        throw new Error('No subset ID received from server');
+      }
+
+      setCurrentSubsetId(subsetId);
+      logActivity('INFO', `Subset ID obtained: ${subsetId} for set ${selectedSetIndex + 1}`);
+
+      const currentRestartId = response.brokerRestartId ?? restartId;
+      if (currentRestartId) {
+        localStorage.setItem(`currentSubsetId_${currentRestartId}_${selectedSetIndex}`, subsetId);
+        localStorage.setItem(`infraId_${currentRestartId}_${selectedSetIndex}`, infraId);
+        localStorage.setItem(`infraName_${currentRestartId}_${selectedSetIndex}`, infraName);
+        localStorage.setItem(`serverSet_${currentRestartId}_${selectedSetIndex}`, selectedServerSet);
+        localStorage.setItem(`serverList_${currentRestartId}_${selectedSetIndex}`, serverList);
+      }
+
+      if (allSetsCompleted) setAllSetsCompleted(false);
+
+      const normalizedResponse = normalizeBrokerStatus(response);
+      setBrokerStatus(normalizedResponse);
+      setShowSetModal(false);
+      setShowServerSetSelection(false);
+      setShowSetManualForm(false);
+      setShowCustomSetForm(false);
+      setSelectedServerSet('');
+      setCustomSetData({ name: '', servers: '' });
+
+      setCurrentStep(1);
+      const resetSteps = checklistSteps.map((step) => ({
+        ...step, completed: false, completedTime: null, ackBy: null, ackTime: null
+      }));
+      setChecklistSteps(resetSteps);
+
+      startTimer();
+      logActivity('SET_INIT', `Set ${selectedSetIndex + 1} initialized with server set: ${selectedServerSet}`);
+    } catch (error) {
+      console.error('Error starting set:', error);
+      logActivity('API_ERROR', `Failed to start set: ${error.message}`);
+      alert(`Failed to start set: ${error.message}`);
+    } finally {
+      setLoading(false);
+      processingStep.current = false;
+    }
+  };
+
+  const handleSetStartSubmit = async (e) => {
+    e.preventDefault();
+    await submitSetStart(setStartData.infraName, setStartData.infraId);
+  };
+
+  const handleSetModalCancel = () => {
+    setShowSetModal(false);
+    setShowServerSetSelection(false);
+    setShowSetManualForm(false);
+    setShowCustomSetForm(false);
+    setSelectedServerSet('');
+    setCustomSetData({ name: '', servers: '' });
+    setSetStartData({ infraName: '', infraId: '' });
+    if (!currentSubsetId) setSelectedSetIndex(null);
+  };
+
+  const completeStep = async (stepId) => {
+    if (!isOperations) { alert('Only Operations team can mark steps as complete.'); return; }
+    if (stepId !== currentStep || stepId === 11) return;
+    if (!currentSubsetId) {
+      alert('Error: No active subset ID found. Please start a set first.');
+      return;
+    }
+    if (processingStep.current) return;
+    processingStep.current = true;
+    try {
+      const step = checklistSteps[stepId - 1];
+      const localStorageKey = `infraId_${restartId}_${selectedSetIndex}`;
+      const storedInfraId   = localStorage.getItem(localStorageKey);
+
+      if (!storedInfraId) {
+        if (brokerStatus?.currSet?.[selectedSetIndex]?.infraId) {
+          const fallbackInfraId = brokerStatus.currSet[selectedSetIndex].infraId;
+          localStorage.setItem(localStorageKey, fallbackInfraId);
+          await updateSubRestart(step.title, currentSubsetId, fallbackInfraId);
+        } else {
+          alert('Error: Infrastructure ID not found. Please refresh and try again.');
+          processingStep.current = false;
+          return;
+        }
+      } else {
+        await updateSubRestart(step.title, currentSubsetId, storedInfraId);
+        logActivity('API_SUCCESS', `Step ${stepId} completed: ${step.title}`);
+      }
+
+      const updatedSteps = [...checklistSteps];
+      updatedSteps[stepId - 1] = {
+        ...updatedSteps[stepId - 1],
+        completed: true,
+        completedTime: new Date().toISOString()
+      };
+      setChecklistSteps(updatedSteps);
+
+      if (stepId < checklistSteps.length) {
+        setTimeout(() => {
+          setCurrentStep(stepId + 1);
+          setTimeElapsed(0);
+        }, 500);
+      }
+    } catch (error) {
+      console.error('Error completing step:', error);
+      logActivity('API_ERROR', `Failed to complete step ${stepId}: ${error.message}`);
+      alert(`Failed to complete step: ${error.message}`);
+    } finally {
+      processingStep.current = false;
+    }
+  };
+
+  const handleSupportAckClick = () => {
+    if (!isSupport) { alert('Only support team members can acknowledge completion.'); return; }
+    if (currentStep !== 11) { alert('Support acknowledgment is only available at step 11.'); return; }
+    setSupportAckModal(true);
+    setShowSupportManualForm(false);
+    setSupportAckData({ name: '', id: '' });
+  };
+
+  const handleUseCurrentUserInfoForSupport = async () => {
+    const uidd     = localStorage.getItem('uidd') || '';
+    const username = localStorage.getItem('username') || '';
+    if (!uidd || !username) { alert('User information not found. Please enter details manually.'); return; }
+    logActivity('USER_INFO', `Auto-filled support info: ${username} (${uidd})`);
+    await submitSupportAck(username, uidd);
+  };
+
+  const handleEnterDetailsManuallyForSupport = () => {
+    setShowSupportManualForm(true);
+    setSupportAckData({ name: '', id: '' });
+  };
+
+  const submitSupportAck = async (supportName, supportId) => {
+    if (!currentSubsetId) { alert('Error: No active subset ID found.'); return; }
+    if (processingStep.current) return;
+    processingStep.current = true;
+    setLoading(true);
+    const completedSetIndex = selectedSetIndex;
+    try {
+      const updateResponse = await updateSetRestart(supportId, supportName, currentSubsetId);
+      logActivity('API_SUCCESS', `Support acknowledgment by ${supportName} (${supportId})`, updateResponse);
+
+      const updatedSteps = [...checklistSteps];
+      updatedSteps[10] = {
+        ...updatedSteps[10],
+        completed: true,
+        completedTime: new Date().toISOString(),
+        ackBy: supportName,
+        ackTime: new Date().toISOString()
+      };
+      setChecklistSteps(updatedSteps);
+
+      localStorage.removeItem(`infraId_${restartId}_${completedSetIndex}`);
+      localStorage.removeItem(`infraName_${restartId}_${completedSetIndex}`);
+      localStorage.removeItem(`serverSet_${restartId}_${completedSetIndex}`);
+      localStorage.removeItem(`serverList_${restartId}_${completedSetIndex}`);
+
+      const statusResponse   = await getBrokerRestartStatus(restartId);
+      const normalizedStatus = normalizeBrokerStatus(statusResponse);
+      setBrokerStatus(normalizedStatus);
+
+      const completedCount = normalizedStatus.currSet?.filter(
+        (set) => set.status === 'completed' && set.endTime && set.endTime !== 'Present'
+      ).length ?? 0;
+
+      setSupportAckModal(false);
+      setShowSupportManualForm(false);
+      setSupportAckData({ name: '', id: '' });
+
+      if (completedCount >= 4) {
+        setAllSetsCompleted(true);
+        setSelectedSetIndex(null);
+        setCurrentSubsetId(null);
+        logActivity('COMPLETE', 'All 4 sets completed!');
+        if (timer) clearInterval(timer);
+      } else {
+        const resetStepsAfterAck = checklistSteps.map((step) => ({
+          ...step, completed: false, completedTime: null, ackBy: null, ackTime: null
+        }));
+        setChecklistSteps(resetStepsAfterAck);
+        setCurrentStep(1);
+        setTimeElapsed(0);
+        logActivity(
+          'SET_COMPLETE',
+          `Set ${completedSetIndex + 1} completed. Ready for next set (${completedCount + 1}/4)`
+        );
+        await processBrokerStatus(normalizedStatus, restartId);
+      }
+    } catch (error) {
+      console.error('Error in support acknowledgment:', error);
+      logActivity('API_ERROR', `Failed: ${error.message}`);
+      alert(`Failed: ${error.message}`);
+      await fetchBrokerStatus(restartId);
+    } finally {
+      setLoading(false);
+      processingStep.current = false;
+    }
+  };
+
+  const handleSupportAckSubmit = async (e) => {
+    e.preventDefault();
+    await submitSupportAck(supportAckData.name, supportAckData.id);
+  };
+
+  const handleSupportModalCancel = () => {
+    setSupportAckModal(false);
+    setShowSupportManualForm(false);
+    setSupportAckData({ name: '', id: '' });
+  };
+
+  const handleResumeSet = (setIndex, set) => {
+    setSelectedSetIndex(setIndex);
+    const subsetId = extractSubsetId(set);
+    if (subsetId) {
+      setCurrentSubsetId(subsetId);
+    } else {
+      const storedSubsetId = localStorage.getItem(`currentSubsetId_${restartId}_${setIndex}`);
+      if (storedSubsetId) {
+        setCurrentSubsetId(storedSubsetId);
+      } else {
+        alert('Cannot resume set: Missing subset ID');
+        return;
+      }
+    }
+    if (set.subTasks && set.subTasks.length > 0) {
+      const stepNumber   = set.subTasks.length + 1;
+      setCurrentStep(stepNumber);
+      const updatedSteps = [...checklistSteps];
+      set.subTasks.forEach((task, taskIndex) => {
+        if (updatedSteps[taskIndex]) {
+          updatedSteps[taskIndex].completed     = true;
+          updatedSteps[taskIndex].completedTime = task.completion || new Date().toISOString();
+        }
+      });
+      setChecklistSteps(updatedSteps);
+    } else {
+      setCurrentStep(1);
+    }
+    startTimer();
+  };
+
+  const startTimer = () => {
+    if (timer) clearInterval(timer);
+    setTimeElapsed(0);
+    const newTimer = setInterval(() => { setTimeElapsed((prev) => prev + 1); }, 1000);
+    setTimer(newTimer);
+  };
+
+  const logActivity = (type, message, data = null) => {
+    const logEntry = { timestamp: new Date(), type, message, data };
+    console.log(`[${type}] ${message}`, data);
+    setActivityLog((prev) => [logEntry, ...prev].slice(0, 50));
+  };
+
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'pending':   return '#ff7675';
+      case 'started':   return '#74b9ff';
+      case 'completed': return '#00b894';
+      default:          return '#636e72';
+    }
+  };
+
+  const getNextSetIndex = () => {
+    if (!brokerStatus?.currSet) return 0;
+    return brokerStatus.currSet.length;
+  };
+
+  const handleInfraIdInput = (e) => {
+    const limited = e.target.value.slice(0, 10);
+    setSetStartData({ ...setStartData, infraId: limited });
+  };
+
+  const handleSupportIdInput = (e) => {
+    const limited = e.target.value.replace(/\D/g, '').slice(0, 7);
+    setSupportAckData({ ...supportAckData, id: limited });
+  };
+
+  const handleRefreshStatus = async () => {
+    if (!restartId) return;
+    setLoading(true);
+    try { await fetchBrokerStatus(restartId, false); }
+    finally { setLoading(false); }
+  };
+
+  const getServerSetName = (setIndex) => {
+    if (!restartId) return null;
     return (
-      <div className="handover-container">
-        <div className="loading-message">
-          <p>Loading handovers...</p>
+      localStorage.getItem(`serverSet_${restartId}_${setIndex}`) ||
+      brokerStatus?.currSet?.[setIndex]?.serverSet
+    );
+  };
+
+  const getServerList = (setIndex) => {
+    if (!restartId) return null;
+    return (
+      localStorage.getItem(`serverList_${restartId}_${setIndex}`) ||
+      brokerStatus?.currSet?.[setIndex]?.serverList
+    );
+  };
+
+  // ── RENDER ────────────────────────────────────────────────────────────────
+
+  if (loading && !restartId && !allSetsCompleted) {
+    return (
+      <div className="tasks-list-page">
+        <div className="tasks-list-header">
+          <div className="header-content">
+            <h1>📝 Night Broker Restart Checklist</h1>
+            <p>Initializing restart session...</p>
+          </div>
+        </div>
+        <div className="loading-container">
+          <div className="loading-spinner"></div>
+          <p className="loading-text">Loading...</p>
         </div>
       </div>
     );
   }
 
-  // If there's only one handover, show a brief message while redirecting
-  if (TeamHandoverDetails.length === 1) {
+  if (allSetsCompleted) {
     return (
-      <div className="handover-container">
-        <div className="loading-message">
-          <p>Redirecting to handover details...</p>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="handover-container">
-      <div className="handover-header">
-        <h2>Shift Handovers</h2>
-        <div style={{ display: 'flex', gap: '1rem' }}>
-          <button
-            onClick={fetchHandovers}
-            disabled={loading}
-            className="refresh-btn"
-          >
-            {loading ? 'Refreshing...' : '🔄 Refresh'}
-          </button>
-          <button
-            onClick={() => navigate('/create')}
-            className="create-handover-btn"
-          >
-            + Create Handover
-          </button>
-        </div>
-      </div>
-
-      {error && (
-        <div className="error-message">
-          <strong>Error:</strong> {error}
-          <button
-            onClick={fetchHandovers}
-            style={{
-              marginLeft: '1rem',
-              padding: '4px 12px',
-              background: '#fff',
-              border: '1px solid #dc3545',
-              borderRadius: '4px',
-              cursor: 'pointer'
-            }}
-          >
-            Retry
-          </button>
-        </div>
-      )}
-
-      <div className="task-statistics">
-        <div className="stat-card pending">
-          <h3>Pending Tasks</h3>
-          <span className="stat-number">{taskStats.pending || 0}</span>
-        </div>
-        <div className="stat-card in-progress">
-          <h3>In Progress</h3>
-          <span className="stat-number">{taskStats['in-progress'] || 0}</span>
-        </div>
-        <div className="stat-card completed">
-          <h3>Completed</h3>
-          <span className="stat-number">{taskStats.completed || 0}</span>
-        </div>
-      </div>
-
-      <div className="filters">
-        <div className="filter-group">
-          <label>Status:</label>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-          >
-            <option value="all">All</option>
-            <option value="pending">Pending</option>
-            <option value="in-progress">In Progress</option>
-            <option value="completed">Completed</option>
-          </select>
-        </div>
-        <div className="filter-group">
-          <label>Priority:</label>
-          <select
-            value={priorityFilter}
-            onChange={(e) => setPriorityFilter(e.target.value)}
-          >
-            <option value="all">All</option>
-            <option value="low">Low</option>
-            <option value="medium">Medium</option>
-            <option value="high">High</option>
-            <option value="critical">Critical</option>
-          </select>
-        </div>
-      </div>
-
-      <div className="handover-list">
-        {filteredHandovers.length > 0 ? (
-          filteredHandovers.map((handover) => {
-            const handoverTasks = tasksByHandover[handover.handover_id_id] || [];
-
-            // Calculate highest priority from tasks
-            const highestPriority = handoverTasks.reduce((highest, task) => {
-              if (!task.priority) return highest;
-              const priorityOrder = { 'critical': 4, 'high': 3, 'medium': 2, 'low': 1 };
-              const taskPriority = priorityOrder[task.priority.toLowerCase()] || 0;
-              const highestValue = priorityOrder[highest?.toLowerCase()] || 0;
-              return taskPriority > highestValue ? task.priority : highest;
-            }, 'Medium');
-
-            return (
-              <div
-                key={handover.handover_id_id}
-                className={`handover-item ${getPriorityClass(highestPriority)}`}
-              >
-                <div className="handover-header">
-                  <h3>
-                    <a
-                      href="#"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        navigate(`/handover/${handover.handover_id_id}`);
-                      }}
-                    >
-                      {handover.teamName} Team Handover
-                    </a>
-                  </h3>
-                </div>
-
-                <div className="handover-meta">
-                  <div className="meta-item">
-                    <span className="meta-label">Team:</span>
-                    <span>{handover.teamName}</span>
+      <div className="tasks-list-page">
+        <div className="completion-message">
+          <div className="completion-icon">🎉</div>
+          <h3>Broker Restart Activity Completed!</h3>
+          <p>All 4 sets have been successfully completed</p>
+          <div className="completion-summary">
+            <h4>✅ Completed Sets Summary</h4>
+            {(brokerStatus?.currSet ?? []).slice(0, 4).map((set, index) => {
+              const serverSetName = getServerSetName(index);
+              const serverList    = getServerList(index);
+              return (
+                <div key={index} className="set-card set-card-completed" style={{ marginBottom: '1rem' }}>
+                  <div className="set-header">
+                    <h3>Set {index + 1}</h3>
+                    <span className="set-status set-status-completed">✅ COMPLETED</span>
                   </div>
-                  <div className="meta-item">
-                    <span className="meta-label">Team ID:</span>
-                    <span>{handover.TeamId}</span>
-                  </div>
-                  <div className="meta-item">
-                    <span className="meta-label">Team Lead ID:</span>
-                    <span>{handover.teamLead_id}</span>
-                  </div>
-                  <div className="meta-item">
-                    <span className="meta-label">Handover ID:</span>
-                    <span>{handover.handover_id_id}</span>
-                  </div>
-                </div>
-
-                {handoverTasks.length > 0 && (
-                  <div className="handover-tasks">
-                    <h4>Tasks ({handoverTasks.length})</h4>
-                    <div className="tasks-table-wrapper">
-                      <table className="tasks-table">
-                        <thead>
-                          <tr>
-                            <th>Title</th>
-                            <th>Description</th>
-                            <th>Priority</th>
-                            <th>Status</th>
-                            <th>Acknowledge Status</th>
-                            <th>Created</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {handoverTasks.map((task) => (
-                            <tr key={task.Taskid}>
-                              <td style={{ fontWeight: 600 }}>
-                                {task.taskTitle || task.taskDesc || 'Untitled'}
-                              </td>
-                              <td>{task.taskDesc || '-'}</td>
-                              <td>
-                                <span className={getPriorityBadgeClass(task.priority)}>
-                                  {task.priority || 'Medium'}
-                                </span>
-                              </td>
-                              <td>
-                                <span className={getStatusBadgeClass(task.status)}>
-                                  {getStatusText(task.status)}
-                                </span>
-                              </td>
-                              <td>
-                                <span className={`status-badge ${task.acknowledgeStatus?.toLowerCase() === 'pending' ? 'pending' : 'completed'}`}>
-                                  {task.acknowledgeStatus || 'Pending'}
-                                </span>
-                              </td>
-                              <td>{formatDate(task.creationTime)}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                  <div className="set-details">
+                    {serverSetName && (
+                      <p className="server-set-name">
+                        <strong>Server Set:</strong> {serverSetName}
+                      </p>
+                    )}
+                    {serverList && (
+                      <div className="server-list-display">
+                        <strong>Servers:</strong>
+                        <div className="server-numbers-compact">{serverList}</div>
+                      </div>
+                    )}
+                    {set.infraName && (
+                      <p className="infra-name"><strong>Infrastructure:</strong> {set.infraName}</p>
+                    )}
+                    {set.supportName && (
+                      <div className="set-support-ack">
+                        <strong>Support Acknowledgment:</strong> {set.supportName}
+                        {set.supportTime && set.supportTime !== 'Pending' && (
+                          <>
+                            <br />
+                            <small>{format(new Date(set.supportTime), 'MMM d, h:mm:ss a')}</small>
+                          </>
+                        )}
+                      </div>
+                    )}
+                    <div className="set-progress-info">
+                      <span>Steps completed: {set.subTasks?.length ?? 0}/10</span>
                     </div>
                   </div>
-                )}
-
-                <div className="handover-actions">
-                  <button
-                    onClick={() => navigate(`/handover/${handover.handover_id_id}`)}
-                    className="view-btn"
-                  >
-                    View Details
-                  </button>
                 </div>
-              </div>
-            );
-          })
-        ) : (
-          <div className="no-handovers">
-            <p>No handovers found matching the selected filters.</p>
-            {TeamHandoverDetails.length === 0 && !loading && (
-              <button
-                onClick={() => navigate('/create')}
-                style={{
-                  marginTop: '1rem',
-                  padding: '0.75rem 1.5rem',
-                  background: '#2ecc71',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  fontSize: '1rem'
-                }}
-              >
-                Create First Handover
-              </button>
-            )}
+              );
+            })}
+          </div>
+          {isOperations && (
+            <button
+              onClick={handleStartNewSession}
+              className="btn-primary"
+              style={{ marginTop: '2rem', fontSize: '1rem', padding: '1rem 2rem' }}
+              disabled={newSessionLoading}
+            >
+              {newSessionLoading ? 'Starting New Session...' : '🔄 Start New Broker Restart Session'}
+            </button>
+          )}
+        </div>
+
+        {activityLog.length > 0 && (
+          <div className="activity-log-section">
+            <h2>📜 Activity Log</h2>
+            <div className="activity-log-container">
+              {activityLog.slice(0, 20).map((log, index) => (
+                <div key={index} className="log-entry">
+                  <div className="log-time">{format(new Date(log.timestamp), 'HH:mm:ss')}</div>
+                  <div className="log-message">{log.message}</div>
+                  <div
+                    className={`log-type ${
+                      log.type.includes('SUCCESS')
+                        ? 'api-success'
+                        : log.type.includes('ERROR')
+                        ? 'api-error'
+                        : 'api-call'
+                    }`}
+                  >
+                    {log.type.includes('SUCCESS')
+                      ? 'SUCCESS'
+                      : log.type.includes('ERROR')
+                      ? 'ERROR'
+                      : 'API'}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>
+    );
+  }
+
+  // ── NORMAL PAGE ───────────────────────────────────────────────────────────
+  return (
+    <div className="tasks-list-page">
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          RESET / DELETE CONFIRMATION DIALOG  (multi-step)
+      ══════════════════════════════════════════════════════════════════════ */}
+      {showResetConfirm && (
+        <div
+          className="modal-overlay"
+          onClick={() => !resetLoading && setShowResetConfirm(false)}
+        >
+          <div
+            className="modal-container reset-confirm-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+
+            {/* ── STEP 1: CHOOSE ACTION ─────────────────────────────────── */}
+            {resetStep === 'choose' && (
+              <>
+                <div className="modal-header">
+                  <div className="reset-warning-icon">⚠️</div>
+                  <h2>Reset / Delete Session</h2>
+                  <p>
+                    Choose an action below. Both options are{' '}
+                    <strong>irreversible</strong>.
+                  </p>
+                </div>
+
+                <div className="reset-choice-grid">
+                  {/* Delete a specific set */}
+                  <button
+                    type="button"
+                    className="btn-choice btn-choice-secondary"
+                    onClick={() => setResetStep('deleteSet')}
+                  >
+                    <div className="btn-choice-icon">🗂️</div>
+                    <div className="btn-choice-content">
+                      <h3>Delete a Specific Set</h3>
+                      <p>
+                        Remove one set from the current session using its
+                        Sub-Set ID
+                      </p>
+                    </div>
+                  </button>
+
+                  {/* Delete entire session */}
+                  <button
+                    type="button"
+                    className="btn-choice btn-choice-danger"
+                    onClick={() => setResetStep('deleteAll')}
+                  >
+                    <div className="btn-choice-icon">🔥</div>
+                    <div className="btn-choice-content">
+                      <h3>Delete Entire Session</h3>
+                      <p>
+                        Wipe all sets &amp; start a completely new restart
+                        session
+                      </p>
+                    </div>
+                  </button>
+                </div>
+
+                <div className="modal-actions" style={{ marginTop: '1.5rem' }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowResetConfirm(false)}
+                    className="btn-secondary"
+                    disabled={resetLoading}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* ── STEP 2a: DELETE SPECIFIC SET ──────────────────────────── */}
+            {resetStep === 'deleteSet' && (
+              <>
+                <div className="modal-header">
+                  <div className="reset-warning-icon">🗂️</div>
+                  <h2>Delete Current Working Set</h2>
+                  <p>Enter a reason to confirm deletion of the active set.</p>
+                </div>
+
+                <form onSubmit={handleDeleteSet} className="modal-form">
+                  {/* Info: subSetId is fetched fresh from statusBrokerRestart at submit time */}
+                  <div className="form-group">
+                    <div className="readonly-info-box">
+                      ℹ️ The latest Sub-Set ID will be fetched live from the server when you confirm.
+                    </div>
+                  </div>
+
+                  <div className="form-group">
+                    <label>Reason / Description <span className="required-star">*</span></label>
+                    <textarea
+                      value={deleteSetForm.ackDesc}
+                      onChange={(e) =>
+                        setDeleteSetForm({ ...deleteSetForm, ackDesc: e.target.value })
+                      }
+                      placeholder="e.g. Deleting this set because servers were already restarted manually"
+                      required
+                      className="form-input"
+                      rows="3"
+                      style={{ resize: 'vertical' }}
+                    />
+                  </div>
+                  <div className="modal-actions">
+                    <button
+                      type="button"
+                      onClick={() => setResetStep('choose')}
+                      className="btn-secondary"
+                      disabled={resetLoading}
+                    >
+                      ← Back
+                    </button>
+                    <button
+                      type="submit"
+                      className="btn-danger"
+                      disabled={resetLoading}
+                    >
+                      {resetLoading ? '⏳ Fetching & Deleting...' : '🗑️ Delete Set'}
+                    </button>
+                  </div>
+                </form>
+              </>
+            )}
+
+            {/* ── STEP 2b: DELETE ENTIRE SESSION ────────────────────────── */}
+            {resetStep === 'deleteAll' && (
+              <>
+                <div className="modal-header">
+                  <div className="reset-warning-icon">🔥</div>
+                  <h2>Delete Entire Session</h2>
+                  <p>
+                    This will permanently delete{' '}
+                    <strong>Restart ID {restartId}</strong> and all its sets.
+                    Enter a reason to confirm.
+                  </p>
+                </div>
+
+                <form onSubmit={handleDeleteAll} className="modal-form">
+                  {/* Read-only: auto-populated from localStorage infraId of active set */}
+                  <div className="form-group">
+                    <label>Infra ID (Current Set)</label>
+                    <div className="readonly-info-box">
+                      {deleteAllForm.userInfraId
+                        ? <>🪪 <strong>{deleteAllForm.userInfraId}</strong><span className="readonly-badge">Auto-detected</span></>
+                        : <span className="readonly-missing">⚠️ Infra ID not found in session</span>}
+                    </div>
+                  </div>
+
+                  {/* Description / reason — required */}
+                  <div className="form-group">
+                    <label>Reason / Description <span className="required-star">*</span></label>
+                    <textarea
+                      value={deleteAllForm.ackDesc}
+                      onChange={(e) =>
+                        setDeleteAllForm({ ...deleteAllForm, ackDesc: e.target.value })
+                      }
+                      placeholder="e.g. Restarting the entire session due to incorrect server set selection"
+                      required
+                      className="form-input"
+                      rows="3"
+                      style={{ resize: 'vertical' }}
+                    />
+                  </div>
+
+                  <div className="reset-confirm-details">
+                    <ul>
+                      <li>🗑️ All sets under this session will be wiped</li>
+                      <li>🔢 A new Restart ID will be obtained from the server</li>
+                      <li>▶️ You will be returned to the fresh start screen</li>
+                    </ul>
+                  </div>
+
+                  <div className="modal-actions">
+                    <button
+                      type="button"
+                      onClick={() => setResetStep('choose')}
+                      className="btn-secondary"
+                      disabled={resetLoading}
+                    >
+                      ← Back
+                    </button>
+                    <button
+                      type="submit"
+                      className="btn-danger"
+                      disabled={resetLoading || !deleteAllForm.userInfraId}
+                    >
+                      {resetLoading ? '⏳ Deleting...' : '🔥 Delete Entire Session'}
+                    </button>
+                  </div>
+                </form>
+              </>
+            )}
+
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          PAGE HEADER
+      ══════════════════════════════════════════════════════════════════════ */}
+      <div className="tasks-list-header">
+        <div className="header-content">
+          <h1>📝 Night Broker Restart Checklist</h1>
+          <div className="header-details">
+            <p>
+              <strong>Completed Sets:</strong>{' '}
+              {(brokerStatus?.currSet?.filter((s) => s.status === 'completed')?.length ?? 0)}/4
+            </p>
+            <p>
+              <strong>User Level:</strong>{' '}
+              {isSupport
+                ? 'Support Team'
+                : isOperations
+                ? 'Infra Team'
+                : rawUserLevel || 'Guest'}
+            </p>
+            <button
+              onClick={handleRefreshStatus}
+              className="btn-refresh-status"
+              disabled={loading}
+            >
+              {loading ? '🔄 Refreshing...' : '🔄 Refresh Status'}
+            </button>
+
+            {/* Reset button — operations only */}
+            {isOperations && (
+              <button
+                onClick={handleOpenResetConfirm}
+                className="btn-reset-session"
+                disabled={loading || resetLoading}
+                title="Delete a set or wipe the entire session"
+              >
+                🔁 Reset &amp; Start New
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          SETS OVERVIEW
+      ══════════════════════════════════════════════════════════════════════ */}
+      {selectedSetIndex === null && (
+        <div className="sets-section">
+          <h2>📊 Available Sets {(brokerStatus?.currSet?.length ?? 0)}/4</h2>
+          <div className="sets-grid">
+            {(brokerStatus?.currSet ?? []).map((set, index) => {
+              const serverSetName = getServerSetName(index);
+              const serverList    = getServerList(index);
+              return (
+                <div
+                  key={index}
+                  className={`set-card ${set.status === 'completed' ? 'set-card-completed' : ''}`}
+                  style={{ borderLeft: `4px solid ${getStatusColor(set.status)}` }}
+                >
+                  <div className="set-header">
+                    <h3>Set {index + 1}</h3>
+                    <span
+                      className={`set-status ${
+                        set.status === 'completed' ? 'set-status-completed' : ''
+                      }`}
+                    >
+                      {set.status.toUpperCase()}
+                    </span>
+                  </div>
+                  <div className="set-details">
+                    {serverSetName && (
+                      <p className="server-set-name">
+                        <strong>Server Set:</strong> {serverSetName}
+                      </p>
+                    )}
+                    {serverList && (
+                      <div className="server-list-display">
+                        <strong>Servers:</strong>
+                        <div className="server-numbers-compact">{serverList}</div>
+                      </div>
+                    )}
+                    {set.infraName && (
+                      <p className="infra-name"><strong>Infra:</strong> {set.infraName}</p>
+                    )}
+                    {set.supportName && set.supportName !== 'pending' && (
+                      <div className="set-support-ack">
+                        <strong>Support Ack:</strong> {set.supportName}
+                      </div>
+                    )}
+                    <div className="set-progress-info">
+                      {set.status === 'started' &&
+                        (!set.endTime || set.endTime === 'Present') && (
+                          <button
+                            onClick={() => handleResumeSet(index, set)}
+                            className="complete-btn"
+                          >
+                            Resume This Set
+                          </button>
+                        )}
+                      {set.status === 'completed' && (
+                        <div className="set-completed">
+                          <span>✅ Completed</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+
+            {(!brokerStatus?.currSet || brokerStatus.currSet.length < 4) &&
+              isOperations && (
+                <div
+                  onClick={() => handleSetStart(getNextSetIndex())}
+                  className="set-card click-prompt"
+                  style={{ borderLeft: '4px solid #74b9ff' }}
+                >
+                  <h3>➕ Start Set {getNextSetIndex() + 1}</h3>
+                  <p>Click to begin</p>
+                </div>
+              )}
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          SET START MODAL
+      ══════════════════════════════════════════════════════════════════════ */}
+      {showSetModal && (
+        <div className="modal-overlay" onClick={handleSetModalCancel}>
+          <div
+            className="modal-container server-set-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="modal-header">
+              <h2>🔐 Start Set {selectedSetIndex + 1}</h2>
+              <p>
+                {showServerSetSelection
+                  ? 'Select which server set you will be working on'
+                  : showCustomSetForm
+                  ? 'Create a custom server set'
+                  : 'Choose how to provide infra team details'}
+              </p>
+            </div>
+
+            {showServerSetSelection ? (
+              <div className="server-set-selection">
+                <div className="form-group">
+                  <label>Server Set</label>
+                  <select
+                    value={selectedServerSet}
+                    onChange={(e) => setSelectedServerSet(e.target.value)}
+                    className="form-input server-set-dropdown"
+                    required
+                  >
+                    <option value="">-- Select a Server Set --</option>
+                    {serverSets.map((set, idx) => (
+                      <option key={idx} value={set.name}>
+                        {set.name}{set.isCustom ? ' (Custom)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {selectedServerSet && (
+                  <div className="server-list-preview">
+                    <h4>📋 Servers in this set:</h4>
+                    <div className="server-numbers">
+                      {serverSets.find((s) => s.name === selectedServerSet)?.servers}
+                    </div>
+                  </div>
+                )}
+                <div className="modal-actions" style={{ marginTop: '2rem' }}>
+                  <button
+                    type="button"
+                    onClick={handleCreateCustomSet}
+                    className="btn-secondary"
+                    style={{ marginRight: 'auto' }}
+                  >
+                    ➕ Create Custom Set
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSetModalCancel}
+                    className="btn-secondary"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleServerSetConfirm}
+                    className="btn-primary"
+                    disabled={!selectedServerSet}
+                  >
+                    Continue →
+                  </button>
+                </div>
+              </div>
+            ) : showCustomSetForm ? (
+              <form onSubmit={handleCustomSetSubmit} className="modal-form">
+                <div className="form-group">
+                  <label>Custom Set Name</label>
+                  <input
+                    type="text"
+                    value={customSetData.name}
+                    onChange={(e) =>
+                      setCustomSetData({ ...customSetData, name: e.target.value })
+                    }
+                    placeholder="e.g., Production Set A"
+                    required
+                    className="form-input"
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Server Numbers (comma-separated)</label>
+                  <textarea
+                    value={customSetData.servers}
+                    onChange={(e) =>
+                      setCustomSetData({ ...customSetData, servers: e.target.value })
+                    }
+                    placeholder="e.g., 155, 156, 157, 173, 174"
+                    required
+                    className="form-input"
+                    rows="4"
+                    style={{ resize: 'vertical', fontFamily: "'Courier New', monospace" }}
+                  />
+                  <small
+                    style={{
+                      display: 'block',
+                      marginTop: '0.5rem',
+                      color: 'var(--text-secondary)',
+                      fontSize: '0.85rem'
+                    }}
+                  >
+                    Enter server numbers separated by commas
+                  </small>
+                </div>
+                <div className="modal-actions">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowCustomSetForm(false);
+                      setShowServerSetSelection(true);
+                      setCustomSetData({ name: '', servers: '' });
+                    }}
+                    className="btn-secondary"
+                  >
+                    Back
+                  </button>
+                  <button type="submit" className="btn-primary">
+                    Create &amp; Select
+                  </button>
+                </div>
+              </form>
+            ) : !showSetManualForm ? (
+              <div className="modal-choice-container">
+                <button
+                  type="button"
+                  onClick={handleUseCurrentUserInfoForSet}
+                  className="btn-choice btn-choice-primary"
+                  disabled={loading}
+                >
+                  <div className="btn-choice-icon">👤</div>
+                  <div className="btn-choice-content">
+                    <h3>Use Current User Info</h3>
+                    <p>Automatically fill with your logged-in details</p>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleEnterDetailsManuallyForSet}
+                  className="btn-choice btn-choice-secondary"
+                >
+                  <div className="btn-choice-icon">✍️</div>
+                  <div className="btn-choice-content">
+                    <h3>Enter Details Manually</h3>
+                    <p>Fill in infra team member information</p>
+                  </div>
+                </button>
+                <div className="modal-actions" style={{ marginTop: '1.5rem' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowServerSetSelection(true);
+                      setSelectedServerSet('');
+                    }}
+                    className="btn-secondary"
+                  >
+                    ← Back to Server Selection
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSetModalCancel}
+                    className="btn-secondary"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <form onSubmit={handleSetStartSubmit} className="modal-form">
+                <div className="form-group">
+                  <label>Infra Team Member Name</label>
+                  <input
+                    type="text"
+                    value={setStartData.infraName}
+                    onChange={(e) =>
+                      setSetStartData({ ...setStartData, infraName: e.target.value })
+                    }
+                    placeholder="Enter infra name"
+                    required
+                    className="form-input"
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Infra Team Member ADID/TCS ID</label>
+                  <input
+                    type="text"
+                    value={setStartData.infraId}
+                    onChange={handleInfraIdInput}
+                    placeholder="Enter infra ID (e.g. v1018696)"
+                    required
+                    className="form-input"
+                    maxLength={10}
+                  />
+                  <small
+                    style={{
+                      display: 'block',
+                      marginTop: '0.5rem',
+                      color: 'var(--text-secondary)',
+                      fontSize: '0.85rem'
+                    }}
+                  >
+                    Alphanumeric ID, maximum 10 characters
+                  </small>
+                </div>
+                <div className="modal-actions">
+                  <button
+                    type="button"
+                    onClick={() => setShowSetManualForm(false)}
+                    className="btn-secondary"
+                  >
+                    Back
+                  </button>
+                  <button type="submit" disabled={loading} className="btn-primary">
+                    {loading ? 'Starting...' : 'Start Set'}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          SUPPORT ACK MODAL
+      ══════════════════════════════════════════════════════════════════════ */}
+      {supportAckModal && isSupport && (
+        <div className="modal-overlay" onClick={handleSupportModalCancel}>
+          <div className="modal-container" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>🛡️ Complete Set {selectedSetIndex + 1}</h2>
+              <p>Choose how to provide support team details</p>
+            </div>
+            {!showSupportManualForm ? (
+              <div className="modal-choice-container">
+                <button
+                  type="button"
+                  onClick={handleUseCurrentUserInfoForSupport}
+                  className="btn-choice btn-choice-primary"
+                  disabled={loading}
+                >
+                  <div className="btn-choice-icon">👤</div>
+                  <div className="btn-choice-content">
+                    <h3>Use Current User Info</h3>
+                    <p>Automatically fill with your logged-in details</p>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleEnterDetailsManuallyForSupport}
+                  className="btn-choice btn-choice-secondary"
+                >
+                  <div className="btn-choice-icon">✍️</div>
+                  <div className="btn-choice-content">
+                    <h3>Enter Details Manually</h3>
+                    <p>Fill in support team member information</p>
+                  </div>
+                </button>
+                <div className="modal-actions" style={{ marginTop: '1.5rem' }}>
+                  <button
+                    type="button"
+                    onClick={handleSupportModalCancel}
+                    className="btn-secondary"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <form onSubmit={handleSupportAckSubmit} className="modal-form">
+                <div className="form-group">
+                  <label>Support Team Member Name</label>
+                  <input
+                    type="text"
+                    value={supportAckData.name}
+                    onChange={(e) =>
+                      setSupportAckData({ ...supportAckData, name: e.target.value })
+                    }
+                    placeholder="Enter name"
+                    required
+                    className="form-input"
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Support Member ADID/TCS ID</label>
+                  <input
+                    type="text"
+                    value={supportAckData.id}
+                    onChange={handleSupportIdInput}
+                    placeholder="Enter ID (max 7 digits)"
+                    required
+                    className="form-input"
+                    maxLength={7}
+                  />
+                  <small
+                    style={{
+                      display: 'block',
+                      marginTop: '0.5rem',
+                      color: 'var(--text-secondary)',
+                      fontSize: '0.85rem'
+                    }}
+                  >
+                    Numbers only, maximum 7 digits
+                  </small>
+                </div>
+                <div className="modal-actions">
+                  <button
+                    type="button"
+                    onClick={() => setShowSupportManualForm(false)}
+                    className="btn-secondary"
+                  >
+                    Back
+                  </button>
+                  <button type="submit" disabled={loading} className="btn-primary">
+                    {loading ? 'Processing...' : 'Complete Set'}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          ACTIVE SET — CHECKLIST
+      ══════════════════════════════════════════════════════════════════════ */}
+      {selectedSetIndex !== null && (
+        <>
+          <div className="user-info-banner">
+            <div className="user-info-content">
+              <span className="user-label">
+                📍 Current Set: Set {selectedSetIndex + 1} of 4
+              </span>
+              {getServerSetName(selectedSetIndex) && (
+                <span className="server-set-badge">
+                  🖥️ {getServerSetName(selectedSetIndex)}
+                </span>
+              )}
+              {brokerStatus?.currSet?.[selectedSetIndex]?.infraName && (
+                <span className="infra-info">
+                  Infra: {brokerStatus?.currSet?.[selectedSetIndex]?.infraName}
+                </span>
+              )}
+            </div>
+            <div className="current-timer">⏱️ Step Time: {formatTime(timeElapsed)}</div>
+          </div>
+
+          {getServerList(selectedSetIndex) && (
+            <div className="current-server-list-section">
+              <h3>🖥️ Servers in Current Set</h3>
+              <div className="server-list-display-box">
+                {getServerList(selectedSetIndex)}
+              </div>
+            </div>
+          )}
+
+          <div className="checklist-section">
+            <h2>📋 Restart Procedure Checklist</h2>
+            {!isOperations && (
+              <p style={{ color: 'var(--warning-yellow)', marginBottom: '1.5rem' }}>
+                👁️ Read-Only View
+              </p>
+            )}
+            <div className="timeline-container">
+              {checklistSteps.map((step, index) => (
+                <div
+                  key={step.id}
+                  ref={currentStep === step.id ? currentStepRef : null}
+                  className={`timeline-step ${step.completed ? 'completed' : ''} ${
+                    currentStep === step.id ? 'current' : ''
+                  }`}
+                >
+                  <div className="step-marker">
+                    <div className="step-number">{step.id}</div>
+                    {index < checklistSteps.length - 1 && (
+                      <div className="step-connector"></div>
+                    )}
+                  </div>
+                  <div className="step-content">
+                    <div className="step-header">
+                      <h3>{step.title}</h3>
+                      <div className="step-status">
+                        {step.completed ? (
+                          <span className="status-completed">✅ Completed</span>
+                        ) : currentStep === step.id ? (
+                          <span className="status-current">▶️ In Progress</span>
+                        ) : (
+                          <span className="status-pending">⏳ Pending</span>
+                        )}
+                      </div>
+                    </div>
+                    <p className="step-description">{step.description}</p>
+                    {step.completedTime && (
+                      <div className="step-details">
+                        <div className="detail-item">
+                          <strong>Completed at:</strong>{' '}
+                          {format(new Date(step.completedTime), 'h:mm:ss a')}
+                        </div>
+                      </div>
+                    )}
+                    {step.id === 11 && step.ackBy && (
+                      <div className="ack-info">
+                        <strong>Acknowledged by:</strong> {step.ackBy}
+                        {step.ackTime && (
+                          <> at {format(new Date(step.ackTime), 'h:mm:ss a')}</>
+                        )}
+                      </div>
+                    )}
+                    <div className="step-actions">
+                      {isOperations &&
+                        currentStep === step.id &&
+                        step.id !== 11 &&
+                        !step.completed && (
+                          <button
+                            onClick={() => completeStep(step.id)}
+                            className="btn-complete-step"
+                            disabled={processingStep.current}
+                          >
+                            {processingStep.current ? 'Processing...' : '✓ Mark as Complete'}
+                          </button>
+                        )}
+                      {isSupport &&
+                        currentStep === 11 &&
+                        step.id === 11 &&
+                        !step.completed && (
+                          <button
+                            onClick={handleSupportAckClick}
+                            className="btn-complete-step"
+                          >
+                            Acknowledge as Support Team
+                          </button>
+                        )}
+                      {!isSupport &&
+                        currentStep === 11 &&
+                        step.id === 11 &&
+                        !step.completed && (
+                          <div className="support-only-message">
+                            <p>⏳ Waiting for Support team acknowledgment...</p>
+                          </div>
+                        )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div
+              style={{
+                marginTop: '2rem',
+                padding: '1.5rem',
+                background: 'rgba(46, 213, 255, 0.05)',
+                borderRadius: '12px',
+                border: '1px solid var(--border-color)'
+              }}
+            >
+              <p style={{ margin: '0 0 0.5rem 0', color: 'var(--text-secondary)' }}>
+                <strong style={{ color: 'var(--primary-blue)' }}>Progress:</strong>{' '}
+                {currentStep - 1} of 11 steps completed
+              </p>
+              <p style={{ margin: 0, color: 'var(--text-secondary)' }}>
+                <strong style={{ color: 'var(--primary-blue)' }}>Current Step:</strong>{' '}
+                {currentStep} — {checklistSteps[currentStep - 1]?.title}
+              </p>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          ACTIVITY LOG
+      ══════════════════════════════════════════════════════════════════════ */}
+      <div className="activity-log-section">
+        <h2>📜 Recent Activity Log</h2>
+        <button
+          onClick={() => setActivityLog([])}
+          disabled={activityLog.length === 0}
+          style={{ marginBottom: '1rem' }}
+          className="btn-secondary"
+        >
+          Clear Log
+        </button>
+        <div className="activity-log-container">
+          {activityLog.length > 0 ? (
+            activityLog.map((log, index) => (
+              <div key={index} className="log-entry">
+                <div className="log-time">
+                  {format(new Date(log.timestamp), 'HH:mm:ss')}
+                </div>
+                <div className="log-message">{log.message}</div>
+                <div
+                  className={`log-type ${log.type.toLowerCase().replace('_', '-')}`}
+                >
+                  {log.type}
+                </div>
+              </div>
+            ))
+          ) : (
+            <p
+              style={{
+                textAlign: 'center',
+                color: 'var(--text-secondary)',
+                padding: '2rem'
+              }}
+            >
+              No activity logs yet.
+            </p>
+          )}
+        </div>
+      </div>
+
     </div>
   );
 };
 
-export default HandoverList;
+export default TasksList;
