@@ -819,13 +819,16 @@ const TasksList = () => {
   };
 
   // ── Complete a checklist step ─────────────────────────────────────────────
-  // Steps 1–10: Operations only
-  // Steps 12–15: Support only (must be completed before step-11 acknowledgment)
-  // Step 11: handled separately via support ack modal
+  // Steps 1–10  : Operations only — sequential, gated by currentStep
+  // Steps 12–15 : Support only   — independent of currentStep (all available
+  //               simultaneously once currentStep reaches 11); do NOT advance
+  //               currentStep so the ack button on step 11 remains reachable
+  // Step 11     : handled separately via support ack modal
   const completeStep = async (stepId) => {
     const isSupportStep = stepId >= 12 && stepId <= 15;
 
-    if (!isOperations && !isSupportStep) {
+    // Role guards
+    if (!isSupportStep && !isOperations) {
       alert('Only Operations team can mark steps as complete.');
       return;
     }
@@ -833,9 +836,26 @@ const TasksList = () => {
       alert('Only Support team can mark steps 12–15 as complete.');
       return;
     }
-    // Step 11 is handled separately via support ack modal
+
+    // Step 11 is handled separately via support ack modal — never call directly
     if (stepId === 11) return;
-    if (stepId !== currentStep) return;
+
+    // For operations steps (1–10): enforce sequential order via currentStep
+    if (!isSupportStep && stepId !== currentStep) return;
+
+    // For support steps (12–15): enforce sequential order among themselves
+    if (isSupportStep) {
+      // Check previous support step is done before allowing the next
+      if (stepId > 12) {
+        const prevStep = checklistSteps[stepId - 2]; // stepId-2 = index of step (stepId-1)
+        if (!prevStep?.completed) {
+          alert(`Please complete Step ${stepId - 1} first.`);
+          return;
+        }
+      }
+      // If this support step is already completed, do nothing
+      if (checklistSteps[stepId - 1]?.completed) return;
+    }
 
     if (!currentSubsetId) {
       alert('Error: No active subset ID found. Please start a set first.');
@@ -871,7 +891,10 @@ const TasksList = () => {
       };
       setChecklistSteps(updatedSteps);
 
-      if (stepId < checklistSteps.length) {
+      // Only advance currentStep for operations steps (1–10).
+      // Support steps 12–15 are parallel to step 11 — currentStep must stay
+      // at 11 so the ack button remains visible and clickable.
+      if (!isSupportStep && stepId < checklistSteps.length) {
         setTimeout(() => {
           setCurrentStep(stepId + 1);
           setTimeElapsed(0);
@@ -2022,9 +2045,31 @@ const TasksList = () => {
                           <button
                             onClick={() => completeStep(step.id)}
                             className="btn-complete-step"
-                            disabled={processingStep.current || (step.id > 12 && !checklistSteps[step.id - 2].completed)}
+                            disabled={
+                              processingStep.current ||
+                              (step.id > 12 && !checklistSteps[step.id - 2]?.completed)
+                            }
+                            title={
+                              step.id > 12 && !checklistSteps[step.id - 2]?.completed
+                                ? `Complete Step ${step.id - 1} first`
+                                : ''
+                            }
+                            style={{
+                              opacity:
+                                step.id > 12 && !checklistSteps[step.id - 2]?.completed
+                                  ? 0.45
+                                  : 1,
+                              cursor:
+                                step.id > 12 && !checklistSteps[step.id - 2]?.completed
+                                  ? 'not-allowed'
+                                  : 'pointer'
+                            }}
                           >
-                            {processingStep.current ? 'Processing...' : '✓ Mark as Complete'}
+                            {processingStep.current
+                              ? 'Processing...'
+                              : step.id > 12 && !checklistSteps[step.id - 2]?.completed
+                              ? `🔒 Complete Step ${step.id - 1} first`
+                              : '✓ Mark as Complete'}
                           </button>
                         )}
 
