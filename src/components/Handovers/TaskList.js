@@ -11,6 +11,8 @@ import {
   deleteBrokerRestart
 } from '../../Api/HandOverApi';
 
+
+
 const TasksList = () => {
   // Get user level from localStorage (normalized safely)
   const rawUserLevel = localStorage.getItem('userlevel') || '';
@@ -97,7 +99,11 @@ const TasksList = () => {
     { id: 8,  title: 'UDP CHANGES (TIMEOUT & URL CHANGES)',     description: 'Apply UDP configuration changes',                  completed: false, completedTime: null },
     { id: 9,  title: 'LOGS VERIFICATION DONE',                  description: 'Verify all system logs',                          completed: false, completedTime: null },
     { id: 10, title: 'ISOLATOR UP',                             description: 'Bring isolator back online',                       completed: false, completedTime: null },
-    { id: 11, title: 'INFORM END OF ACTIVITY TO SUPPORT TEAM',  description: 'Notify support team about activity completion',    completed: false, completedTime: null, requiresAck: true, ackBy: null, ackTime: null }
+    { id: 11, title: 'INFORM END OF ACTIVITY TO SUPPORT TEAM',  description: 'Notify support team about activity completion',    completed: false, completedTime: null, requiresAck: true, ackBy: null, ackTime: null },
+    { id: 12, title: 'Server and Brokerwise -count/TD/BD',       description: 'Check count/TD/BD',                               completed: false, completedTime: null, isSupportStep: true },
+    { id: 13, title: 'Check critical services',                  description: 'For YONO 2.0, YONO 1.0, SBICAP, ATM',            completed: false, completedTime: null, isSupportStep: true },
+    { id: 14, title: 'ARRAY LB Check',                          description: 'Critical Services (YONO2 LOGIN - 4034 to 4036 and 5034 to 5036)', completed: false, completedTime: null, isSupportStep: true },
+    { id: 15, title: 'Parameters to be checked',                description: 'High response time to be checked on each server, Throughput, Concurrent connections', completed: false, completedTime: null, isSupportStep: true }
   ]);
 
   // ── Helper to normalize API response ──────────────────────────────────────
@@ -349,43 +355,32 @@ const TasksList = () => {
       return;
     }
 
-    // Auto-populate deleteSet form: find the latest subSetsId from statusBrokerRestart response
-    // Priority: active/started set first, then last set in the array
     let autoSubSetId = '';
     if (brokerStatus?.currSet && Array.isArray(brokerStatus.currSet) && brokerStatus.currSet.length > 0) {
-      // 1. Find the latest active (started) set
       const activeSets = brokerStatus.currSet.filter(
         (set) => set && set.status === 'started' && (!set.endTime || set.endTime === 'Present')
       );
       const targetSet = activeSets.length > 0
-        ? activeSets[activeSets.length - 1]                        // latest active set
-        : brokerStatus.currSet[brokerStatus.currSet.length - 1];   // fallback: last set in array
+        ? activeSets[activeSets.length - 1]
+        : brokerStatus.currSet[brokerStatus.currSet.length - 1];
 
-      // 2. Extract subSetsId — check all possible field name variants
       const subId = targetSet?.subSetsId ?? targetSet?.subSetId ?? targetSet?.subsetId ?? null;
       if (subId != null) autoSubSetId = String(subId);
     }
-    // Final fallback: use currentSubsetId state if brokerStatus didn't yield anything
     if (!autoSubSetId && currentSubsetId != null) {
       autoSubSetId = String(currentSubsetId);
     }
 
-    // Resolve the restart ID — use state value, fall back to localStorage string
     const rid = restartId ?? localStorage.getItem('brokerRestartId');
-
-    // Helper: check a raw localStorage value is a real usable string
     const isValid = (v) => v && v !== 'null' && v !== 'undefined' && v.trim() !== '';
 
-    // Auto-populate deleteAll: infraId_${brokerRestartId}_${currentSet}
     let autoInfraId = '';
 
-    // 1. Exact key: current active set index
     if (rid !== null && rid !== undefined && selectedSetIndex !== null) {
       const val = localStorage.getItem(`infraId_${rid}_${selectedSetIndex}`);
       if (isValid(val)) autoInfraId = val.trim();
     }
 
-    // 2. Scan all 4 slots using the resolved rid
     if (!autoInfraId && rid !== null && rid !== undefined) {
       for (let i = 0; i < 4; i++) {
         const val = localStorage.getItem(`infraId_${rid}_${i}`);
@@ -393,7 +388,6 @@ const TasksList = () => {
       }
     }
 
-    // 3. Fall back to brokerStatus API data
     if (!autoInfraId && brokerStatus?.currSet) {
       for (const set of brokerStatus.currSet) {
         const v = set?.infraId != null ? String(set.infraId) : '';
@@ -418,14 +412,11 @@ const TasksList = () => {
     }
     setResetLoading(true);
     try {
-      // Fresh-fetch the latest status so we always have the most current subSetsId
       const latestStatus = await getBrokerRestartStatus(restartId);
       const normalized   = normalizeBrokerStatus(latestStatus);
 
-      // Find the latest subSetsId from currSet
       let latestSubSetId = null;
       if (normalized?.currSet && Array.isArray(normalized.currSet) && normalized.currSet.length > 0) {
-        // Prefer the last active (started) set
         const activeSets = normalized.currSet.filter(
           (set) => set && set.status === 'started' && (!set.endTime || set.endTime === 'Present')
         );
@@ -437,7 +428,6 @@ const TasksList = () => {
           targetSet?.subSetsId ?? targetSet?.subSetId ?? targetSet?.subsetId ?? null;
       }
 
-      // Fall back to what was pre-populated in the form / currentSubsetId state
       if (latestSubSetId == null) {
         latestSubSetId = deleteSetForm.subSetId || currentSubsetId;
       }
@@ -449,11 +439,9 @@ const TasksList = () => {
       }
 
       logActivity('DELETE_SET', `Deleting sub-set ID: ${latestSubSetId}`);
-      // Send subSetId as the exact type returned by the API (string preserved)
       await deleteSetRestart(latestSubSetId, deleteSetForm.ackDesc.trim());
       logActivity('API_SUCCESS', `Sub-set ${latestSubSetId} deleted successfully`);
       setShowResetConfirm(false);
-      // Refresh to reflect deletion
       if (restartId) await fetchBrokerStatus(restartId);
     } catch (error) {
       console.error('deleteSetRestart error:', error);
@@ -487,14 +475,12 @@ const TasksList = () => {
       await deleteBrokerRestart(restartId, infraIdStr, deleteAllForm.ackDesc.trim());
       logActivity('API_SUCCESS', `Entire restart session ${restartId} deleted`);
 
-      // Stop timers / polling
       if (timer) { clearInterval(timer); setTimer(null); }
       if (statusPollingInterval.current) {
         clearInterval(statusPollingInterval.current);
         statusPollingInterval.current = null;
       }
 
-      // Clear localStorage
       const idsToClear = new Set(
         [String(restartId), localStorage.getItem('brokerRestartId')].filter(Boolean)
       );
@@ -509,7 +495,6 @@ const TasksList = () => {
       });
       localStorage.removeItem('brokerRestartId');
 
-      // Reset all React state
       setAllSetsCompleted(false);
       setRestartId(null);
       setBrokerStatus(null);
@@ -522,7 +507,6 @@ const TasksList = () => {
         prev.map((s) => ({ ...s, completed: false, completedTime: null, ackBy: null, ackTime: null }))
       );
 
-      // Get fresh restart ID
       const response = await getRestartId();
       const newId = response.restartId;
       setRestartId(newId);
@@ -541,7 +525,7 @@ const TasksList = () => {
     }
   };
 
-  // ── LEGACY handleResetSession (kept for "Start New Session" from completion page) ──
+  // ── LEGACY handleResetSession ─────────────────────────────────────────────
   const handleResetSession = async () => {
     if (!isOperations) {
       alert('Only Operations team can reset the session.');
@@ -834,34 +818,50 @@ const TasksList = () => {
     if (!currentSubsetId) setSelectedSetIndex(null);
   };
 
+  // ── Complete a checklist step ─────────────────────────────────────────────
+  // Steps 1–10: Operations only
+  // Steps 12–15: Support only (must be completed before step-11 acknowledgment)
+  // Step 11: handled separately via support ack modal
   const completeStep = async (stepId) => {
-    if (!isOperations) { alert('Only Operations team can mark steps as complete.'); return; }
-    if (stepId !== currentStep || stepId === 11) return;
+    const isSupportStep = stepId >= 12 && stepId <= 15;
+
+    if (!isOperations && !isSupportStep) {
+      alert('Only Operations team can mark steps as complete.');
+      return;
+    }
+    if (isSupportStep && !isSupport) {
+      alert('Only Support team can mark steps 12–15 as complete.');
+      return;
+    }
+    // Step 11 is handled separately via support ack modal
+    if (stepId === 11) return;
+    if (stepId !== currentStep) return;
+
     if (!currentSubsetId) {
       alert('Error: No active subset ID found. Please start a set first.');
       return;
     }
     if (processingStep.current) return;
     processingStep.current = true;
+
     try {
       const step = checklistSteps[stepId - 1];
       const localStorageKey = `infraId_${restartId}_${selectedSetIndex}`;
-      const storedInfraId   = localStorage.getItem(localStorageKey);
+      let storedInfraId = localStorage.getItem(localStorageKey);
 
       if (!storedInfraId) {
         if (brokerStatus?.currSet?.[selectedSetIndex]?.infraId) {
-          const fallbackInfraId = brokerStatus.currSet[selectedSetIndex].infraId;
-          localStorage.setItem(localStorageKey, fallbackInfraId);
-          await updateSubRestart(step.title, currentSubsetId, fallbackInfraId);
+          storedInfraId = brokerStatus.currSet[selectedSetIndex].infraId;
+          localStorage.setItem(localStorageKey, storedInfraId);
         } else {
           alert('Error: Infrastructure ID not found. Please refresh and try again.');
           processingStep.current = false;
           return;
         }
-      } else {
-        await updateSubRestart(step.title, currentSubsetId, storedInfraId);
-        logActivity('API_SUCCESS', `Step ${stepId} completed: ${step.title}`);
       }
+
+      await updateSubRestart(step.title, currentSubsetId, storedInfraId);
+      logActivity('API_SUCCESS', `Step ${stepId} completed: ${step.title}`);
 
       const updatedSteps = [...checklistSteps];
       updatedSteps[stepId - 1] = {
@@ -886,9 +886,30 @@ const TasksList = () => {
     }
   };
 
+  // ── Support acknowledgment (step 11) ─────────────────────────────────────
+  // Guard: steps 12–15 must all be completed first
   const handleSupportAckClick = () => {
-    if (!isSupport) { alert('Only support team members can acknowledge completion.'); return; }
-    if (currentStep !== 11) { alert('Support acknowledgment is only available at step 11.'); return; }
+    if (!isSupport) {
+      alert('Only support team members can acknowledge completion.');
+      return;
+    }
+    if (currentStep !== 11) {
+      alert('Support acknowledgment is only available at step 11.');
+      return;
+    }
+
+    // Ensure steps 12–15 are all completed before allowing final acknowledgment
+    const supportSteps = checklistSteps.slice(11, 15); // indices 11–14 → steps 12–15
+    const allSupportStepsDone = supportSteps.every((s) => s.completed);
+    if (!allSupportStepsDone) {
+      const pending = supportSteps
+        .filter((s) => !s.completed)
+        .map((s) => `Step ${s.id}: ${s.title}`)
+        .join('\n');
+      alert(`Please complete the following support steps before acknowledging:\n\n${pending}`);
+      return;
+    }
+
     setSupportAckModal(true);
     setShowSupportManualForm(false);
     setSupportAckData({ name: '', id: '' });
@@ -1082,6 +1103,9 @@ const TasksList = () => {
     );
   };
 
+  // Helper: are all support steps (12–15) completed?
+  const allSupportStepsCompleted = checklistSteps.slice(11, 15).every((s) => s.completed);
+
   // ── RENDER ────────────────────────────────────────────────────────────────
 
   if (loading && !restartId && !allSetsCompleted) {
@@ -1146,7 +1170,7 @@ const TasksList = () => {
                       </div>
                     )}
                     <div className="set-progress-info">
-                      <span>Steps completed: {set.subTasks?.length ?? 0}/10</span>
+                      <span>Steps completed: {set.subTasks?.length ?? 0}/15</span>
                     </div>
                   </div>
                 </div>
@@ -1227,7 +1251,6 @@ const TasksList = () => {
                 </div>
 
                 <div className="reset-choice-grid">
-                  {/* Delete a specific set */}
                   <button
                     type="button"
                     className="btn-choice btn-choice-secondary"
@@ -1236,14 +1259,10 @@ const TasksList = () => {
                     <div className="btn-choice-icon">🗂️</div>
                     <div className="btn-choice-content">
                       <h3>Delete a Specific Set</h3>
-                      <p>
-                        Remove one set from the current session using its
-                        Sub-Set ID
-                      </p>
+                      <p>Remove one set from the current session using its Sub-Set ID</p>
                     </div>
                   </button>
 
-                  {/* Delete entire session */}
                   <button
                     type="button"
                     className="btn-choice btn-choice-danger"
@@ -1252,10 +1271,7 @@ const TasksList = () => {
                     <div className="btn-choice-icon">🔥</div>
                     <div className="btn-choice-content">
                       <h3>Delete Entire Session</h3>
-                      <p>
-                        Wipe all sets &amp; start a completely new restart
-                        session
-                      </p>
+                      <p>Wipe all sets &amp; start a completely new restart session</p>
                     </div>
                   </button>
                 </div>
@@ -1283,7 +1299,6 @@ const TasksList = () => {
                 </div>
 
                 <form onSubmit={handleDeleteSet} className="modal-form">
-                  {/* Info: subSetId is fetched fresh from statusBrokerRestart at submit time */}
                   <div className="form-group">
                     <div className="readonly-info-box">
                       ℹ️ The latest Sub-Set ID will be fetched live from the server when you confirm.
@@ -1339,7 +1354,6 @@ const TasksList = () => {
                 </div>
 
                 <form onSubmit={handleDeleteAll} className="modal-form">
-                  {/* Read-only: auto-populated from localStorage infraId of active set */}
                   <div className="form-group">
                     <label>Infra ID (Current Set)</label>
                     <div className="readonly-info-box">
@@ -1349,7 +1363,6 @@ const TasksList = () => {
                     </div>
                   </div>
 
-                  {/* Description / reason — required */}
                   <div className="form-group">
                     <label>Reason / Description <span className="required-star">*</span></label>
                     <textarea
@@ -1425,7 +1438,6 @@ const TasksList = () => {
               {loading ? '🔄 Refreshing...' : '🔄 Refresh Status'}
             </button>
 
-            {/* Reset button — operations only */}
             {isOperations && (
               <button
                 onClick={handleOpenResetConfirm}
@@ -1885,11 +1897,38 @@ const TasksList = () => {
 
           <div className="checklist-section">
             <h2>📋 Restart Procedure Checklist</h2>
-            {!isOperations && (
+            {!isOperations && !isSupport && (
               <p style={{ color: 'var(--warning-yellow)', marginBottom: '1.5rem' }}>
                 👁️ Read-Only View
               </p>
             )}
+
+            {/* ── Support steps status banner (shown to support when step 11 is current) ── */}
+            {isSupport && currentStep === 11 && (
+              <div
+                style={{
+                  marginBottom: '1.5rem',
+                  padding: '1rem 1.25rem',
+                  borderRadius: '10px',
+                  background: allSupportStepsCompleted
+                    ? 'rgba(0, 184, 148, 0.1)'
+                    : 'rgba(253, 203, 110, 0.1)',
+                  border: `1px solid ${allSupportStepsCompleted ? '#00b894' : '#fdcb6e'}`,
+                  color: allSupportStepsCompleted ? '#00b894' : '#fdcb6e'
+                }}
+              >
+                {allSupportStepsCompleted ? (
+                  <p style={{ margin: 0 }}>
+                    ✅ All support checks (steps 12–15) are complete. You can now acknowledge step 11.
+                  </p>
+                ) : (
+                  <p style={{ margin: 0 }}>
+                    ⚠️ Complete steps 12–15 below before you can acknowledge step 11.
+                  </p>
+                )}
+              </div>
+            )}
+
             <div className="timeline-container">
               {checklistSteps.map((step, index) => (
                 <div
@@ -1897,7 +1936,7 @@ const TasksList = () => {
                   ref={currentStep === step.id ? currentStepRef : null}
                   className={`timeline-step ${step.completed ? 'completed' : ''} ${
                     currentStep === step.id ? 'current' : ''
-                  }`}
+                  } ${step.isSupportStep ? 'support-step' : ''}`}
                 >
                   <div className="step-marker">
                     <div className="step-number">{step.id}</div>
@@ -1907,7 +1946,28 @@ const TasksList = () => {
                   </div>
                   <div className="step-content">
                     <div className="step-header">
-                      <h3>{step.title}</h3>
+                      <h3>
+                        {step.title}
+                        {/* Support badge on steps 12–15 */}
+                        {step.isSupportStep && (
+                          <span
+                            style={{
+                              marginLeft: '0.6rem',
+                              fontSize: '0.7rem',
+                              fontWeight: 600,
+                              padding: '2px 8px',
+                              borderRadius: '12px',
+                              background: 'rgba(116, 185, 255, 0.15)',
+                              color: '#74b9ff',
+                              border: '1px solid #74b9ff',
+                              verticalAlign: 'middle',
+                              letterSpacing: '0.03em'
+                            }}
+                          >
+                            SUPPORT
+                          </span>
+                        )}
+                      </h3>
                       <div className="step-status">
                         {step.completed ? (
                           <span className="status-completed">✅ Completed</span>
@@ -1935,10 +1995,14 @@ const TasksList = () => {
                         )}
                       </div>
                     )}
+
                     <div className="step-actions">
+
+                      {/* ── Operations: complete steps 1–10 ── */}
                       {isOperations &&
                         currentStep === step.id &&
-                        step.id !== 11 &&
+                        step.id >= 1 &&
+                        step.id <= 10 &&
                         !step.completed && (
                           <button
                             onClick={() => completeStep(step.id)}
@@ -1948,6 +2012,33 @@ const TasksList = () => {
                             {processingStep.current ? 'Processing...' : '✓ Mark as Complete'}
                           </button>
                         )}
+
+                      {/* ── Support: complete steps 12–15 (available when currentStep is 11) ── */}
+                      {isSupport &&
+                        step.id >= 12 &&
+                        step.id <= 15 &&
+                        currentStep === 11 &&
+                        !step.completed && (
+                          <button
+                            onClick={() => completeStep(step.id)}
+                            className="btn-complete-step"
+                            disabled={processingStep.current || (step.id > 12 && !checklistSteps[step.id - 2].completed)}
+                          >
+                            {processingStep.current ? 'Processing...' : '✓ Mark as Complete'}
+                          </button>
+                        )}
+
+                      {/* ── Non-support waiting for steps 12–15 ── */}
+                      {!isSupport &&
+                        step.id >= 12 &&
+                        step.id <= 15 &&
+                        !step.completed && (
+                          <div className="support-only-message">
+                            <p>⏳ Waiting for Support team to complete this check...</p>
+                          </div>
+                        )}
+
+                      {/* ── Support: step 11 ack button — only after steps 12–15 are all done ── */}
                       {isSupport &&
                         currentStep === 11 &&
                         step.id === 11 &&
@@ -1955,18 +2046,33 @@ const TasksList = () => {
                           <button
                             onClick={handleSupportAckClick}
                             className="btn-complete-step"
+                            disabled={!allSupportStepsCompleted}
+                            title={
+                              !allSupportStepsCompleted
+                                ? 'Complete steps 12–15 first'
+                                : 'Acknowledge completion'
+                            }
+                            style={{
+                              opacity: allSupportStepsCompleted ? 1 : 0.5,
+                              cursor: allSupportStepsCompleted ? 'pointer' : 'not-allowed'
+                            }}
                           >
-                            Acknowledge as Support Team
+                            {allSupportStepsCompleted
+                              ? 'Acknowledge as Support Team ✓'
+                              : '🔒 Complete steps 12–15 first'}
                           </button>
                         )}
+
+                      {/* ── Non-support waiting message at step 11 ── */}
                       {!isSupport &&
                         currentStep === 11 &&
                         step.id === 11 &&
                         !step.completed && (
                           <div className="support-only-message">
-                            <p>⏳ Waiting for Support team acknowledgment...</p>
+                            <p>⏳ Waiting for Support team to complete checks and acknowledge...</p>
                           </div>
                         )}
+
                     </div>
                   </div>
                 </div>
@@ -1984,7 +2090,7 @@ const TasksList = () => {
             >
               <p style={{ margin: '0 0 0.5rem 0', color: 'var(--text-secondary)' }}>
                 <strong style={{ color: 'var(--primary-blue)' }}>Progress:</strong>{' '}
-                {currentStep - 1} of 11 steps completed
+                {checklistSteps.filter((s) => s.completed).length} of 15 steps completed
               </p>
               <p style={{ margin: 0, color: 'var(--text-secondary)' }}>
                 <strong style={{ color: 'var(--primary-blue)' }}>Current Step:</strong>{' '}
