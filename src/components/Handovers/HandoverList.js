@@ -841,8 +841,11 @@ const TasksList = () => {
   };
 
   const completeStep = async (stepId) => {
-    if (!isOperations) { alert('Only Operations team can mark steps as complete.'); return; }
-    if (stepId !== currentStep || stepId === 11) return;
+  const isSupportStep = stepId >= 11 && stepId <= 15;
+  if (!isOperations && !isSupport) { alert('Only Operations or Support team can mark steps as complete.'); return; }
+  if (isSupport && !isSupportStep) { alert('Support team can only complete steps 11–15.'); return; }
+  if (isOperations && isSupportStep) { alert('Steps 11–15 are for the Support team.'); return; }
+  if (stepId !== currentStep) return;
     if (!currentSubsetId) {
       alert('Error: No active subset ID found. Please start a set first.');
       return;
@@ -893,9 +896,8 @@ const TasksList = () => {
   };
 
   const handleSupportAckClick = () => {
-    if (!isSupport) { alert('Only support team members can acknowledge completion.'); return; }
-    if (currentStep !== 11) { alert('Support acknowledgment is only available at step 11.'); return; }
-    setSupportAckModal(true);
+  if (!isSupport) { alert('Only support team members can acknowledge completion.'); return; }
+   setSupportAckModal(true);
     setShowSupportManualForm(false);
     setSupportAckData({ name: '', id: '' });
   };
@@ -1942,36 +1944,56 @@ const TasksList = () => {
                       </div>
                     )}
                     <div className="step-actions">
-                      {isOperations &&
-                        currentStep === step.id &&
-                        step.id !== 11 &&
-                        !step.completed && (
-                          <button
-                            onClick={() => completeStep(step.id)}
-                            className="btn-complete-step"
-                            disabled={processingStep.current}
-                          >
-                            {processingStep.current ? 'Processing...' : '✓ Mark as Complete'}
-                          </button>
-                        )}
-                      {isSupport &&
-                        currentStep === 11 &&
-                        step.id === 11 &&
-                        !step.completed && (
-                          <button
-                            onClick={handleSupportAckClick}
-                            className="btn-complete-step"
-                          >
-                            Acknowledge as Support Team
-                          </button>
-                        )}
-                      {!isSupport &&
-                        currentStep === 11 &&
-                        step.id === 11 &&
-                        !step.completed && (
-                          <div className="support-only-message">
-                            <p>⏳ Waiting for Support team acknowledgment...</p>
-                          </div>
+  {/* Operations: complete steps 1–10 */}
+  {isOperations &&
+    currentStep === step.id &&
+    step.id < 11 &&
+    !step.completed && (
+      <button
+        onClick={() => completeStep(step.id)}
+        className="btn-complete-step"
+        disabled={processingStep.current}
+      >
+        {processingStep.current ? 'Processing...' : '✓ Mark as Complete'}
+      </button>
+    )}
+
+  {/* Operations waiting message for steps 11–15 */}
+  {isOperations &&
+    currentStep === step.id &&
+    step.id >= 11 &&
+    step.id <= 15 &&
+    !step.completed && (
+      <div className="support-only-message">
+        <p>⏳ Waiting for Support team to complete step {step.id}...</p>
+      </div>
+    )}
+
+  {/* Support: complete steps 11–15 */}
+  {isSupport &&
+    currentStep === step.id &&
+    step.id >= 11 &&
+    step.id <= 15 &&
+    !step.completed && (
+      <button
+        onClick={() => completeStep(step.id)}
+        className="btn-complete-step"
+        disabled={processingStep.current}
+      >
+        {processingStep.current ? 'Processing...' : '✓ Mark as Complete'}
+      </button>
+    )}
+
+  {/* Support waiting message for steps 1–10 */}
+  {isSupport &&
+    currentStep === step.id &&
+    step.id < 11 &&
+    !step.completed && (
+      <div className="support-only-message">
+        <p>⏳ Waiting for Operations team to complete step {step.id}...</p>
+      </div>
+    )}
+</div>
                         )}
                     </div>
                   </div>
@@ -1989,9 +2011,9 @@ const TasksList = () => {
               }}
             >
               <p style={{ margin: '0 0 0.5rem 0', color: 'var(--text-secondary)' }}>
-                <strong style={{ color: 'var(--primary-blue)' }}>Progress:</strong>{' '}
-                {currentStep - 1} of 11 steps completed
-              </p>
+  <strong style={{ color: 'var(--primary-blue)' }}>Progress:</strong>{' '}
+  {currentStep - 1} of 15 steps completed
+</p>
               <p style={{ margin: 0, color: 'var(--text-secondary)' }}>
                 <strong style={{ color: 'var(--primary-blue)' }}>Current Step:</strong>{' '}
                 {currentStep} — {checklistSteps[currentStep - 1]?.title}
