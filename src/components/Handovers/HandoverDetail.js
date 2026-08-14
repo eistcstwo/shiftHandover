@@ -91,14 +91,9 @@ const HandoverDetail = () => {
   const [reassignTeam, setReassignTeam] = useState(''); // New state for reassign team
   const [error, setError] = useState('');
   const [showCreateTaskModal, setShowCreateTaskModal] = useState(false);
-  const [expandedTaskRows, setExpandedTaskRows] = useState({});
 
-   const toggleTaskRow = (taskId) => {
-  setExpandedTaskRows(prev => ({
-    ...prev,
-    [taskId]: !prev[taskId]
-  }));
-  };
+  // Expand/collapse state for the tasks table rows (acknowledge history)
+  const [expandedTaskRows, setExpandedTaskRows] = useState({});
 
   const [newTask, setNewTask] = useState({
     taskTitle: '',
@@ -166,6 +161,13 @@ const HandoverDetail = () => {
     } catch (e) {
       return '-';
     }
+  };
+
+  const toggleTaskRow = (taskId) => {
+    setExpandedTaskRows(prev => ({
+      ...prev,
+      [taskId]: !prev[taskId]
+    }));
   };
 
   const handleAcknowledgeClick = (task) => {
@@ -403,52 +405,54 @@ const handleAcknowledgeSubmit = async () => {
               </thead>
               <tbody>
                 {tasks.map(task => (
-                  <tr key={task.Taskid}>
-                    <td>
-          {task.acknowledgeDetails && task.acknowledgeDetails.length > 0 && (
-            <button
-              className="expand-button"
-              onClick={() => toggleTaskRow(task.Taskid)}
-              aria-label={expandedTaskRows[task.Taskid] ? 'Collapse' : 'Expand'}
-              title="Click to view acknowledgment details"
-            >
-              {expandedTaskRows[task.Taskid] ? '▼' : '▶'}
-            </button>
-          )}
-        </td>
-                    <td style={{ fontWeight: 600 }}>{task.taskTitle || 'Untitled'}</td>
-                    <td>{task.taskDesc || '-'}</td>
-                    <td>
-                      <span className={`priority-badge priority-${(task.priority || 'medium').toLowerCase()}`}>
-                        {task.priority || 'Medium'}
-                      </span>
-                    </td>
-                    <td>
-                      <span className={`status-badge ${task.status === 'in progress' ? 'in-progress' : task.status}`}>
-                        {task.status === 'in progress' ? 'In Progress' : task.status}
-                      </span>
-                    </td>
-                    <td>
-                      <span className={`status-badge ${task.acknowledgeStatus?.toLowerCase() === 'pending' ? 'pending' : 'completed'}`}>
-                        {task.acknowledgeStatus || 'Pending'}
-                      </span>
-                    </td>
-                    <td>{formatDate(task.creationTime)}</td>
-                    <td>
-                      <button className="acknowledge-btn" onClick={() => handleAcknowledgeClick(task)}>
-                        Acknowledge
-                      </button>
-                    </td>
-                  </tr>
-                   {expandedTaskRows[task.Taskid] && task.acknowledgeDetails && task.acknowledgeDetails.length > 0 && (
-        <tr className="expanded-row">
-          <td colSpan="8">
-            <div className="expanded-content">
-              <AcknowledgeTimeline acknowledgeDetails={task.acknowledgeDetails} />
-            </div>
-          </td>
-        </tr>
-      )}
+                  <React.Fragment key={task.Taskid}>
+                    <tr>
+                      <td>
+                        {task.acknowledgeDetails && task.acknowledgeDetails.length > 0 && (
+                          <button
+                            className="expand-button"
+                            onClick={() => toggleTaskRow(task.Taskid)}
+                            aria-label={expandedTaskRows[task.Taskid] ? 'Collapse' : 'Expand'}
+                            title="Click to view acknowledgment details"
+                          >
+                            {expandedTaskRows[task.Taskid] ? '▼' : '▶'}
+                          </button>
+                        )}
+                      </td>
+                      <td style={{ fontWeight: 600 }}>{task.taskTitle || 'Untitled'}</td>
+                      <td>{task.taskDesc || '-'}</td>
+                      <td>
+                        <span className={`priority-badge priority-${(task.priority || 'medium').toLowerCase()}`}>
+                          {task.priority || 'Medium'}
+                        </span>
+                      </td>
+                      <td>
+                        <span className={`status-badge ${task.status === 'in progress' ? 'in-progress' : task.status}`}>
+                          {task.status === 'in progress' ? 'In Progress' : task.status}
+                        </span>
+                      </td>
+                      <td>
+                        <span className={`status-badge ${task.acknowledgeStatus?.toLowerCase() === 'pending' ? 'pending' : 'completed'}`}>
+                          {task.acknowledgeStatus || 'Pending'}
+                        </span>
+                      </td>
+                      <td>{formatDate(task.creationTime)}</td>
+                      <td>
+                        <button className="acknowledge-btn" onClick={() => handleAcknowledgeClick(task)}>
+                          Acknowledge
+                        </button>
+                      </td>
+                    </tr>
+                    {expandedTaskRows[task.Taskid] && task.acknowledgeDetails && task.acknowledgeDetails.length > 0 && (
+                      <tr className="expanded-row">
+                        <td colSpan="8">
+                          <div className="expanded-content">
+                            <AcknowledgeTimeline acknowledgeDetails={task.acknowledgeDetails} />
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
                 ))}
               </tbody>
             </table>
