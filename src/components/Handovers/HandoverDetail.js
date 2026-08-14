@@ -91,6 +91,14 @@ const HandoverDetail = () => {
   const [reassignTeam, setReassignTeam] = useState(''); // New state for reassign team
   const [error, setError] = useState('');
   const [showCreateTaskModal, setShowCreateTaskModal] = useState(false);
+  const [expandedTaskRows, setExpandedTaskRows] = useState({});
+
+   const toggleTaskRow = (taskId) => {
+  setExpandedTaskRows(prev => ({
+    ...prev,
+    [taskId]: !prev[taskId]
+  }));
+  };
 
   const [newTask, setNewTask] = useState({
     taskTitle: '',
@@ -383,6 +391,7 @@ const handleAcknowledgeSubmit = async () => {
             <table className="tasks-table">
               <thead>
                 <tr>
+                  <th style={{ width: '40px' }}></th>
                   <th>Title</th>
                   <th>Description</th>
                   <th>Priority</th>
@@ -395,6 +404,18 @@ const handleAcknowledgeSubmit = async () => {
               <tbody>
                 {tasks.map(task => (
                   <tr key={task.Taskid}>
+                    <td>
+          {task.acknowledgeDetails && task.acknowledgeDetails.length > 0 && (
+            <button
+              className="expand-button"
+              onClick={() => toggleTaskRow(task.Taskid)}
+              aria-label={expandedTaskRows[task.Taskid] ? 'Collapse' : 'Expand'}
+              title="Click to view acknowledgment details"
+            >
+              {expandedTaskRows[task.Taskid] ? '▼' : '▶'}
+            </button>
+          )}
+        </td>
                     <td style={{ fontWeight: 600 }}>{task.taskTitle || 'Untitled'}</td>
                     <td>{task.taskDesc || '-'}</td>
                     <td>
