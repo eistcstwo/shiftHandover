@@ -32,21 +32,6 @@ userAcknowleged_id
 1
 : 
 {ackId: 312, ackDesc: "TESTING ", userAcknowleged_id: 2790746, acknowledgeTime: "2026-08-14 14:46:48",…}
-ackDesc
-: 
-"TESTING "
-ackId
-: 
-312
-ackTask_id_id
-: 
-151
-acknowledgeTime
-: 
-"2026-08-14 14:46:48"
-userAcknowleged_id
-: 
-2790746
 acknowledgeStatus
 : 
 "Acknowledged"
@@ -77,6 +62,9 @@ userAccepted_id
 userCreated_id
 : 
 null
+username
+: 
+"Avinash Chaurasia"
 TeamHandoverDetails
 : 
 [{rid: 10, role: "EIS-Infra Development", pid: 1, rate: 0, billable_count: 0, max_days: 0,…}]
