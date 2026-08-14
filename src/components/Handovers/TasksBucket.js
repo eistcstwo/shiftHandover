@@ -177,44 +177,34 @@ const TasksBucket = () => {
   }, []);
 
   const handleFetchAllTasks = async () => {
-  setLoading(true);
-  setError('');
+    setLoading(true);
+    setError('');
 
-  try {
-    console.log('Fetching all tasks from API...');
-    const data = await getAllTasks();
-    console.log('API Response:', data);
+    try {
+      console.log('Fetching all tasks from API...');
+      const data = await getAllTasks();
+      console.log('API Response:', data);
 
-    if (data && data.TeamHandoverDetailsTask) {
-      // Backend returns nested array structure
-      const flattenedTasks = [];
-      
-      // Iterate through the nested arrays
-      data.TeamHandoverDetailsTask.forEach(taskArray => {
-        if (Array.isArray(taskArray)) {
-          taskArray.forEach(task => {
-            if (task && task.Taskid) {
-              flattenedTasks.push(task);
-            }
-          });
-        }
-      });
-      
-      console.log('Flattened tasks:', flattenedTasks);
-      setAllTasks(flattenedTasks);
-      setFilteredTasks(flattenedTasks);
-    } else {
-      throw new Error('Invalid data structure - missing TeamHandoverDetailsTask');
+      if (data && data.TeamHandoverDetailsTask) {
+        // Flatten the nested array structure and filter out empty arrays
+        const flattenedTasks = data.TeamHandoverDetailsTask
+          .flat()
+          .filter(task => task && task.Taskid);
+
+        setAllTasks(flattenedTasks);
+        setFilteredTasks(flattenedTasks);
+      } else {
+        throw new Error('Invalid data structure - missing TeamHandoverDetailsTask');
+      }
+    } catch (err) {
+      console.error('Error fetching tasks:', err);
+      setError(err.message || 'Failed to load tasks');
+      setAllTasks([]);
+      setFilteredTasks([]);
+    } finally {
+      setLoading(false);
     }
-  } catch (err) {
-    console.error('Error fetching tasks:', err);
-    setError(err.message || 'Failed to load tasks');
-    setAllTasks([]);
-    setFilteredTasks([]);
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   const applyFilters = (tasks, status, priority) => {
     return tasks.filter(task => {
@@ -332,7 +322,7 @@ const TasksBucket = () => {
         </div>
       </section>
 
-      {/* Filters */}
+      {/* Filters
       <section className="bucket-section">
         <div className="filters-group">
           <div className="filter-item">
@@ -361,6 +351,8 @@ const TasksBucket = () => {
           </div>
         </div>
       </section>
+`
+      */}
 
       {/* Tasks Table */}
       {filteredTasks.length > 0 && (
