@@ -1155,3 +1155,36 @@ body.modal-open {
     width: 100%;
   }
 }
+
+
+/* Expand Button */
+.expand-button {
+  background: none;
+  border: none;
+  color: #2ed5ff;
+  cursor: pointer;
+  font-size: 1rem;
+  padding: 0.25rem;
+  transition: all 0.2s ease;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.expand-button:hover {
+  transform: scale(1.2);
+  color: #8a2be2;
+}
+
+/* Expanded Row */
+.expanded-row td {
+  padding: 0;
+  background: rgba(46, 213, 255, 0.03);
+}
+
+.expanded-content {
+  padding: 1.5rem;
+  overflow: visible;
+}
