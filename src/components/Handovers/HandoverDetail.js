@@ -440,6 +440,15 @@ const handleAcknowledgeSubmit = async () => {
                       </button>
                     </td>
                   </tr>
+                   {expandedTaskRows[task.Taskid] && task.acknowledgeDetails && task.acknowledgeDetails.length > 0 && (
+        <tr className="expanded-row">
+          <td colSpan="8">
+            <div className="expanded-content">
+              <AcknowledgeTimeline acknowledgeDetails={task.acknowledgeDetails} />
+            </div>
+          </td>
+        </tr>
+      )}
                 ))}
               </tbody>
             </table>
