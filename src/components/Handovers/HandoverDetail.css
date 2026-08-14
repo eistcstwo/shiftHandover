@@ -1188,3 +1188,19 @@ body.modal-open {
   padding: 1.5rem;
   overflow: visible;
 }
+
+.created-cell {
+  line-height: 1.4;
+}
+
+.created-date {
+  font-size: 0.9rem;
+  color: rgba(230, 238, 248, 0.85);
+}
+
+.created-by {
+  font-size: 0.8rem;
+  color: rgba(46, 213, 255, 0.75);
+  margin-top: 0.2rem;
+  font-style: italic;
+}
