@@ -74,7 +74,7 @@
   align-items: flex-start !important;
   justify-content: center !important;
   z-index: 9999 !important;
-  overflow-y: auto !important;
+ /* overflow-y: auto !important;*/
   padding: 2rem 0 !important;
 }
 
@@ -1100,8 +1100,46 @@ body.modal-open {
     padding: 1.5rem;
   }
 
+  .modal-header-container {
+  /* Use flexbox to align children horizontally */
+  display: flex !important;
+  /* Distributes available space: title goes to the left, button to the right */
+  justify-content: space-between !important;
+  /* Aligns items vertically in the center */
+  align-items: center  !important;
+  /* Optional: Add padding/margin for spacing */
+  padding-bottom: 15px !important;
+  border-bottom: 1px solid #eee !important; /* Optional divider */
+}
+
+.modal-header-container button  {
+  /* Style the button to look less like a standard button */
+  background: none !important;
+  border: none !important;
+  padding: 0; /* Remove default padding */
+}
+
+
+  .modal-header-container button {
+  /* Position the button in the top-right corner */
+  position: absolute !important ;
+  top: 10px !important;
+  right: 10px !important;
+  background: none !important;
+  border: none !important;
+  font-size: 24px !important;
+  cursor: pointer !important;
+  line-height: 1 !important;
+  color: #333 !important;
+}
+
+ .modal-header-container button :hover {
+  color: #000; /* Darker color on hover */
+}
+
   .modal-title {
     font-size: 1.5rem;
+    margin: 0;
   }
 
   .form-group label {
