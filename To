@@ -1,22 +1,82 @@
-@csrf_exempt
-def updateKDB(request) :
-if request-method=
-"POST"
-try:
-data = İson. loads (request.body)
-user - None
-if data. get ("userCreated id"):
-user - Usermaster. objects.get (AdId-data l"userCreated 4d"1)
-kId-data. get ("kId")
-issue - knowledgeIssueDB.objects.getkId-kId)
-for key, value in data.items (): setattr (issue, key, value)
-it user:
-issue. userCreated - user
-issue. save ()
-return JsonResponse (f
-"status";"succes"
-"id"; issue, kId
-except Exception as e:
-print (e)
-return JsonResponse (("error"; str(e)),status-400)
-IsonResponse (| "error"; "Invalid request"), status=405)
+{,…}
+Tasksdata
+: 
+[,…]
+0
+: 
+{Taskid: 151, taskDesc: "user name while creating task.", priority: "Medium", userCreated_id: null,…}
+Taskid
+: 
+151
+acknowledgeDetails
+: 
+[{ackId: 311, ackDesc: "OK", userAcknowleged_id: 2795792, acknowledgeTime: "2026-08-14 14:01:05",…},…]
+0
+: 
+{ackId: 311, ackDesc: "OK", userAcknowleged_id: 2795792, acknowledgeTime: "2026-08-14 14:01:05",…}
+ackDesc
+: 
+"OK"
+ackId
+: 
+311
+ackTask_id_id
+: 
+151
+acknowledgeTime
+: 
+"2026-08-14 14:01:05"
+userAcknowleged_id
+: 
+2795792
+1
+: 
+{ackId: 312, ackDesc: "TESTING ", userAcknowleged_id: 2790746, acknowledgeTime: "2026-08-14 14:46:48",…}
+ackDesc
+: 
+"TESTING "
+ackId
+: 
+312
+ackTask_id_id
+: 
+151
+acknowledgeTime
+: 
+"2026-08-14 14:46:48"
+userAcknowleged_id
+: 
+2790746
+acknowledgeStatus
+: 
+"Acknowledged"
+creationTime
+: 
+"2026-08-14 14:46:48.434903"
+handover_id_id
+: 
+2
+priority
+: 
+"Medium"
+status
+: 
+"in progress"
+statusUpdateTime
+: 
+""
+taskDesc
+: 
+"user name while creating task."
+taskTitle
+: 
+"testing "
+userAccepted_id
+: 
+2790746
+userCreated_id
+: 
+null
+TeamHandoverDetails
+: 
+[{rid: 10, role: "EIS-Infra Development", pid: 1, rate: 0, billable_count: 0, max_days: 0,…}]
