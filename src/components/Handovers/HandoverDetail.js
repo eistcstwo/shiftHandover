@@ -436,7 +436,12 @@ const handleAcknowledgeSubmit = async () => {
                           {task.acknowledgeStatus || 'Pending'}
                         </span>
                       </td>
-                      <td>{formatDate(task.creationTime)}</td>
+                      <td className="created-cell">
+                        <div className="created-date">{formatDate(task.creationTime)}</div>
+                        {task.username && (
+                          <div className="created-by">Created by {task.username}</div>
+                        )}
+                      </td>
                       <td>
                         <button className="acknowledge-btn" onClick={() => handleAcknowledgeClick(task)}>
                           Acknowledge
