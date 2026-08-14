@@ -180,7 +180,7 @@ const handleAcknowledgeSubmit = async () => {
     taskTitle: selectedTask.taskTitle || '',
     taskDesc: selectedTask.taskDesc || '',
     status: ackStatus,
-    priority: selectedTask.priority || 'Medium',
+    Priority: selectedTask.priority || 'Medium',
     acknowledgeStatus: 'Acknowledged', // Make sure it's capitalized
     ackDesc: ackDescription
   };
@@ -208,8 +208,8 @@ const handleAcknowledgeSubmit = async () => {
             ackDesc: ackDescription,
             acknowledgeTime: new Date().toISOString(),
             statusUpdateTime: new Date().toISOString(),
-            ...(reassignTeam && { 
-              handover_id_id: TEAMS_DATA.find(team => team.rid === parseInt(reassignTeam))?.handover_id_id 
+            ...(reassignTeam && {
+              handover_id_id: TEAMS_DATA.find(team => team.rid === parseInt(reassignTeam))?.handover_id_id
             })
           }
         : t
@@ -268,7 +268,7 @@ const handleAcknowledgeSubmit = async () => {
   try {
     const response = await createTask(payload);
     console.log('Create task response:', response); // Add logging
-    
+
     await fetchHandoverData();
     setShowCreateTaskModal(false);
     setError('');
@@ -318,10 +318,6 @@ const handleAcknowledgeSubmit = async () => {
     <div className="handover-detail-container">
       <div className="handover-detail-header">
         <h2>{handover.role} Team Handover</h2>
-        {/* Debug info - remove after testing */}
-        <div style={{ fontSize: '12px', color: '#666', marginTop: '8px' }}>
-          User Level: {userLevel} | Admin Access: {hasAdminAccess ? 'Yes' : 'No'} | Dashboard Access: {canAccessDashboard ? 'Yes' : 'No'}
-        </div>
       </div>
 
       <div className="handover-detail-content">
@@ -369,14 +365,14 @@ const handleAcknowledgeSubmit = async () => {
             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
               <h3>Tasks ({tasks.length})</h3>
               {/* Only show History Summary button for ADMIN users (NOT L2) */}
-              {hasAdminAccess && (
+
                 <button
                   className="summary-button"
                   onClick={() => navigate('/history-summary', { state: { handoverId: id } })}
                 >
                   📊 View History Summary
                 </button>
-              )}
+
             </div>
             <button className="create-task-btn" onClick={handleCreateTask}>
               + Create New Task
@@ -387,7 +383,6 @@ const handleAcknowledgeSubmit = async () => {
             <table className="tasks-table">
               <thead>
                 <tr>
-                  <th>ID</th>
                   <th>Title</th>
                   <th>Description</th>
                   <th>Priority</th>
@@ -400,7 +395,6 @@ const handleAcknowledgeSubmit = async () => {
               <tbody>
                 {tasks.map(task => (
                   <tr key={task.Taskid}>
-                    <td>{task.Taskid}</td>
                     <td style={{ fontWeight: 600 }}>{task.taskTitle || 'Untitled'}</td>
                     <td>{task.taskDesc || '-'}</td>
                     <td>
@@ -443,10 +437,6 @@ const handleAcknowledgeSubmit = async () => {
               </div>
 
               <div className="task-info-horizontal">
-                <div className="info-column">
-                  <strong>Task ID</strong>
-                  <span>{selectedTask.Taskid}</span>
-                </div>
                 <div className="info-column">
                   <strong>Title</strong>
                   <span>{selectedTask.taskTitle || 'Untitled'}</span>
