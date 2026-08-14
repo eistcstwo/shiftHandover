@@ -537,7 +537,7 @@
   position: absolute;
   top: 0.5rem;
   left: 50%;
-  right: -50%;
+  right: -65%;
   height: 3px;
   background: linear-gradient(90deg, rgba(46, 213, 255, 0.8), rgba(138, 43, 226, 0.8));
   z-index: 2;
