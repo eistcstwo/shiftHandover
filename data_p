@@ -1,0 +1,139 @@
+public class demo3 {
+    public static void main(String[] args) {
+
+        Colllege c = new Colllege("terna" , "navi mumbai");
+        Student s1 = new Student(23,"avinash",c);
+
+        System.out.println(s1.getC().name);
+
+        s1.getC().name = "mumbai university";
+        System.out.println(s1.getC().name);
+
+
+    }
+}
+
+//Immutable Class
+
+final class Student{
+    private final int age;
+    private final String name;
+    private final Colllege c;
+
+    Student(int age, String name, Colllege c){
+        this.age = age;
+        this.name = name;
+        this.c=c;
+    }
+
+    //getter
+    public int getAge(){
+        return this.age;
+    }
+
+    public String getName(){
+        return this.name;
+    }
+
+    public Colllege getC(){
+        return this.c;
+    }
+
+}
+
+
+class  Colllege{
+    String name;
+    String address;
+
+    Colllege(String name, String address){
+        this.address= address;
+        this.name = name;
+    }
+}
+
+public class demo4 {
+    public static void main(String[] args){
+
+        Colllege1 c = new Colllege1("terna" , "navi mumbai");
+        Student1 s1 = new Student1(23,"avinash",c);
+
+        System.out.println(s1.getC().name);
+
+        s1.getC().name = "mumbai university";
+
+        System.out.println(s1.getC().name);
+
+    }
+
+}
+
+//Immutable Class
+//defensive copy of collage(non primitive)
+final class Student1{
+    private final int age;
+    private final String name;
+    private final Colllege1 c;
+
+    Student1(int age, String name, Colllege1 c){
+        this.age = age;
+        this.name = name;
+        this.c=new Colllege1(c.name, c.address);
+    }
+
+    //getter
+    public int getAge(){
+        return this.age;
+    }
+
+    public String getName(){
+        return this.name;
+    }
+
+    public Colllege1 getC(){
+        return new Colllege1(this.c.name, this.c.address);
+    }
+}
+
+class  Colllege1{
+    String name;
+    String address;
+
+    Colllege1(String name, String address){
+        this.address= address;
+        this.name = name;
+    }
+}
+
+
+
+package LearnObjectClass;
+
+public class demo {
+    public  static void main(String[] args) {
+
+        Student s1 = new Student();
+
+        s1.name = "avinash";
+        s1.age = 24;
+
+        System.out.println(s1);
+
+
+    }
+}
+class Student{
+    String name;
+    int age;
+
+    @Override
+    public String toString() {
+        return this.name +"  "+this.age;
+    }
+}
+
+
+
+
+
+
