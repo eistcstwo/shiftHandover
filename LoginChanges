@@ -1,39 +1,4 @@
-cd /var/log/collectl
-  979  25/09/26 13:52:11 collectl -p eispraccexp-16-20260923-000002.raw -sZ --sort process:ctxsw  --from 03:30:00 --thru 04:14:00
-  980  25/09/26 13:52:33 collectl -p eispraccexp-16-20260923-000002.raw -sZ --top process:ctxsw  --from 03:30:00 --thru 04:14:00
-  981  25/09/26 13:52:55 collectl -p eispraccexp-16-20260923-000002.raw -sZ --showtopopts process:ctxsw  --from 03:30:00 --thru 04:14:00
-  982  25/09/26 13:53:09 collectl -p eispraccexp-16-20260923-000002.raw -sZ --top process:ctxsw  --from 03:30:00 --thru 04:14:00
-  983  25/09/26 13:54:54 collectl -p eispraccexp-16-20260923-000002.raw -sZ --top cpu  --from 03:30:00 --thru 04:14:00
-  984  25/09/26 13:57:43 collectl -p eispraccexp-16-20260923-000002.raw -sZ --top csw  --from 03:30:00 --thru 04:14:00
-  985  25/09/26 13:58:04 collectl -p eispraccexp-16-20260923-000002.raw -sZ --top ctx  --from 03:30:00 --thru 04:14:00
-  986  25/09/26 13:59:52 collectl --showtopopts
-  987  25/09/26 14:00:24 collectl -p eispraccexp-16-20260923-000002.raw -sZ --top vctx --from 03:30:00 --thru 04:14:00
-  988  25/09/26 14:03:33 collectl -p eispraccexp-16-20260923-000002.raw -sZ --top vctx --from 00:30:00 --thru 000:36:00
-  989  25/09/26 14:03:40 collectl -p eispraccexp-16-20260923-000002.raw -sZ --top vctx --from 00:30:00 --thru 00:36:00
-  990  25/09/26 14:10:33 collectl -p eispraccexp-16-20260923-000002.raw
-  991  25/09/26 15:44:07 cd /home/scripts/cache/cache_files/
-  992  25/09/26 15:44:12 ls -lrth
-  993  25/09/26 16:03:51 history
-  994  25/09/26 17:24:47 history
-  995  25/09/26 19:41:25 history
-  996  25/09/26 19:42:19 tail -10000000f /var/log/user.log | grep "Sep 24 04:..:.."
-  997  25/09/26 19:42:34 tail -10000000f /var/log/user.log | grep "Sep 24 03:..:.."
-  998  25/09/26 19:44:02 history
-[root@eispraccexp-16 ~]# collectl -p eispraccexp-16-20260923-000002.raw -sZ --top vctx --from 03:30:00 --thru 04:14:00
-Couldn't open 'eispraccexp-16-20260923-000002.raw'
-[root@eispraccexp-16 ~]# collectl -p eispraccexp-16-20260924-000002.raw -sZ --top vctx --from 03:30:00 --thru 04:14:00
-Couldn't open 'eispraccexp-16-20260924-000002.raw'
-[root@eispraccexp-16 ~]# collectl -p eispraccexp-16-20260923-000002.raw -sZ --top vctx --from 03:30:00 --thru 04:14:00
-Couldn't open 'eispraccexp-16-20260923-000002.raw'
-[root@eispraccexp-16 ~]# cat collectl -p eispraccexp-16-20260923-000002.raw -sZ --top vctx --from 03:30:00 --thru 04:14:00
-cat: invalid option -- 'p'
-Try 'cat --help' for more information.
-[root@eispraccexp-16 ~]# ^Ct collectl -p eispraccexp-16-20260923-000002.raw -sZ --top vctx --from 03:30:00 --thru 04:14:00
-[root@eispraccexp-16 ~]# cd /var/log/collectl
-[root@eispraccexp-16 collectl]# cat collectl -p eispraccexp-16-20260923-000002.raw -sZ --top vctx --from 03:30:00 --thru 04:14:00
-cat: invalid option -- 'p'
-Try 'cat --help' for more information.
-[root@eispraccexp-16 collectl]# collectl -p eispraccexp-16-20260923-000002.raw -sZ --top vctx --from 03:30:00 --thru 04:14:00
+collectl -p eispraccexp-16-20260923-000002.raw -sZ --top vctx --from 03:30:00 --thru 04:14:00
 
 ### RECORD    1 >>> eispraccexp-16 <<< (1790114507) (Wed Sep 23 03:31:47 2026) ###
 
