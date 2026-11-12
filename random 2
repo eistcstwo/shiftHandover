@@ -1,135 +1,66 @@
- {
-            "sender": "Bot",
-            "message": "",
-            "options": [
-                "1.Team Info",
-                "2. Transaction Info",
-                "3. Cache Info",
-                "4. FAR Information",
-                "5.Server Configuration",
-                "6.Swagger/WorkLoad",
-                "z. Other"
-            ]
-        },
-        {
-            "sender": "You",
-            "message": "swagger/workload"
-        },
-        {
-            "sender": "Bot",
-            "message": {
-                "service": "",
-                "layer": [],
-                "server": [],
-                "eg": []
-            },
-            "options": [
-                "1.main menu"
-            ]
-        },
-        {
-            "sender": "You",
-            "message": "swagger/workload"
-        },
-        {
-            "sender": "Bot",
-            "message": "",
-            "options": [
-                "y.Back",
-                "z.Main Menu"
-            ]
-        },
-        {
-            "sender": "You",
-            "message": "main menu"
-        },
-        {
-            "sender": "Bot",
-            "message": "",
-            "options": [
-                "1.Team Info",
-                "2. Transaction Info",
-                "3. Cache Info",
-                "4. FAR Information",
-                "5.Server Configuration",
-                "6.Swagger/WorkLoad",
-                "z. Other"
-            ]
-        },
-        {
-            "sender": "You",
-            "message": "swagger/workload"
-        },
-        {
-            "sender": "Bot",
-            "message": {
-                "service": "",
-                "layer": [],
-                "server": [],
-                "eg": []
-            },
-            "options": [
-                "1.main menu"
-            ]
-        },
-        {
-            "sender": "You",
-            "message": "main menu"
-        },
-        {
-            "sender": "Bot",
-            "message": "",
-            "options": [
-                "1.Team Info",
-                "2. Transaction Info",
-                "3. Cache Info",
-                "4. FAR Information",
-                "5.Server Configuration",
-                "6.WorkLoad",
-                "z. Other"
-            ]
-        },
-        {
-            "sender": "You",
-            "message": "workload"
-        },
-        {
-            "sender": "Bot",
-            "message": "I don't understand the question.",
-            "options": [
-                "1.main menu"
-            ]
-        },
-        {
-            "sender": "You",
-            "message": "main menu"
-        },
-        {
-            "sender": "Bot",
-            "message": "I don't understand the question.",
-            "options": [
-                "1.Team Info",
-                "2. Transaction Info",
-                "3. Cache Info",
-                "4. FAR Information",
-                "5.Server Configuration",
-                "6.Swagger/WorkLoad",
-                "z. Other"
-            ]
-        },
-        {
-            "sender": "You",
-            "message": "swagger/workload"
-        },
-        {
-            "sender": "Bot",
-            "message": {
-                "service": "",
-                "layer": [],
-                "server": [],
-                "eg": []
-            },
-            "options": [
-                "1.main menu"
-            ]
-        }
+#!/usr/bin/env python3
+import os, sys, json, csv, glob, argparse
+
+p = argparse.ArgumentParser()
+p.add_argument("folder", nargs="?", default=".", help="folder with *_FINAL_DATA.json files")
+p.add_argument("-o", "--out", default="port_monitoring.csv", help="output CSV file")
+p.add_argument("--max-mb", type=int, default=50, help="skip files larger than this (MB)")
+args = p.parse_args()
+
+HEADER = (["file", "hostname", "ip", "date",
+           "isolator_name", "isolator_port", "isolator_v2", "isolator_v3",
+           "broker_name"] + [f"broker_v{i}" for i in range(1, 8)])
+
+def pad(lst, n):
+    lst = list(lst) if isinstance(lst, (list, tuple)) else [lst]
+    return (lst + [""] * n)[:n]
+
+rows, skipped = [], []
+
+for path in sorted(glob.glob(os.path.join(args.folder, "*_FINAL_DATA.json"))):
+    fname = os.path.basename(path)
+    size = os.path.getsize(path)
+    if size == 0:
+        skipped.append((fname, "empty file")); continue
+    if size > args.max_mb * 1024 * 1024:
+        skipped.append((fname, f"too large ({size/1024/1024:.0f} MB)")); continue
+    try:
+        with open(path) as f:
+            data = json.load(f)
+    except Exception as e:
+        skipped.append((fname, f"invalid JSON: {e}")); continue
+
+    # top-level key is the hostname (e.g. "eisprivrexp-22")
+    for host, d in data.items():
+        if not isinstance(d, dict):
+            continue
+        ip, date = d.get("ip", ""), d.get("date", "")
+
+        iso = d.get("ISOLATOR", {}) or {}
+        iso_name, iso_vals = ("", ["", "", ""])
+        if isinstance(iso, dict) and iso:
+            iso_name, v = next(iter(iso.items()))
+            iso_vals = pad(v, 3)
+
+        brokers = d.get("BROKER", {}) or {}
+        if not brokers:
+            rows.append([fname, host, ip, date, iso_name, *iso_vals, "", *[""] * 7])
+        for bname, bvals in brokers.items():
+            rows.append([fname, host, ip, date, iso_name, *iso_vals, bname, *pad(bvals, 7)])
+
+with open(args.out, "w", newline="") as f:
+    w = csv.writer(f)
+    w.writerow(HEADER)
+    w.writerows(rows)
+
+# Pretty table on screen
+table = [HEADER] + [[str(c) for c in r] for r in rows]
+widths = [max(len(str(r[i])) for r in table) for i in range(len(HEADER))]
+for r in table:
+    print("  ".join(str(c).ljust(widths[i]) for i, c in enumerate(r)))
+
+print(f"\n{len(rows)} rows written to {args.out}")
+if skipped:
+    print(f"\nSkipped {len(skipped)} file(s):")
+    for n, why in skipped:
+        print(f"  {n}: {why}")
