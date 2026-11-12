@@ -1,46 +1,183 @@
-.readonly-info-box {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1rem;
-  background: rgba(116, 185, 255, 0.08);
-  border: 1px solid rgba(116, 185, 255, 0.3);
-  border-radius: 8px;
-  font-size: 0.95rem;
-  color: var(--text-primary);
-}
-.readonly-badge {
-  margin-left: auto;
-  font-size: 0.75rem;
-  padding: 0.2rem 0.55rem;
-  background: rgba(0, 184, 148, 0.15);
-  color: #00b894;
-  border-radius: 20px;
-  font-weight: 600;
-}
-.readonly-missing {
-  color: #e17055;
-  font-size: 0.9rem;
-}
-.required-star {
-  color: #e17055;
+-rwxr-x--- 1 eisuser eisuser       434 Nov 12 15:34 10.188.25.10_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser         0 Nov 12 15:34 10.188.25.110_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser         0 Nov 12 15:34 10.188.25.111_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       509 Nov 12 15:34 10.188.25.112_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser         0 Nov 12 15:34 10.188.25.113_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       508 Nov 12 15:34 10.188.25.114_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       508 Nov 12 15:34 10.188.25.115_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       439 Nov 12 15:34 10.188.25.11_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       428 Nov 12 15:34 10.188.25.12_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       395 Nov 12 15:34 10.188.25.131_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       396 Nov 12 15:34 10.188.25.132_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       395 Nov 12 15:34 10.188.25.133_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       395 Nov 12 15:34 10.188.25.134_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       395 Nov 12 15:34 10.188.25.135_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser         0 Nov 12 15:34 10.188.25.13_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       504 Nov 12 15:34 10.188.25.141_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser         0 Nov 12 15:34 10.188.25.142_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       502 Nov 12 15:34 10.188.25.143_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       502 Nov 12 15:34 10.188.25.144_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       502 Nov 12 15:34 10.188.25.145_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       502 Nov 12 15:34 10.188.25.146_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       432 May 26 03:17 10.188.25.14_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       642 Nov 12 15:34 10.188.25.155_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       639 Nov 12 15:34 10.188.25.156_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       593 Sep 30 00:23 10.188.25.157_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       639 Nov 12 15:34 10.188.25.158_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       640 Nov 12 15:34 10.188.25.159_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       435 Nov 12 15:34 10.188.25.15_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       638 Nov 12 15:34 10.188.25.160_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser 276224160 Nov 11 22:20 10.188.25.161_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser      1848 Nov 12 15:34 10.188.25.162_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser      1967 Nov 12 15:34 10.188.25.163_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser      1898 Oct 19 03:21 10.188.25.164_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser      1953 Nov 12 15:34 10.188.25.165_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser      1953 Nov 12 15:34 10.188.25.166_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser      1145 Nov 12 15:34 10.188.25.167_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser      1058 Nov 12 15:34 10.188.25.168_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser      1058 Nov 12 15:34 10.188.25.169_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser      1058 Nov 12 15:34 10.188.25.170_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser      1058 Nov 12 15:34 10.188.25.171_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser      1074 Nov 12 15:34 10.188.25.172_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       483 Nov 12 15:34 10.188.25.173_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       483 Nov 12 15:34 10.188.25.174_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       484 Nov 12 15:34 10.188.25.175_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       483 Oct 16 22:28 10.188.25.176_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       501 Nov 12 15:34 10.188.25.190_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       502 Nov 12 15:34 10.188.25.191_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       501 Nov 12 15:34 10.188.25.192_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       524 Nov 12 15:34 10.188.25.194_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       524 Nov 12 15:34 10.188.25.195_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       523 Nov 12 15:34 10.188.25.196_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       507 Oct 18 00:28 10.188.25.197_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       394 Nov 12 15:34 10.188.25.31_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       394 Nov 12 15:34 10.188.25.32_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       394 Nov 12 15:34 10.188.25.33_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       394 Nov 12 15:34 10.188.25.34_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       520 Nov 12 15:34 10.188.25.41_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser         0 Nov 12 15:34 10.188.25.42_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser      4093 Sep 30 00:24 10.188.25.43_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       520 Nov 12 15:34 10.188.25.44_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       520 Nov 12 15:34 10.188.25.45_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       617 Nov 12 15:34 10.188.25.55_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       615 Nov 12 15:34 10.188.25.56_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       569 Sep 30 00:25 10.188.25.57_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       614 Nov 12 15:34 10.188.25.58_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       568 Oct  1 00:28 10.188.25.59_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       952 Nov 12 15:34 10.188.25.61_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       935 Nov 12 15:34 10.188.25.62_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       948 Nov 12 15:34 10.188.25.63_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       955 Nov 12 15:34 10.188.25.64_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       939 Nov 12 15:34 10.188.25.65_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       949 Nov 12 15:34 10.188.25.66_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser      1044 Nov 12 15:34 10.188.25.67_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       921 Sep 30 00:23 10.188.25.68_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       961 Nov 12 15:34 10.188.25.69_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       961 Nov 12 15:34 10.188.25.70_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       961 Nov 12 15:34 10.188.25.71_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser      1077 Nov 12 15:34 10.188.25.72_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       459 Nov 12 15:34 10.188.25.73_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       459 Nov 12 15:34 10.188.25.74_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       459 Nov 12 15:34 10.188.25.75_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       439 Nov 12 15:41 10.188.26.10_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       428 Nov 12 15:41 10.188.26.11_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       435 Nov 12 15:41 10.188.26.12_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       395 Nov 12 15:41 10.188.26.131_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       395 Nov 12 15:41 10.188.26.132_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       395 Nov 12 15:41 10.188.26.133_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       395 Nov 12 15:41 10.188.26.134_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       435 Nov 12 15:41 10.188.26.13_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       502 Nov 12 15:41 10.188.26.141_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       504 Nov 12 15:41 10.188.26.142_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       466 Nov 12 15:41 10.188.26.173_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       466 Nov 12 15:41 10.188.26.174_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       492 Nov 12 15:41 10.188.26.190_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       453 Nov 12 15:41 10.188.26.191_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       476 Nov 12 15:41 10.188.26.194_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       476 Nov 12 15:41 10.188.26.195_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       394 Nov 12 15:41 10.188.26.31_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       394 Nov 12 15:41 10.188.26.32_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       394 Nov 12 15:41 10.188.26.33_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       394 Nov 12 15:41 10.188.26.34_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       520 Nov 12 15:41 10.188.26.41_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       520 Nov 12 15:41 10.188.26.42_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       616 Nov 12 15:41 10.188.26.55_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       615 Nov 12 15:41 10.188.26.56_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       442 Nov 12 15:41 10.188.26.73_FINAL_DATA.json
+-rwxr-x--- 1 eisuser eisuser       442 Nov 12 15:41 10.188.26.74_FINAL_DATA.json
+
+
+
+
+[root@siprsftp1 Port_Monitoring_data_PR]# cat 10.188.26.74_FINAL_DATA.json | jq
+{
+  "eisprivrexp-22": {
+    "ip": "10.188.26.74",
+    "date": "Thu Nov 12 15:41:21 IST 2026",
+    "ISOLATOR": {
+      "ISOLATOR": [
+        9980,
+        1,
+        0
+      ]
+    },
+    "BROKER_RESTART": [
+      "00:56:26",
+      "1"
+    ],
+    "CACHE": [
+      "13:00:49",
+      "1"
+    ],
+    "system.api": [
+      ""
+    ],
+    "cbssi.sbi.co.in": [
+      "10.191.171.68"
+    ],
+    "imagedb.core": [
+      ""
+    ],
+    "AADHAR_POINTING": [
+      "NO Data"
+    ],
+    "CBS_POINTING": [
+      "NO Data"
+    ],
+    "BROKER": {
+      "IVR_EXP": [
+        4016,
+        1,
+        2,
+        0,
+        0,
+        1,
+        4420
+      ],
+      "LOGGING_EXP": [
+        4009,
+        1,
+        1,
+        0,
+        0,
+        0,
+        4419
+      ],
+      "MISC_EXP_UPI": [
+        4022,
+        1,
+        1,
+        0,
+        0,
+        0,
+        4422
+      ]
+    }
+  }
 }
 
-.btn-danger {
-  padding: 0.75rem 1.5rem;
-  background: linear-gradient(135deg, #e17055, #d63031);
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: opacity 0.2s;
-}
-.btn-danger:disabled { opacity: 0.55; cursor: not-allowed; }
-.btn-danger:hover:not(:disabled) { opacity: 0.88; }
-.btn-choice-danger { border-color: rgba(214,48,49,0.45) !important; }
-.btn-choice-danger:hover { border-color: #d63031 !important; background: rgba(214,48,49,0.08) !important; }
-.reset-choice-grid { display: flex; flex-direction: column; gap: 1rem; margin-top: 1.25rem; }
+
+
 
 
 
