@@ -5,15 +5,23 @@ p = argparse.ArgumentParser()
 p.add_argument("folder", nargs="?", default=".", help="folder with *_FINAL_DATA.json files")
 p.add_argument("-o", "--out", default="port_monitoring.csv", help="output CSV file")
 p.add_argument("--max-mb", type=int, default=50, help="skip files larger than this (MB)")
+p.add_argument("--no-color", action="store_true", help="disable colors on screen")
 args = p.parse_args()
 
 HEADER = ["hostname", "ip", "date",
           "isolator_name", "isolator_port", "isolator_v2",
           "broker_name", "broker_v1", "broker_v2"]
+IDX_ISO_V2, IDX_BRK_V2 = HEADER.index("isolator_v2"), HEADER.index("broker_v2")
 
 def pad(lst, n):
     lst = list(lst) if isinstance(lst, (list, tuple)) else [lst]
     return (lst + [""] * n)[:n]
+
+def is_zero(v):
+    return str(v).strip() == "0"
+
+def is_alert(row):
+    return is_zero(row[IDX_ISO_V2]) or is_zero(row[IDX_BRK_V2])
 
 rows, skipped = [], []
 
@@ -30,7 +38,6 @@ for path in sorted(glob.glob(os.path.join(args.folder, "*_FINAL_DATA.json"))):
     except Exception as e:
         skipped.append((fname, f"invalid JSON: {e}")); continue
 
-    # top-level key is the hostname (e.g. "eisprivrexp-22")
     for host, d in data.items():
         if not isinstance(d, dict):
             continue
@@ -40,7 +47,7 @@ for path in sorted(glob.glob(os.path.join(args.folder, "*_FINAL_DATA.json"))):
         iso_name, iso_vals = "", ["", ""]
         if isinstance(iso, dict) and iso:
             iso_name, v = next(iter(iso.items()))
-            iso_vals = pad(v, 2)          # port, v2
+            iso_vals = pad(v, 2)
 
         brokers = d.get("BROKER", {}) or {}
         if not brokers:
@@ -48,18 +55,53 @@ for path in sorted(glob.glob(os.path.join(args.folder, "*_FINAL_DATA.json"))):
         for bname, bvals in brokers.items():
             rows.append([host, ip, date, iso_name, *iso_vals, bname, *pad(bvals, 2)])
 
+# ---- CSV (no colors possible) ----
 with open(args.out, "w", newline="") as f:
     w = csv.writer(f)
     w.writerow(HEADER)
     w.writerows(rows)
 
-# Pretty table on screen
+# ---- Excel with highlighted rows ----
+xlsx_out = os.path.splitext(args.out)[0] + ".xlsx"
+try:
+    from openpyxl import Workbook
+    from openpyxl.styles import PatternFill, Font
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Port Monitoring"
+    ws.append(HEADER)
+    for c in ws[1]:
+        c.font = Font(bold=True)
+    red = PatternFill("solid", start_color="FFC7CE", end_color="FFC7CE")
+    redfont = Font(color="9C0006", bold=True)
+    for r in rows:
+        ws.append(r)
+        if is_alert(r):
+            for c in ws[ws.max_row]:
+                c.fill, c.font = red, redfont
+    for i, col in enumerate(HEADER, 1):
+        width = max(len(str(col)), *(len(str(r[i-1])) for r in rows)) if rows else len(col)
+        ws.column_dimensions[ws.cell(row=1, column=i).column_letter].width = width + 2
+    ws.freeze_panes = "A2"
+    wb.save(xlsx_out)
+    xlsx_msg = f"Excel (with highlights) written to {xlsx_out}"
+except ImportError:
+    xlsx_msg = "Excel file skipped (openpyxl not installed: pip install openpyxl)"
+
+# ---- Screen table with red highlight ----
+use_color = sys.stdout.isatty() and not args.no_color
+RED, RESET = "\033[41;97m", "\033[0m"
 table = [HEADER] + [[str(c) for c in r] for r in rows]
 widths = [max(len(r[i]) for r in table) for i in range(len(HEADER))]
-for r in table:
-    print("  ".join(c.ljust(widths[i]) for i, c in enumerate(r)))
+for n, r in enumerate(table):
+    line = "  ".join(c.ljust(widths[i]) for i, c in enumerate(r))
+    if n > 0 and is_alert(rows[n-1]):
+        line = (RED + line + RESET) if use_color else line + "   <-- ALERT"
+    print(line)
 
-print(f"\n{len(rows)} rows written to {args.out}")
+alerts = sum(is_alert(r) for r in rows)
+print(f"\n{len(rows)} rows written to {args.out} | {alerts} highlighted (isolator_v2 or broker_v2 = 0)")
+print(xlsx_msg)
 if skipped:
     print(f"\nSkipped {len(skipped)} file(s):")
     for n, why in skipped:
