@@ -7,9 +7,9 @@ p.add_argument("-o", "--out", default="port_monitoring.csv", help="output CSV fi
 p.add_argument("--max-mb", type=int, default=50, help="skip files larger than this (MB)")
 args = p.parse_args()
 
-HEADER = (["file", "hostname", "ip", "date",
-           "isolator_name", "isolator_port", "isolator_v2", "isolator_v3",
-           "broker_name"] + [f"broker_v{i}" for i in range(1, 8)])
+HEADER = ["hostname", "ip", "date",
+          "isolator_name", "isolator_port", "isolator_v2",
+          "broker_name", "broker_v1", "broker_v2"]
 
 def pad(lst, n):
     lst = list(lst) if isinstance(lst, (list, tuple)) else [lst]
@@ -37,16 +37,16 @@ for path in sorted(glob.glob(os.path.join(args.folder, "*_FINAL_DATA.json"))):
         ip, date = d.get("ip", ""), d.get("date", "")
 
         iso = d.get("ISOLATOR", {}) or {}
-        iso_name, iso_vals = ("", ["", "", ""])
+        iso_name, iso_vals = "", ["", ""]
         if isinstance(iso, dict) and iso:
             iso_name, v = next(iter(iso.items()))
-            iso_vals = pad(v, 3)
+            iso_vals = pad(v, 2)          # port, v2
 
         brokers = d.get("BROKER", {}) or {}
         if not brokers:
-            rows.append([fname, host, ip, date, iso_name, *iso_vals, "", *[""] * 7])
+            rows.append([host, ip, date, iso_name, *iso_vals, "", "", ""])
         for bname, bvals in brokers.items():
-            rows.append([fname, host, ip, date, iso_name, *iso_vals, bname, *pad(bvals, 7)])
+            rows.append([host, ip, date, iso_name, *iso_vals, bname, *pad(bvals, 2)])
 
 with open(args.out, "w", newline="") as f:
     w = csv.writer(f)
@@ -55,9 +55,9 @@ with open(args.out, "w", newline="") as f:
 
 # Pretty table on screen
 table = [HEADER] + [[str(c) for c in r] for r in rows]
-widths = [max(len(str(r[i])) for r in table) for i in range(len(HEADER))]
+widths = [max(len(r[i]) for r in table) for i in range(len(HEADER))]
 for r in table:
-    print("  ".join(str(c).ljust(widths[i]) for i, c in enumerate(r)))
+    print("  ".join(c.ljust(widths[i]) for i, c in enumerate(r)))
 
 print(f"\n{len(rows)} rows written to {args.out}")
 if skipped:
